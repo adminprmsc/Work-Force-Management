@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SENIOR_MANAGER_ES
+  RA_ENVIRONMENT_HO
+  RA_ES_TEHSIL
+  WORLD_BANK_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OfficeType {
+  HEAD_OFFICE
+  WORLD_BANK_OFFICE
+  TEHSIL_OFFICE
+}
+
+enum AuditAction {
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  USER_ACTIVATED
+  USER_DEACTIVATED
+  USER_CREDENTIALS_RESET
+}
+
+model User {
+  id          String     @id @default(uuid())
+  email       String     @unique
+  username    String     @unique
+  password    String
+  role        UserRole
+  status      UserStatus @default(ACTIVE)
+  officeId    String?    @map("office_id")
+  createdById String?    @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  office       Office?    @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  createdBy    User?      @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[]     @relation("UserCreatedBy")
+  auditLogs    AuditLog[] @relation("AuditActor")
+  procurementExpenses ProcurementPackageExpense[] @relation("ExpenseCreatedBy")
+
+  @@map("users")
+}
+
+model Office {
+  id        String     @id @default(uuid())
+  type      OfficeType
+  name      String
+  tehsilId  String?    @unique @map("tehsil_id")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  tehsil Tehsil? @relation(fields: [tehsilId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@map("offices")
+}
+
+model Tehsil {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  office               Office?
+  villages             Village[]
+  procurementPackages  ProcurementPackage[]
+
+  @@map("tehsils")
+}
+
+model Village {
+  id        String   @id @default(uuid())
+  name      String
+  tehsilId  String   @map("tehsil_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tehsil              Tehsil                      @relation(fields: [tehsilId], references: [id], onDelete: Cascade)
+  settlements         Settlement[]
+  procurementPackages ProcurementPackageVillage[]
+
+  @@unique([tehsilId, name])
+  @@map("villages")
+}
+
+model Settlement {
+  id        String   @id @default(uuid())
+  name      String
+  villageId String   @map("village_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  village Village @relation(fields: [villageId], references: [id], onDelete: Cascade)
+
+  @@unique([villageId, name])
+  @@map("settlements")
+}
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  actorId      String      @map("actor_id")
+  action       AuditAction
+  resourceType String      @map("resource_type")
+  resourceId   String?     @map("resource_id")
+  metadata     Json?
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model Contractor {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  procurementPackages ProcurementPackage[]
+
+  @@map("contractors")
+}
+
+model Consultant {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  procurementPackages ProcurementPackage[]
+
+  @@map("consultants")
+}
+
+model ProcurementPackage {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  budgetAmount Decimal  @map("budget_amount") @db.Decimal(18, 2)
+  contractorId   String   @map("contractor_id")
+  consultantId   String   @map("consultant_id")
+  tehsilId       String   @map("tehsil_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  contractor Contractor                  @relation(fields: [contractorId], references: [id], onDelete: Restrict)
+  consultant Consultant                  @relation(fields: [consultantId], references: [id], onDelete: Restrict)
+  tehsil     Tehsil                      @relation(fields: [tehsilId], references: [id], onDelete: Restrict)
+  villages   ProcurementPackageVillage[]
+  expenses   ProcurementPackageExpense[]
+
+  @@map("procurement_packages")
+}
+
+model ProcurementPackageExpense {
+  id          String   @id @default(uuid())
+  packageId   String   @map("package_id")
+  amount      Decimal  @db.Decimal(18, 2)
+  description String?
+  expenseDate DateTime @default(now()) @map("expense_date")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  package   ProcurementPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([packageId])
+  @@index([expenseDate])
+  @@map("procurement_package_expenses")
+}
+
+model ProcurementPackageVillage {
+  packageId String @map("package_id")
+  villageId String @map("village_id")
+
+  package ProcurementPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  village Village            @relation(fields: [villageId], references: [id], onDelete: Restrict)
+
+  @@id([packageId, villageId])
+  @@map("procurement_package_villages")
+}

@@ -1,0 +1,320 @@
+import type { LucideIcon } from "lucide-react"
+import {
+  Building2,
+  HardHat,
+  LayoutDashboard,
+  MapPinned,
+  Package,
+  ScrollText,
+  UserCircle,
+  Users,
+  UserSquare2,
+} from "lucide-react"
+
+import { Role, type Role as RoleType } from "@/modules/auth/roles"
+
+export type RouteMeta = {
+  title: string
+  description?: string
+}
+
+export type NavItem = {
+  label: string
+  path: string
+  icon: LucideIcon
+  roles: RoleType[]
+  meta: RouteMeta
+}
+
+export type NavGroup = {
+  label: string
+  items: NavItem[]
+}
+
+const ALL_ROLES = [
+  Role.SENIOR_MANAGER_ES,
+  Role.RA_ENVIRONMENT_HO,
+  Role.WORLD_BANK_USER,
+  Role.RA_ES_TEHSIL,
+] as const
+
+const PROCUREMENT_MANAGERS = [Role.SENIOR_MANAGER_ES, Role.RA_ENVIRONMENT_HO] as const
+
+const PROCUREMENT_READERS = [
+  Role.SENIOR_MANAGER_ES,
+  Role.RA_ENVIRONMENT_HO,
+  Role.WORLD_BANK_USER,
+  Role.RA_ES_TEHSIL,
+] as const
+
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Overview",
+    items: [
+      {
+        label: "Dashboard",
+        path: "/dashboard/senior-manager",
+        icon: LayoutDashboard,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Dashboard",
+          description: "System overview — users, offices, and audit activity",
+        },
+      },
+      {
+        label: "Dashboard",
+        path: "/dashboard/ra-environment",
+        icon: LayoutDashboard,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Dashboard",
+          description: "Head Office overview — procurement and geography",
+        },
+      },
+      {
+        label: "Dashboard",
+        path: "/dashboard/world-bank",
+        icon: LayoutDashboard,
+        roles: [Role.WORLD_BANK_USER],
+        meta: {
+          title: "Dashboard",
+          description: "World Bank overview — procurement and geography",
+        },
+      },
+      {
+        label: "Dashboard",
+        path: "/dashboard/ra-tehsil",
+        icon: LayoutDashboard,
+        roles: [Role.RA_ES_TEHSIL],
+        meta: {
+          title: "Dashboard",
+          description: "Tehsil overview — procurement and geography",
+        },
+      },
+    ],
+  },
+  {
+    label: "Administration",
+    items: [
+      {
+        label: "Users",
+        path: "/dashboard/senior-manager/users",
+        icon: Users,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Users",
+          description: "Create and manage user accounts across all roles",
+        },
+      },
+      {
+        label: "Offices",
+        path: "/dashboard/senior-manager/offices",
+        icon: Building2,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Offices",
+          description: "Head Office, World Bank, and tehsil office directory",
+        },
+      },
+      {
+        label: "Audit logs",
+        path: "/dashboard/senior-manager/audit-logs",
+        icon: ScrollText,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Audit logs",
+          description: "Track user management and system activity",
+        },
+      },
+    ],
+  },
+  {
+    label: "Procurement",
+    items: [
+      {
+        label: "Packages",
+        path: "/dashboard/senior-manager/procurement/packages",
+        icon: Package,
+        roles: [...PROCUREMENT_MANAGERS],
+        meta: {
+          title: "Procurement packages",
+          description: "Contracts linking contractors, consultants, tehsils, and villages",
+        },
+      },
+      {
+        label: "Contractors",
+        path: "/dashboard/senior-manager/procurement/contractors",
+        icon: HardHat,
+        roles: [...PROCUREMENT_MANAGERS],
+        meta: {
+          title: "Contractors",
+          description: "Master list of contractors for procurement packages",
+        },
+      },
+      {
+        label: "Consultants",
+        path: "/dashboard/senior-manager/procurement/consultants",
+        icon: UserSquare2,
+        roles: [...PROCUREMENT_MANAGERS],
+        meta: {
+          title: "Consultants",
+          description: "Master list of consultants for procurement packages",
+        },
+      },
+      {
+        label: "Packages",
+        path: "/dashboard/ra-environment/procurement/packages",
+        icon: Package,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Procurement packages",
+          description: "Contracts linking contractors, consultants, tehsils, and villages",
+        },
+      },
+      {
+        label: "Contractors",
+        path: "/dashboard/ra-environment/procurement/contractors",
+        icon: HardHat,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Contractors",
+          description: "Master list of contractors for procurement packages",
+        },
+      },
+      {
+        label: "Consultants",
+        path: "/dashboard/ra-environment/procurement/consultants",
+        icon: UserSquare2,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Consultants",
+          description: "Master list of consultants for procurement packages",
+        },
+      },
+      {
+        label: "Packages",
+        path: "/dashboard/world-bank/procurement/packages",
+        icon: Package,
+        roles: [Role.WORLD_BANK_USER],
+        meta: {
+          title: "Procurement packages",
+          description: "Read-only view of all procurement packages",
+        },
+      },
+      {
+        label: "Packages",
+        path: "/dashboard/ra-tehsil/procurement/packages",
+        icon: Package,
+        roles: [Role.RA_ES_TEHSIL],
+        meta: {
+          title: "Procurement packages",
+          description: "Procurement packages for your tehsil office",
+        },
+      },
+    ],
+  },
+  {
+    label: "Reference",
+    items: [
+      {
+        label: "Geography",
+        path: "/dashboard/senior-manager/geography",
+        icon: MapPinned,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Geography",
+          description: "Tehsils, villages, and settlements reference",
+        },
+      },
+      {
+        label: "Geography",
+        path: "/dashboard/ra-environment/geography",
+        icon: MapPinned,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Geography",
+          description: "Tehsils, villages, and settlements reference",
+        },
+      },
+      {
+        label: "Geography",
+        path: "/dashboard/world-bank/geography",
+        icon: MapPinned,
+        roles: [Role.WORLD_BANK_USER],
+        meta: {
+          title: "Geography",
+          description: "Tehsils, villages, and settlements reference",
+        },
+      },
+      {
+        label: "Geography",
+        path: "/dashboard/ra-tehsil/geography",
+        icon: MapPinned,
+        roles: [Role.RA_ES_TEHSIL],
+        meta: {
+          title: "Geography",
+          description: "Tehsils, villages, and settlements reference",
+        },
+      },
+      {
+        label: "Profile",
+        path: "/dashboard/ra-environment/profile",
+        icon: UserCircle,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Profile",
+          description: "Your account details",
+        },
+      },
+      {
+        label: "Profile",
+        path: "/dashboard/world-bank/profile",
+        icon: UserCircle,
+        roles: [Role.WORLD_BANK_USER],
+        meta: {
+          title: "Profile",
+          description: "Your account details",
+        },
+      },
+      {
+        label: "Profile",
+        path: "/dashboard/ra-tehsil/profile",
+        icon: UserCircle,
+        roles: [Role.RA_ES_TEHSIL],
+        meta: {
+          title: "Profile",
+          description: "Your account details",
+        },
+      },
+    ],
+  },
+]
+
+export function getNavGroupsForRole(role: RoleType): NavGroup[] {
+  return NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => item.roles.includes(role)),
+  })).filter((group) => group.items.length > 0)
+}
+
+export function getRouteMeta(pathname: string): RouteMeta {
+  const items = NAV_GROUPS.flatMap((group) => group.items)
+  const exact = items.find((item) => item.path === pathname)
+  if (exact) return exact.meta
+
+  const prefix = items
+    .filter((item) => pathname.startsWith(`${item.path}/`))
+    .sort((a, b) => b.path.length - a.path.length)[0]
+  if (prefix) return prefix.meta
+
+  return { title: "Dashboard" }
+}
+
+export function isNavItemActive(pathname: string, itemPath: string): boolean {
+  if (itemPath.endsWith("/senior-manager") || itemPath.endsWith("/ra-environment") || itemPath.endsWith("/world-bank") || itemPath.endsWith("/ra-tehsil")) {
+    return pathname === itemPath
+  }
+  return pathname === itemPath || pathname.startsWith(`${itemPath}/`)
+}
+
+export { ALL_ROLES, PROCUREMENT_MANAGERS, PROCUREMENT_READERS }

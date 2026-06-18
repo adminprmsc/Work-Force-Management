@@ -1,0 +1,1 @@
+{"version":3,"file":"tehsil.mapper.js","sourceRoot":"","sources":["../../../../src/presentation/tehsils/mappers/tehsil.mapper.ts"],"names":[],"mappings":";;AAEA,oDAOC;AAPD,SAAgB,oBAAoB,CAAC,UAAsB;IACzD,OAAO;QACL,EAAE,EAAE,UAAU,CAAC,EAAE;QACjB,IAAI,EAAE,UAAU,CAAC,IAAI;QACrB,SAAS,EAAE,UAAU,CAAC,SAAS;QAC/B,SAAS,EAAE,UAAU,CAAC,SAAS;KAChC,CAAC;AACJ,CAAC"}

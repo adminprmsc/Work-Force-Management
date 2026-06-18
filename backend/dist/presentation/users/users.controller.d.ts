@@ -1,0 +1,91 @@
+import { CreateUserUseCase } from '../../application/use-cases/users/create-user.use-case';
+import { ResetUserCredentialsUseCase } from '../../application/use-cases/users/reset-credentials.use-case';
+import { GetUserUseCase, ListUsersUseCase } from '../../application/use-cases/users/list-users.use-case';
+import { DeleteUserUseCase, UpdateUserStatusUseCase, UpdateUserUseCase } from '../../application/use-cases/users/update-user.use-case';
+import { UserRole } from '../../domain/entities/user.entity';
+import type { AuthenticatedUser } from '../auth/types/auth.types';
+import { CreateUserDto, UpdateUserDto, UpdateUserStatusDto } from './dto/user.dto';
+export declare class UsersController {
+    private readonly createUserUseCase;
+    private readonly listUsersUseCase;
+    private readonly getUserUseCase;
+    private readonly updateUserUseCase;
+    private readonly deleteUserUseCase;
+    private readonly updateUserStatusUseCase;
+    private readonly resetCredentialsUseCase;
+    constructor(createUserUseCase: CreateUserUseCase, listUsersUseCase: ListUsersUseCase, getUserUseCase: GetUserUseCase, updateUserUseCase: UpdateUserUseCase, deleteUserUseCase: DeleteUserUseCase, updateUserStatusUseCase: UpdateUserStatusUseCase, resetCredentialsUseCase: ResetUserCredentialsUseCase);
+    create(actor: AuthenticatedUser, dto: CreateUserDto): Promise<{
+        id: string;
+        email: string;
+        username: string;
+        role: UserRole;
+        status: import("./mappers/user.mapper").UserStatus;
+        officeId: string | null;
+        officeName: string | null;
+        officeType: import("../../domain/entities/user.entity").OfficeType | null;
+        tehsilName: string | null;
+        createdById: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    list(): Promise<{
+        id: string;
+        email: string;
+        username: string;
+        role: UserRole;
+        status: import("./mappers/user.mapper").UserStatus;
+        officeId: string | null;
+        officeName: string | null;
+        officeType: import("../../domain/entities/user.entity").OfficeType | null;
+        tehsilName: string | null;
+        createdById: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }[]>;
+    getOne(actor: AuthenticatedUser, id: string): Promise<{
+        id: string;
+        email: string;
+        username: string;
+        role: UserRole;
+        status: import("./mappers/user.mapper").UserStatus;
+        officeId: string | null;
+        officeName: string | null;
+        officeType: import("../../domain/entities/user.entity").OfficeType | null;
+        tehsilName: string | null;
+        createdById: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    update(actor: AuthenticatedUser, id: string, dto: UpdateUserDto): Promise<{
+        id: string;
+        email: string;
+        username: string;
+        role: UserRole;
+        status: import("./mappers/user.mapper").UserStatus;
+        officeId: string | null;
+        officeName: string | null;
+        officeType: import("../../domain/entities/user.entity").OfficeType | null;
+        tehsilName: string | null;
+        createdById: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    remove(actor: AuthenticatedUser, id: string): Promise<{
+        success: boolean;
+    }>;
+    updateStatus(actor: AuthenticatedUser, id: string, dto: UpdateUserStatusDto): Promise<{
+        id: string;
+        email: string;
+        username: string;
+        role: UserRole;
+        status: import("./mappers/user.mapper").UserStatus;
+        officeId: string | null;
+        officeName: string | null;
+        officeType: import("../../domain/entities/user.entity").OfficeType | null;
+        tehsilName: string | null;
+        createdById: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    resetCredentials(actor: AuthenticatedUser, id: string): Promise<import("../../application/use-cases/users/reset-credentials.use-case").ResetCredentialsResult>;
+}

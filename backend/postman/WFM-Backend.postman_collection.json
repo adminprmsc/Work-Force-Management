@@ -1,0 +1,840 @@
+{
+  "info": {
+    "_postman_id": "wfm-backend-collection",
+    "name": "WFM Backend API",
+    "description": "Work Force Management Backend API — Spec 002 (Clean Architecture / NestJS 11)\n\n**Base URL:** `http://localhost:3001/api`\n\n**Start stack:** `npm run docker:dev`\n**Seed data:** `npm run db:seed`\n\n---\n\n## Architecture\n\n```\nHTTP → Controller → Use Case → Domain Policy → Repository (Prisma)\n```\n\nBusiness rules live in **use cases** and **domain policies** (`user-management.policy.ts`). Controllers only handle HTTP; repositories only handle persistence.\n\n---\n\n## User roles\n\n| Role | Code | Office | Created via API |\n|------|------|--------|-----------------|\n| Senior Manager E&S | `SENIOR_MANAGER_ES` | — | Seed only |\n| RA Environment (HO) | `RA_ENVIRONMENT_HO` | `HEAD_OFFICE` | Yes |\n| RA E&S (Tehsil) | `RA_ES_TEHSIL` | `TEHSIL_OFFICE` | Seed only (1 per tehsil) |\n| World Bank User | `WORLD_BANK_USER` | `WORLD_BANK_OFFICE` | Yes |\n\n## Senior Manager permissions\n\n- **Create:** `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` (must assign matching office)\n- **Activate / deactivate:** all roles including seeded tehsil RAs\n- **Edit / delete / reset credentials:** `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` only\n- **Cannot:** create or delete `RA_ES_TEHSIL`, change user roles, delete self\n- **View:** audit logs, offices, users\n\n## Authenticated (non-admin) access\n\n`RA_ES_TEHSIL`, `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` can access:\n- `GET /auth/profile`\n- `GET /tehsils` and `GET /tehsils/:id/villages`\n\nAll `/users`, `/offices`, `/audit-logs` routes require `SENIOR_MANAGER_ES`.\n\n---\n\n## Seed credentials\n\n| Account | Email | Password |\n|---------|-------|----------|\n| Senior Manager | `senior.manager@wfm.local` | `SeniorManager@123` |\n| RA E&S (Ahmadpur Sial) | `ra.es.ahmadpur-sial@wfm.local` | `RaEs@123` |\n\n---\n\n## Suggested flow\n\n1. **Health Check** — verify API is up\n2. **Login (Senior Manager)** — saves `token`, `actorId`, `actorRole`\n3. **List All Offices** — saves `headOfficeId`, `worldBankOfficeId`, `tehsilOfficeId`\n4. **Create RA Environment (HO)** — saves `userId`\n5. **Create World Bank User** — saves `worldBankUserId`\n6. **List Users** — saves `raEsUserId` (first seeded tehsil RA)\n7. **List Tehsils** → **List Villages by Tehsil**\n8. **List Audit Logs** — paginated trail of user mutations\n\n> **Note:** Workforce scheduling is not implemented yet. This collection covers auth, RBAC, offices, geography, and audit logging only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001/api" },
+    { "key": "token", "value": "" },
+    { "key": "actorId", "value": "" },
+    { "key": "actorRole", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "worldBankUserId", "value": "" },
+    { "key": "raEsUserId", "value": "" },
+    { "key": "temporaryPassword", "value": "" },
+    { "key": "headOfficeId", "value": "" },
+    { "key": "worldBankOfficeId", "value": "" },
+    { "key": "tehsilId", "value": "" },
+    { "key": "tehsilOfficeId", "value": "" },
+    { "key": "villageId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns status ok', () => pm.expect(body.status).to.eql('ok'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Public — no auth required.\n\n**Response:** `{ \"status\": \"ok\" }`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (Senior Manager)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Returns accessToken and user', () => {",
+                  "  pm.expect(res.accessToken).to.be.a('string');",
+                  "  pm.expect(res.user.role).to.eql('SENIOR_MANAGER_ES');",
+                  "});",
+                  "if (res.accessToken) {",
+                  "  pm.collectionVariables.set('token', res.accessToken);",
+                  "  pm.environment.set('token', res.accessToken);",
+                  "}",
+                  "if (res.user) {",
+                  "  pm.collectionVariables.set('actorId', res.user.id);",
+                  "  pm.collectionVariables.set('actorRole', res.user.role);",
+                  "  pm.environment.set('actorId', res.user.id);",
+                  "  pm.environment.set('actorRole', res.user.role);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"senior.manager@wfm.local\",\n  \"password\": \"SeniorManager@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Senior Manager E&S — full admin access to users, offices, and audit logs.\n\n**Response:**\n```json\n{\n  \"accessToken\": \"<jwt>\",\n  \"user\": { \"id\", \"email\", \"username\", \"role\", \"createdAt\" }\n}\n```\n\nInactive accounts return `401`. Invalid credentials return generic `401` (no user enumeration)."
+          }
+        },
+        {
+          "name": "Login (RA E&S — Ahmadpur Sial)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Role is RA_ES_TEHSIL', () => pm.expect(res.user.role).to.eql('RA_ES_TEHSIL'));",
+                  "if (res.accessToken) {",
+                  "  pm.collectionVariables.set('token', res.accessToken);",
+                  "  pm.environment.set('token', res.accessToken);",
+                  "}",
+                  "if (res.user) {",
+                  "  pm.collectionVariables.set('actorId', res.user.id);",
+                  "  pm.collectionVariables.set('actorRole', res.user.role);",
+                  "  pm.environment.set('actorId', res.user.id);",
+                  "  pm.environment.set('actorRole', res.user.role);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ra.es.ahmadpur-sial@wfm.local\",\n  \"password\": \"RaEs@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Seeded tehsil RA — can access profile and tehsil geography only. Cannot manage users, offices, or audit logs.\n\nEmail pattern: `ra.es.<tehsil-slug>@wfm.local`"
+          }
+        },
+        {
+          "name": "Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const user = pm.response.json();",
+                  "pm.test('Returns authenticated user', () => {",
+                  "  pm.expect(user).to.have.property('id');",
+                  "  pm.expect(user).to.have.property('email');",
+                  "  pm.expect(user).to.have.property('username');",
+                  "  pm.expect(user).to.have.property('role');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "profile"]
+            },
+            "description": "Any authenticated user. JWT is re-validated on every request; inactive users are rejected even with a valid token.\n\n**Response:** `{ id, email, username, role }`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Offices",
+      "description": "Senior Manager only. Read-only listing for office assignment when creating users.",
+      "item": [
+        {
+          "name": "List All Offices",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const offices = pm.response.json();",
+                  "pm.test('Returns office array', () => pm.expect(offices).to.be.an('array'));",
+                  "const ho = offices.find(o => o.type === 'HEAD_OFFICE');",
+                  "const wb = offices.find(o => o.type === 'WORLD_BANK_OFFICE');",
+                  "const tehsilOffice = offices.find(o => o.type === 'TEHSIL_OFFICE');",
+                  "if (ho) {",
+                  "  pm.collectionVariables.set('headOfficeId', ho.id);",
+                  "  pm.environment.set('headOfficeId', ho.id);",
+                  "}",
+                  "if (wb) {",
+                  "  pm.collectionVariables.set('worldBankOfficeId', wb.id);",
+                  "  pm.environment.set('worldBankOfficeId', wb.id);",
+                  "}",
+                  "if (tehsilOffice) {",
+                  "  pm.collectionVariables.set('tehsilOfficeId', tehsilOffice.id);",
+                  "  pm.environment.set('tehsilOfficeId', tehsilOffice.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offices",
+              "host": ["{{baseUrl}}"],
+              "path": ["offices"]
+            },
+            "description": "Returns Head Office (1), World Bank Office (1), and Tehsil Offices (16).\n\n**Response item:** `{ id, type, name, tehsilId, tehsilName, createdAt, updatedAt }`"
+          }
+        },
+        {
+          "name": "List Head Offices",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const offices = pm.response.json();",
+                  "pm.test('All offices are HEAD_OFFICE', () => {",
+                  "  offices.forEach(o => pm.expect(o.type).to.eql('HEAD_OFFICE'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offices?type=HEAD_OFFICE",
+              "host": ["{{baseUrl}}"],
+              "path": ["offices"],
+              "query": [{ "key": "type", "value": "HEAD_OFFICE" }]
+            },
+            "description": "Filter by `HEAD_OFFICE`. Required office type for `RA_ENVIRONMENT_HO` users."
+          }
+        },
+        {
+          "name": "List World Bank Offices",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const offices = pm.response.json();",
+                  "pm.test('All offices are WORLD_BANK_OFFICE', () => {",
+                  "  offices.forEach(o => pm.expect(o.type).to.eql('WORLD_BANK_OFFICE'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offices?type=WORLD_BANK_OFFICE",
+              "host": ["{{baseUrl}}"],
+              "path": ["offices"],
+              "query": [{ "key": "type", "value": "WORLD_BANK_OFFICE" }]
+            },
+            "description": "Filter by `WORLD_BANK_OFFICE`. Required office type for `WORLD_BANK_USER` users."
+          }
+        },
+        {
+          "name": "List Tehsil Offices",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const offices = pm.response.json();",
+                  "pm.test('All offices are TEHSIL_OFFICE', () => {",
+                  "  offices.forEach(o => pm.expect(o.type).to.eql('TEHSIL_OFFICE'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offices?type=TEHSIL_OFFICE",
+              "host": ["{{baseUrl}}"],
+              "path": ["offices"],
+              "query": [{ "key": "type", "value": "TEHSIL_OFFICE" }]
+            },
+            "description": "Filter by `TEHSIL_OFFICE`. One per tehsil; each has exactly one seeded `RA_ES_TEHSIL` user. Tehsil offices are not assignable via the create-user API."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "Senior Manager only. All mutating actions are recorded in audit logs.",
+      "item": [
+        {
+          "name": "List Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const users = pm.response.json();",
+                  "pm.test('Returns user array', () => pm.expect(users).to.be.an('array'));",
+                  "const raEnv = users.find(u => u.role === 'RA_ENVIRONMENT_HO');",
+                  "const raEs = users.find(u => u.role === 'RA_ES_TEHSIL');",
+                  "const wb = users.find(u => u.role === 'WORLD_BANK_USER');",
+                  "if (raEnv) {",
+                  "  pm.collectionVariables.set('userId', raEnv.id);",
+                  "  pm.environment.set('userId', raEnv.id);",
+                  "}",
+                  "if (raEs) {",
+                  "  pm.collectionVariables.set('raEsUserId', raEs.id);",
+                  "  pm.environment.set('raEsUserId', raEs.id);",
+                  "}",
+                  "if (wb) {",
+                  "  pm.collectionVariables.set('worldBankUserId', wb.id);",
+                  "  pm.environment.set('worldBankUserId', wb.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            },
+            "description": "Lists all users. Saves first `RA_ENVIRONMENT_HO` → `userId`, first `RA_ES_TEHSIL` → `raEsUserId`, first `WORLD_BANK_USER` → `worldBankUserId`.\n\n**Response item:** `{ id, email, username, role, status, officeId, officeName, officeType, tehsilName, createdById, createdAt, updatedAt }`"
+          }
+        },
+        {
+          "name": "Get User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const user = pm.response.json();",
+                  "pm.test('Returns user with id', () => pm.expect(user.id).to.eql(pm.collectionVariables.get('userId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Get a single user by ID. Uses `userId` from List Users or Create requests."
+          }
+        },
+        {
+          "name": "Create RA Environment (HO)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('User created with correct role and office', () => {",
+                  "  pm.expect(res.role).to.eql('RA_ENVIRONMENT_HO');",
+                  "  pm.expect(res.officeType).to.eql('HEAD_OFFICE');",
+                  "  pm.expect(res.status).to.eql('ACTIVE');",
+                  "});",
+                  "if (res.id) {",
+                  "  pm.collectionVariables.set('userId', res.id);",
+                  "  pm.environment.set('userId', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ra.env@wfm.local\",\n  \"username\": \"ra_env_ho\",\n  \"password\": \"Research@123\",\n  \"role\": \"RA_ENVIRONMENT_HO\",\n  \"officeId\": \"{{headOfficeId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            },
+            "description": "Creates `RA_ENVIRONMENT_HO` assigned to Head Office.\n\n**Business rules enforced:**\n- Only Senior Manager can create\n- `officeId` required and must be `HEAD_OFFICE`\n- Email and username must be unique\n- Password hashed with bcrypt (never returned)\n- Writes `USER_CREATED` audit log\n\nRun **List All Offices** first to populate `headOfficeId`."
+          }
+        },
+        {
+          "name": "Create World Bank User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('User created with correct role and office', () => {",
+                  "  pm.expect(res.role).to.eql('WORLD_BANK_USER');",
+                  "  pm.expect(res.officeType).to.eql('WORLD_BANK_OFFICE');",
+                  "});",
+                  "if (res.id) {",
+                  "  pm.collectionVariables.set('worldBankUserId', res.id);",
+                  "  pm.environment.set('worldBankUserId', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"worldbank@wfm.local\",\n  \"username\": \"wb_user\",\n  \"password\": \"WorldBank@123\",\n  \"role\": \"WORLD_BANK_USER\",\n  \"officeId\": \"{{worldBankOfficeId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            },
+            "description": "Creates `WORLD_BANK_USER` assigned to World Bank Office.\n\n`RA_ES_TEHSIL` and `SENIOR_MANAGER_ES` cannot be created via API (returns `403`).\n\nRun **List All Offices** first to populate `worldBankOfficeId`."
+          }
+        },
+        {
+          "name": "Update User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const user = pm.response.json();",
+                  "pm.test('Username updated', () => pm.expect(user.username).to.eql('ra_env_ho_updated'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"ra_env_ho_updated\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Update `email`, `username`, or `officeId`. **Role cannot be changed** (`403`). If changing `officeId`, the new office must match the user's role type.\n\nWrites `USER_UPDATED` audit log."
+          }
+        },
+        {
+          "name": "Deactivate RA E&S (Tehsil)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const user = pm.response.json();",
+                  "pm.test('User is inactive', () => pm.expect(user.status).to.eql('INACTIVE'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{raEsUserId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{raEsUserId}}", "status"]
+            },
+            "description": "Senior Manager can activate/deactivate **all** roles including seeded `RA_ES_TEHSIL` users.\n\nInactive users cannot log in and are blocked on every JWT-authenticated request.\n\nWrites `USER_DEACTIVATED` audit log. Uses `raEsUserId` from List Users."
+          }
+        },
+        {
+          "name": "Activate RA E&S (Tehsil)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const user = pm.response.json();",
+                  "pm.test('User is active', () => pm.expect(user.status).to.eql('ACTIVE'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{raEsUserId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{raEsUserId}}", "status"]
+            },
+            "description": "Re-activates a deactivated tehsil RA. Writes `USER_ACTIVATED` audit log."
+          }
+        },
+        {
+          "name": "Reset Credentials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const res = pm.response.json();",
+                  "pm.test('Returns temporary password', () => {",
+                  "  pm.expect(res.temporaryPassword).to.be.a('string');",
+                  "  pm.expect(res.email).to.be.a('string');",
+                  "});",
+                  "if (res.temporaryPassword) {",
+                  "  pm.collectionVariables.set('temporaryPassword', res.temporaryPassword);",
+                  "  pm.environment.set('temporaryPassword', res.temporaryPassword);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}/reset-credentials",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}", "reset-credentials"]
+            },
+            "description": "Generates a random temporary password, hashes it in DB, and returns the plaintext **once**.\n\n**Response:** `{ email, username, temporaryPassword }`\n\nWorks for `RA_ENVIRONMENT_HO` and `WORLD_BANK_USER`. Writes `USER_CREDENTIALS_RESET` audit log."
+          }
+        },
+        {
+          "name": "Delete User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Returns success', () => pm.expect(res.success).to.eql(true));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Deletes `RA_ENVIRONMENT_HO` or `WORLD_BANK_USER`.\n\n**Blocked (`403`):**\n- `RA_ES_TEHSIL` (seeded, not deletable)\n- Self-deletion\n\nWrites `USER_DELETED` audit log."
+          }
+        },
+        {
+          "name": "Create RA E&S (Forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ra.es.fake@wfm.local\",\n  \"username\": \"ra_es_fake\",\n  \"password\": \"Research@123\",\n  \"role\": \"RA_ES_TEHSIL\",\n  \"officeId\": \"{{tehsilOfficeId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            },
+            "description": "Negative test — `RA_ES_TEHSIL` is a seeded role and cannot be created via API. Expects `403 Forbidden`.\n\nRequires Senior Manager token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tehsils",
+      "description": "Any authenticated user. Geography is seeded and read-only (Tehsil → Village → Settlement).",
+      "item": [
+        {
+          "name": "List Tehsils",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const tehsils = pm.response.json();",
+                  "pm.test('Returns 16 tehsils', () => pm.expect(tehsils.length).to.eql(16));",
+                  "if (tehsils.length > 0) {",
+                  "  pm.collectionVariables.set('tehsilId', tehsils[0].id);",
+                  "  pm.environment.set('tehsilId', tehsils[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tehsils",
+              "host": ["{{baseUrl}}"],
+              "path": ["tehsils"]
+            },
+            "description": "Returns 16 fixed tehsils with village counts.\n\n**Response item:** `{ id, name, villageCount, createdAt }`"
+          }
+        },
+        {
+          "name": "List Villages by Tehsil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const villages = pm.response.json();",
+                  "pm.test('Returns village array', () => pm.expect(villages).to.be.an('array'));",
+                  "if (villages.length > 0) {",
+                  "  pm.collectionVariables.set('villageId', villages[0].id);",
+                  "  pm.environment.set('villageId', villages[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tehsils/{{tehsilId}}/villages",
+              "host": ["{{baseUrl}}"],
+              "path": ["tehsils", "{{tehsilId}}", "villages"]
+            },
+            "description": "Lists villages for a tehsil. Requires `tehsilId` from List Tehsils.\n\n**Response item:** `{ id, name, tehsilId, settlementCount, createdAt }`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "description": "Senior Manager only. Immutable trail of all user mutations.",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const res = pm.response.json();",
+                  "pm.test('Returns paginated result', () => {",
+                  "  pm.expect(res.items).to.be.an('array');",
+                  "  pm.expect(res.total).to.be.a('number');",
+                  "  pm.expect(res.page).to.eql(1);",
+                  "  pm.expect(res.limit).to.eql(20);",
+                  "});",
+                  "if (res.items.length > 0) {",
+                  "  const log = res.items[0];",
+                  "  pm.test('Audit log has required fields', () => {",
+                  "    pm.expect(log).to.have.property('action');",
+                  "    pm.expect(log).to.have.property('actor');",
+                  "    pm.expect(log.actor).to.have.property('email');",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit-logs?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit-logs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20", "description": "Max 100" }
+              ]
+            },
+            "description": "Paginated audit trail. Actions: `USER_CREATED`, `USER_UPDATED`, `USER_DELETED`, `USER_ACTIVATED`, `USER_DEACTIVATED`, `USER_CREDENTIALS_RESET`.\n\n**Response:**\n```json\n{\n  \"items\": [{ \"id\", \"action\", \"resourceType\", \"resourceId\", \"metadata\", \"createdAt\", \"actor\": { \"id\", \"email\", \"username\" } }],\n  \"total\", \"page\", \"limit\"\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RBAC — Forbidden Examples",
+      "description": "Run **Login (RA E&S)** first, then these requests to verify access restrictions.",
+      "item": [
+        {
+          "name": "List Users (Forbidden for RA E&S)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            },
+            "description": "Requires `SENIOR_MANAGER_ES`. Expects `403` when called with a tehsil RA token."
+          }
+        },
+        {
+          "name": "List Offices (Forbidden for RA E&S)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offices",
+              "host": ["{{baseUrl}}"],
+              "path": ["offices"]
+            },
+            "description": "Requires `SENIOR_MANAGER_ES`. Expects `403` when called with a tehsil RA token."
+          }
+        },
+        {
+          "name": "List Audit Logs (Forbidden for RA E&S)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit-logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit-logs"]
+            },
+            "description": "Requires `SENIOR_MANAGER_ES`. Expects `403` when called with a tehsil RA token."
+          }
+        }
+      ]
+    }
+  ]
+}
