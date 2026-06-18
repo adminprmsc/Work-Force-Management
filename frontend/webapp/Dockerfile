@@ -3,8 +3,12 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Install dependencies first for better layer caching.
+# Use `npm install` (not `npm ci`): the lockfile is generated on macOS, and
+# `npm ci` hard-fails on Linux over platform-gated optional deps (e.g. the
+# wasm fallbacks for Tailwind's native oxide binary). install respects the
+# locked versions while tolerating that platform delta.
 COPY package*.json ./
-RUN npm ci
+RUN npm install --no-audit --no-fund
 
 # Build the SPA. VITE_* vars are inlined at build time, so the API base URL
 # must be provided here. Default is the same-origin "/api" path that Nginx

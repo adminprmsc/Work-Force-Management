@@ -7,7 +7,9 @@ FROM base AS deps
 COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
-RUN npm ci
+# `npm install` (not `npm ci`): lockfile is macOS-generated and `npm ci` fails
+# on Linux over platform-gated optional deps. install honors locked versions.
+RUN npm install --no-audit --no-fund
 
 # ── Development (hot-reload) ───────────────────────────────────────────────
 FROM deps AS development
@@ -35,7 +37,7 @@ RUN npm run build
 FROM base AS production
 ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
 COPY --from=builder /app/dist ./dist
