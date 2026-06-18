@@ -1,0 +1,17 @@
+# ── Secrets / environment ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# SSH keypair accidentally placed in the repo root — never commit private keys.
+/Work Force Management
+/Work Force Management.pub
+
+# ── OS / editor cruft ────────────────────────────────────────────────────────
+.DS_Store
+*.log
+
+# ── Dependencies / build output (per-package files also ignore these) ────────
+node_modules/
+dist/

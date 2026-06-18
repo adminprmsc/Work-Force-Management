@@ -1,0 +1,65 @@
+# ssh -i ~/.ssh/wfm_instance adminprms98@101.50.84.209
+
+# # B) If it asks for a password or rejects the key, the public key isn't on the server yet. Install it once using the password you set at creation:
+
+# # macOS includes ssh-copy-id on recent versions:
+# ssh-copy-id -i ~/.ssh/wfm_instance.pub adminprms98@101.50.84.209
+
+# # If ssh-copy-id is missing, do it manually:
+# cat ~/.ssh/wfm_instance.pub | ssh adminprms98@101.50.84.209 \
+#   "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+
+
+# Then reconnect with the key (command A above) — no password needed.
+
+# # C) Just use the password (always works if SSH password auth is enabled):
+
+# ssh adminprms98@101.50.84.209
+
+
+
+Step 1 — Move the key into ~/.ssh with a clean (space-free) name
+Filenames with spaces break ssh -i constantly. Copy it to a normal location:
+
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+cp "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management"     ~/.ssh/wfm_instance
+cp "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management.pub" ~/.ssh/wfm_instance.pub
+chmod 600 ~/.ssh/wfm_instance
+chmod 644 ~/.ssh/wfm_instance.pub
+Step 2 — Connect
+A) If this key was added during instance creation (key auth already works):
+
+ssh -i ~/.ssh/wfm_instance adminprms98@101.50.84.209
+B) If it asks for a password or rejects the key, the public key isn't on the server yet. Install it once using the password you set at creation:
+
+# macOS includes ssh-copy-id on recent versions:
+ssh-copy-id -i ~/.ssh/wfm_instance.pub adminprms98@101.50.84.209
+# If ssh-copy-id is missing, do it manually:
+cat ~/.ssh/wfm_instance.pub | ssh adminprms98@101.50.84.209 \
+  "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+Then reconnect with the key (command A above) — no password needed.
+
+C) Just use the password (always works if SSH password auth is enabled):
+
+ssh adminprms98@101.50.84.209
+Step 3 — Make it one word: ssh wfm (optional but recommended)
+Add this to ~/.ssh/config:
+
+Host wfm
+    HostName 101.50.84.209
+    User adminprms98
+    IdentityFile ~/.ssh/wfm_instance
+    IdentitiesOnly yes
+Now you can just run:
+
+ssh wfm
+If the connection times out
+Make sure port 22 (SSH) is allowed in the instance's Security Group / firewall in the NCP panel — same place the RDP note mentions port 3389. Without it, every SSH attempt will hang.
+
+Two security notes, as your DevOps:
+
+That private key is inside your git repo working tree. I already git-ignored it, but move it out of the project (Step 1 copies it to ~/.ssh) and then delete it from the repo folder so it never risks being pushed:
+rm "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management" \
+   "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management.pub"
+The key's comment shows it was generated as aubairakif@192.168.1.16 (your machine), so it's your personal key — fine for now, but for a shared client server consider a dedicated deploy key later.
+Once you're in, tell me and I'll walk you through getting Docker + the WFM stack running on it (the make up flow from the deployment SOP), accounting for the IDS-BCC project already on there if you co-locate.

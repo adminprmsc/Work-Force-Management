@@ -18,11 +18,13 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
-# ── Migrations (one-shot init job) ───────────────────────────────────────────
+# ── Migrations (one-shot init job, runs on every deploy) ─────────────────────
 FROM deps AS migrate
 COPY . .
 RUN npx prisma generate
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run db:seed"]
+COPY docker/entrypoints/migrate.sh /usr/local/bin/migrate.sh
+RUN chmod +x /usr/local/bin/migrate.sh
+ENTRYPOINT ["/usr/local/bin/migrate.sh"]
 
 # ── Production build ─────────────────────────────────────────────────────────
 FROM deps AS builder
