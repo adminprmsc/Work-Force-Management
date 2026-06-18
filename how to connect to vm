@@ -18,48 +18,169 @@
 
 
 
-Step 1 — Move the key into ~/.ssh with a clean (space-free) name
-Filenames with spaces break ssh -i constantly. Copy it to a normal location:
+# Step 1 — Move the key into ~/.ssh with a clean (space-free) name
+# Filenames with spaces break ssh -i constantly. Copy it to a normal location:
 
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-cp "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management"     ~/.ssh/wfm_instance
-cp "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management.pub" ~/.ssh/wfm_instance.pub
-chmod 600 ~/.ssh/wfm_instance
-chmod 644 ~/.ssh/wfm_instance.pub
-Step 2 — Connect
-A) If this key was added during instance creation (key auth already works):
+# mkdir -p ~/.ssh && chmod 700 ~/.ssh
+# cp "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management"     ~/.ssh/wfm_instance
+# cp "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management.pub" ~/.ssh/wfm_instance.pub
+# chmod 600 ~/.ssh/wfm_instance
+# chmod 644 ~/.ssh/wfm_instance.pub
+# Step 2 — Connect
+# A) If this key was added during instance creation (key auth already works):
 
-ssh -i ~/.ssh/wfm_instance adminprms98@101.50.84.209
-B) If it asks for a password or rejects the key, the public key isn't on the server yet. Install it once using the password you set at creation:
+# ssh -i ~/.ssh/wfm_instance adminprms98@101.50.84.209
+# B) If it asks for a password or rejects the key, the public key isn't on the server yet. Install it once using the password you set at creation:
 
-# macOS includes ssh-copy-id on recent versions:
-ssh-copy-id -i ~/.ssh/wfm_instance.pub adminprms98@101.50.84.209
-# If ssh-copy-id is missing, do it manually:
-cat ~/.ssh/wfm_instance.pub | ssh adminprms98@101.50.84.209 \
-  "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
-Then reconnect with the key (command A above) — no password needed.
+# # macOS includes ssh-copy-id on recent versions:
+# ssh-copy-id -i ~/.ssh/wfm_instance.pub adminprms98@101.50.84.209
+# # If ssh-copy-id is missing, do it manually:
+# cat ~/.ssh/wfm_instance.pub | ssh adminprms98@101.50.84.209 \
+#   "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+# Then reconnect with the key (command A above) — no password needed.
 
-C) Just use the password (always works if SSH password auth is enabled):
+# C) Just use the password (always works if SSH password auth is enabled):
 
-ssh adminprms98@101.50.84.209
-Step 3 — Make it one word: ssh wfm (optional but recommended)
-Add this to ~/.ssh/config:
+# ssh adminprms98@101.50.84.209
+# Step 3 — Make it one word: ssh wfm (optional but recommended)
+# Add this to ~/.ssh/config:
 
-Host wfm
-    HostName 101.50.84.209
-    User adminprms98
-    IdentityFile ~/.ssh/wfm_instance
-    IdentitiesOnly yes
-Now you can just run:
+# Host wfm
+#     HostName 101.50.84.209
+#     User adminprms98
+#     IdentityFile ~/.ssh/wfm_instance
+#     IdentitiesOnly yes
+# Now you can just run:
 
-ssh wfm
-If the connection times out
-Make sure port 22 (SSH) is allowed in the instance's Security Group / firewall in the NCP panel — same place the RDP note mentions port 3389. Without it, every SSH attempt will hang.
+# ssh wfm
+# If the connection times out
+# Make sure port 22 (SSH) is allowed in the instance's Security Group / firewall in the NCP panel — same place the RDP note mentions port 3389. Without it, every SSH attempt will hang.
 
-Two security notes, as your DevOps:
+# Two security notes, as your DevOps:
 
-That private key is inside your git repo working tree. I already git-ignored it, but move it out of the project (Step 1 copies it to ~/.ssh) and then delete it from the repo folder so it never risks being pushed:
-rm "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management" \
-   "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management.pub"
-The key's comment shows it was generated as aubairakif@192.168.1.16 (your machine), so it's your personal key — fine for now, but for a shared client server consider a dedicated deploy key later.
-Once you're in, tell me and I'll walk you through getting Docker + the WFM stack running on it (the make up flow from the deployment SOP), accounting for the IDS-BCC project already on there if you co-locate.
+# That private key is inside your git repo working tree. I already git-ignored it, but move it out of the project (Step 1 copies it to ~/.ssh) and then delete it from the repo folder so it never risks being pushed:
+# rm "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management" \
+#    "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management/Work Force Management.pub"
+# The key's comment shows it was generated as aubairakif@192.168.1.16 (your machine), so it's your personal key — fine for now, but for a shared client server consider a dedicated deploy key later.
+# Once you're in, tell me and I'll walk you through getting Docker + the WFM stack running on it (the make up flow from the deployment SOP), accounting for the IDS-BCC project already on there if you co-locate.
+
+
+
+
+
+
+# Safe — your private key, .pub, and .env are not tracked in git, so pushing won't leak anything (the .gitignore I added keeps them out).
+
+# Here's the complete deployment runbook. Commands are tagged [LAPTOP] (your Mac) or [VM] (the SSH session). This box is fresh and dedicated to WFM, so it owns port 80 directly — no IDS-BCC concerns here.
+
+# Phase 0 — Push the deployment files to GitHub [LAPTOP]
+# The Docker/deploy files I created are still local. They must be on GitHub before the VM can clone them.
+
+# cd "/Users/aubairakif/Codebases/PRMSC-HO/Work Force Management"
+# git add .gitignore Makefile docker-compose.prod.yml .env.prod.example deploy/ \
+#         backend/Dockerfile backend/docker/entrypoints/migrate.sh \
+#         frontend/webapp/Dockerfile frontend/webapp/.dockerignore frontend/webapp/docker/
+# git commit -m "Add Dockerized production deployment (compose, Nginx edge, migrate job, SOP)"
+# git push origin main
+# I can run this commit + push for you right now if you'd like — just say "push it" and I'll handle Phase 0.
+
+# Phase 1 — Install Docker + a little swap [VM]
+# # System update
+# sudo apt-get update && sudo apt-get upgrade -y
+# sudo apt-get install -y git make ca-certificates curl
+# # Docker Engine + Compose v2
+# curl -fsSL https://get.docker.com | sudo sh
+# sudo usermod -aG docker $USER
+# # 2 GB swap — safety net so image builds don't OOM on 4 GB RAM
+# sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+# sudo mkswap /swapfile && sudo swapon /swapfile
+# echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+# Then log out and back in (exit, then ssh wfm) so your user picks up the docker group — otherwise you'll need sudo for every docker command.
+
+# Verify:
+
+# docker --version && docker compose version
+# Phase 2 — Clone the repo via a GitHub deploy key [VM]
+# Your repo is private, so the VM needs read access. A read-only deploy key is the clean way:
+
+# # Generate a key dedicated to this server
+# ssh-keygen -t ed25519 -C "wfm-prod-deploy" -f ~/.ssh/github_deploy -N ""
+# cat ~/.ssh/github_deploy.pub
+# Copy that printed public key, then on GitHub: repo → Settings → Deploy keys → Add deploy key → paste it → leave "Allow write access" unchecked → Add.
+
+# Then tell SSH to use it and clone:
+
+# cat >> ~/.ssh/config <<'EOF'
+# Host github.com
+#     IdentityFile ~/.ssh/github_deploy
+#     IdentitiesOnly yes
+# EOF
+# git clone git@github.com:adminprmsc/Work-Force-Management.git ~/wfm
+# cd ~/wfm
+# Phase 3 — Configure secrets [VM]
+# cp .env.prod.example .env
+# # Generate a strong JWT secret and look at it
+# openssl rand -base64 48
+# nano .env
+# In .env, set real values for:
+
+# POSTGRES_PASSWORD — strong password
+# JWT_SECRET — paste the openssl output
+# SEED_SENIOR_MANAGER_PASSWORD and SEED_RA_ES_PASSWORD
+# leave WEB_HTTP_PORT=80 and VITE_API_BASE_URL=/api
+# Save (Ctrl+O, Enter, Ctrl+X).
+
+# Phase 4 — Build, migrate, and launch [VM]
+# make up        # builds images, starts postgres → runs all migrations → api → nginx
+# First run takes a few minutes (npm installs + builds). The migrate job applies every migration (including the initial one) and seeds the baseline accounts before the API starts.
+
+# Verify:
+
+# make ps        # all services Up / healthy
+# make health    # edge + API both return ok
+# make logs      # watch if anything misbehaves (Ctrl+C to exit)
+# Phase 5 — Open port 80 and test from your browser [VM + NCP panel]
+# NCP Security Group: open inbound 80/tcp (and 443 later for HTTPS) — same place you opened 22 for SSH.
+# If Ubuntu's ufw is active, allow it too:
+# sudo ufw allow 80/tcp && sudo ufw status
+# Then from your laptop browser:
+
+# http://101.50.84.209/
+# You should see the WFM login page, and it'll talk to the API at /api on the same origin (no CORS).
+
+# When you're ready, start with Phase 0 (or tell me "push it" and I'll commit + push now). Then work down the phases on the VM and paste me any errors — I'll debug them with you. Want me to push the files now?
+
+# no no we connected to sepeerate vm instanc ewhich is dedicated to Wfm 
+
+# Exactly right — that's the ideal setup. This box (prmsc-wfm-prod, 192.168.2.236 / public 101.50.84.209) is dedicated to WFM, completely separate from the IDS-BCC instance (192.168.2.212). So:
+
+# No co-location hacks needed — WFM owns port 80 directly.
+# No resource contention with IDS-BCC.
+# The deployment setup I built deploys cleanly with make up.
+# So just follow the runbook top to bottom as-is — Phase 0 (push) → Phases 1–5 on the VM. Nothing changes.
+
+# Want me to commit and push the deployment files now (Phase 0) so the VM can clone them? Say the word and I'll handle it.
+
+
+
+Phase 2 — Clone the repo (public, HTTPS) [VM]
+git clone https://github.com/adminprmsc/Work-Force-Management.git ~/wfm
+cd ~/wfm
+That's it. Verify the deployment files are present:
+
+ls docker-compose.prod.yml Makefile .env.prod.example deploy/
+Note: for future deploys you'll just cd ~/wfm && make deploy (it does git pull + rebuild + migrate). Public HTTPS clone is read-only and needs no auth, so that works fine. If you make the repo private later, switch to the deploy-key method and re-clone via git@github.com:....
+
+Everything else (Phases 0, 1, 3, 4, 5) stays the same. So the order is:
+
+Phase 0 — push the deploy files (say "push it" and I'll do it).
+Phase 1 — install Docker + swap on the VM.
+Phase 2 — clone (above).
+Phase 3 — fill in .env.
+Phase 4 — make up.
+Phase 5 — open port 80 + test.
+Want me to push the files now so the clone in Phase 2 includes them?
+
+
+
+
