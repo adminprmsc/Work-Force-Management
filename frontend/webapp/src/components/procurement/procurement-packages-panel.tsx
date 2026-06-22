@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
+import { Eye, ClipboardCheck, Pencil, Plus, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
@@ -27,7 +27,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { PackageBaselineRequirements } from "@/components/compliance/package-baseline-requirements"
 import { MasterEntitySelect } from "@/components/procurement/master-entity-select"
+import { PackageBaselineDialog } from "@/components/procurement/package-baseline-dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -50,9 +52,7 @@ import {
   useContractorsQuery,
   useCreateConsultantMutation,
   useCreateContractorMutation,
-  useCreateProcurementPackageExpenseMutation,
   useCreateProcurementPackageMutation,
-  useDeleteProcurementPackageExpenseMutation,
   useDeleteProcurementPackageMutation,
   useProcurementPackageNamePreviewQuery,
   useProcurementPackagesQuery,
@@ -102,10 +102,12 @@ function packageToForm(pkg: ProcurementPackage): PackageFormState {
 
 type ProcurementPackagesPanelProps = {
   canManage: boolean
+  canEditCompliance: boolean
 }
 
 export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   canManage,
+  canEditCompliance,
 }: ProcurementPackagesPanelProps) {
   const packagesQuery = useProcurementPackagesQuery()
   const contractorsQuery = useContractorsQuery(canManage)
@@ -115,8 +117,6 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   const createMutation = useCreateProcurementPackageMutation()
   const updateMutation = useUpdateProcurementPackageMutation()
   const deleteMutation = useDeleteProcurementPackageMutation()
-  const createExpenseMutation = useCreateProcurementPackageExpenseMutation()
-  const deleteExpenseMutation = useDeleteProcurementPackageExpenseMutation()
   const createContractorMutation = useCreateContractorMutation()
   const createConsultantMutation = useCreateConsultantMutation()
 
@@ -157,9 +157,8 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   const [form, setForm] = useState<PackageFormState>(emptyForm)
 
   const [detailPackage, setDetailPackage] = useState<ProcurementPackage | null>(null)
+  const [compliancePackage, setCompliancePackage] = useState<ProcurementPackage | null>(null)
   const [deletePackage, setDeletePackage] = useState<ProcurementPackage | null>(null)
-  const [expenseAmount, setExpenseAmount] = useState("")
-  const [expenseDescription, setExpenseDescription] = useState("")
 
   const villagesQuery = useVillagesQuery(form.tehsilId || null)
   const namePreviewQuery = useProcurementPackageNamePreviewQuery(
@@ -296,48 +295,6 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
     }
   }, [deleteMutation, deletePackage])
 
-  const handleAddExpense = useCallback(async () => {
-    if (!detailPackage) return
-    const amount = Number.parseFloat(expenseAmount)
-    if (Number.isNaN(amount) || amount <= 0) {
-      toast.error("Enter a valid expense amount")
-      return
-    }
-
-    try {
-      await createExpenseMutation.mutateAsync({
-        packageId: detailPackage.id,
-        input: {
-          amount,
-          description: expenseDescription.trim() || undefined,
-        },
-      })
-      const refreshed = packages?.find((pkg) => pkg.id === detailPackage.id)
-      if (refreshed) setDetailPackage(refreshed)
-      setExpenseAmount("")
-      setExpenseDescription("")
-      toast.success("Expense recorded")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add expense")
-    }
-  }, [createExpenseMutation, detailPackage, expenseAmount, expenseDescription, packages])
-
-  const handleDeleteExpense = useCallback(
-    async (expenseId: string) => {
-      if (!detailPackage) return
-      try {
-        await deleteExpenseMutation.mutateAsync({
-          packageId: detailPackage.id,
-          expenseId,
-        })
-        toast.success("Expense removed")
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to delete expense")
-      }
-    },
-    [deleteExpenseMutation, detailPackage],
-  )
-
   useEffect(() => {
     if (!detailPackage?.id || !packages) return
     const refreshed = packages.find((pkg) => pkg.id === detailPackage.id)
@@ -346,12 +303,23 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
 
   return (
     <>
+      {canEditCompliance && !canManage ? (
+        <PackageBaselineRequirements
+          className="mb-6"
+          variant="compact"
+          title="Before village monitoring surveys"
+          description="Open a package and complete the survey-specific baseline fields assigned to it. Each village monitoring form defines its own one-time package requirements."
+        />
+      ) : null}
+
       <DataPanel
         title="Procurement packages"
         description={
           canManage
-            ? "Manage packages with unique names, allocated budgets, and expense tracking"
-            : "View procurement packages, budgets, and expenses for your access level"
+            ? "Manage packages with unique names and allocated ESMP budgets"
+            : canEditCompliance
+              ? "Open a package and record ESMP baseline before starting village surveys"
+              : "View procurement packages and survey-driven budget utilization"
         }
         action={
           canManage ? (
@@ -408,6 +376,22 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          {canEditCompliance ? (
+                            <Button
+                              size="sm"
+                              variant={canManage ? "ghost" : "default"}
+                              className={canManage ? "size-8 px-0" : undefined}
+                              title="ESMP baseline"
+                              onClick={() => setCompliancePackage(pkg)}
+                            >
+                              <ClipboardCheck
+                                className={canManage ? "size-4" : "mr-2 size-4"}
+                              />
+                              {canManage ? null : (
+                                <span className="hidden sm:inline">ESMP baseline</span>
+                              )}
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="icon-sm"
@@ -642,6 +626,14 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                   <p className="text-sm text-muted-foreground">No villages found for this tehsil.</p>
                 )}
               </div>
+
+              {!editingPackage ? (
+                <PackageBaselineRequirements
+                  variant="compact"
+                  title="Package baseline is form-defined"
+                  description="When you assign a village monitoring survey to this package, the tehsil RA completes whatever one-time baseline fields you define on that survey form."
+                />
+              ) : null}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setFormOpen(false)}>
@@ -667,17 +659,15 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
       <Dialog
         open={Boolean(detailPackage)}
         onOpenChange={(open) => {
-          if (!open) {
-            setDetailPackage(null)
-            setExpenseAmount("")
-            setExpenseDescription("")
-          }
+          if (!open) setDetailPackage(null)
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{detailPackage?.name}</DialogTitle>
-            <DialogDescription>Package details, budget summary, and expenses</DialogDescription>
+            <DialogDescription>
+              Package details and budget summary from submitted village monitoring forms
+            </DialogDescription>
           </DialogHeader>
           {detailPackage ? (
             <div className="grid gap-5 text-sm">
@@ -730,91 +720,13 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold">Expense ledger</h4>
-                  <span className="text-xs text-muted-foreground">
-                    {detailPackage.expenses.length} record
-                    {detailPackage.expenses.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                {canManage ? (
-                  <div className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_auto]">
-                    <Input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      placeholder="Amount (PKR)"
-                      value={expenseAmount}
-                      onChange={(e) => setExpenseAmount(e.target.value)}
-                    />
-                    <Input
-                      placeholder="Description (optional)"
-                      value={expenseDescription}
-                      onChange={(e) => setExpenseDescription(e.target.value)}
-                    />
-                    <Button
-                      onClick={() => void handleAddExpense()}
-                      disabled={createExpenseMutation.isPending}
-                    >
-                      Add expense
-                    </Button>
-                  </div>
-                ) : null}
-
-                <Table className="enterprise-table">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Recorded by</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      {canManage ? <TableHead className="text-right">Actions</TableHead> : null}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detailPackage.expenses.length ? (
-                      detailPackage.expenses.map((expense) => (
-                        <TableRow key={expense.id}>
-                          <TableCell>
-                            {format(new Date(expense.expenseDate), "dd MMM yyyy")}
-                          </TableCell>
-                          <TableCell>{expense.description ?? "—"}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {expense.createdBy.username}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(expense.amount)}
-                          </TableCell>
-                          {canManage ? (
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                title="Delete expense"
-                                disabled={deleteExpenseMutation.isPending}
-                                onClick={() => void handleDeleteExpense(expense.id)}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            </TableCell>
-                          ) : null}
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={canManage ? 5 : 4}
-                          className="text-center text-muted-foreground"
-                        >
-                          No expenses recorded yet.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+              <p className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Total expenses</span> are
+                calculated automatically from submitted survey forms. Any field marked
+                &quot;Deduct from package budget&quot; (for example PPE, HSE, or environmental
+                monitoring utilization on the C-ESMP checklist) is summed across all village
+                visits for this package.
+              </p>
             </div>
           ) : null}
         </DialogContent>
@@ -848,6 +760,15 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
           </AlertDialogContent>
         </AlertDialog>
       ) : null}
+
+      <PackageBaselineDialog
+        package={compliancePackage}
+        open={Boolean(compliancePackage)}
+        onOpenChange={(open) => {
+          if (!open) setCompliancePackage(null)
+        }}
+        canEdit={canEditCompliance}
+      />
     </>
   )
 })

@@ -157,3 +157,29 @@ export type UpdateProcurementPackageExpenseInput = {
   description?: string | null
   expenseDate?: string
 }
+
+export type PackageBaselineFormSummary = {
+  formId: string
+  formTitle: string
+  baselineTitle: string | null
+  isBaselineComplete: boolean
+}
+
+export type PackageFormBaseline = {
+  packageId: string
+  formId: string
+  formTitle: string
+  baselineTitle: string | null
+  baselineDescription: string | null
+  fields: import("@/modules/api/survey-types").SurveyFormBaselineField[]
+  answers: { fieldId: string; value: unknown }[]
+  isBaselineComplete: boolean
+  isMobilized: boolean
+  submittedAt: string | null
+  submittedBy: { id: string; username: string; email: string } | null
+  updatedAt: string | null
+}
+
+export type SavePackageBaselineInput = {
+  answers: { fieldId: string; value: unknown }[]
+}

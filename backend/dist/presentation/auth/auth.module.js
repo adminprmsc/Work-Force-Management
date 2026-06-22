@@ -16,6 +16,7 @@ const login_use_case_port_1 = require("../../application/ports/login.use-case.po
 const token_service_port_1 = require("../../application/ports/token.service.port");
 const user_repository_port_1 = require("../../application/ports/user.repository.port");
 const get_user_by_id_use_case_1 = require("../../application/use-cases/auth/get-user-by-id.use-case");
+const change_own_password_use_case_1 = require("../../application/use-cases/auth/change-own-password.use-case");
 const login_use_case_1 = require("../../application/use-cases/auth/login.use-case");
 const prisma_user_repository_1 = require("../../infrastructure/database/repositories/prisma-user.repository");
 const bcrypt_hashing_service_1 = require("../../infrastructure/security/bcrypt-hashing.service");
@@ -46,6 +47,7 @@ exports.AuthModule = AuthModule = __decorate([
             auth_service_1.AuthService,
             login_use_case_1.LoginUseCase,
             get_user_by_id_use_case_1.GetUserByIdUseCase,
+            change_own_password_use_case_1.ChangeOwnPasswordUseCase,
             jwt_strategy_1.JwtStrategy,
             {
                 provide: login_use_case_port_1.LOGIN_USE_CASE,

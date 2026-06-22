@@ -5,6 +5,7 @@ export type AuthenticatedUser = {
   email: string
   username: string
   role: Role
+  mustChangePassword: boolean
 }
 
 export type AuthResult = {
@@ -14,6 +15,7 @@ export type AuthResult = {
     email: string
     username: string
     role: Role
+    mustChangePassword: boolean
     createdAt: string
   }
 }

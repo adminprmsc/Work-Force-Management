@@ -7,6 +7,7 @@ import { LOGIN_USE_CASE } from '../../application/ports/login.use-case.port';
 import { TOKEN_SERVICE } from '../../application/ports/token.service.port';
 import { USER_REPOSITORY } from '../../application/ports/user.repository.port';
 import { GetUserByIdUseCase } from '../../application/use-cases/auth/get-user-by-id.use-case';
+import { ChangeOwnPasswordUseCase } from '../../application/use-cases/auth/change-own-password.use-case';
 import { LoginUseCase } from '../../application/use-cases/auth/login.use-case';
 import { PrismaUserRepository } from '../../infrastructure/database/repositories/prisma-user.repository';
 import { BcryptHashingService } from '../../infrastructure/security/bcrypt-hashing.service';
@@ -36,6 +37,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     AuthService,
     LoginUseCase,
     GetUserByIdUseCase,
+    ChangeOwnPasswordUseCase,
     JwtStrategy,
     {
       provide: LOGIN_USE_CASE,

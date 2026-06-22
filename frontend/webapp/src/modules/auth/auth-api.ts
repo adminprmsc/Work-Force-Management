@@ -14,3 +14,14 @@ export async function getProfile(token: string): Promise<AuthenticatedUser> {
     token,
   })
 }
+
+export async function changePassword(
+  token: string,
+  input: { currentPassword: string; newPassword: string },
+): Promise<{ success: true }> {
+  return apiRequest<{ success: true }>("/auth/change-password", {
+    method: "POST",
+    token,
+    body: JSON.stringify(input),
+  })
+}

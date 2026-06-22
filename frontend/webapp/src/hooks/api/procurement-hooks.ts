@@ -11,10 +11,14 @@ import {
   deleteContractor,
   deleteProcurementPackage,
   deleteProcurementPackageExpense,
+  getPackageFormBaseline,
+  getProcurementPackage,
   listConsultants,
   listContractors,
+  listPackageBaselineForms,
   listProcurementPackages,
   previewProcurementPackageName,
+  savePackageFormBaseline,
   updateConsultant,
   updateContractor,
   updateProcurementPackage,
@@ -23,6 +27,7 @@ import type {
   CreateProcurementPackageExpenseInput,
   CreateProcurementPackageInput,
   ProcurementPackageNamePreview,
+  SavePackageBaselineInput,
   UpdateProcurementPackageInput,
 } from "@/modules/api/types"
 
@@ -135,6 +140,20 @@ export function useProcurementPackagesQuery(enabled = true) {
   })
 }
 
+export function useProcurementPackageQuery(
+  packageId: string | null | undefined,
+  enabled = true,
+) {
+  const token = useAuthToken()
+
+  return useQuery({
+    queryKey: queryKeys.procurementPackages.detail(packageId ?? ""),
+    queryFn: () => getProcurementPackage(token!, packageId!),
+    enabled: Boolean(token && packageId) && enabled,
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function useProcurementPackageNamePreviewQuery(
   tehsilId: string | null,
   enabled = true,
@@ -211,6 +230,66 @@ export function useDeleteProcurementPackageExpenseMutation() {
       deleteProcurementPackageExpense(token!, params.packageId, params.expenseId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.procurementPackages.all })
+    },
+  })
+}
+
+export function usePackageBaselineFormsQuery(
+  packageId: string | null,
+  enabled = true,
+) {
+  const token = useAuthToken()
+
+  return useQuery({
+    queryKey: queryKeys.procurementPackages.baselineForms(packageId ?? ""),
+    queryFn: () => listPackageBaselineForms(token!, packageId!),
+    enabled: Boolean(token && packageId) && enabled,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function usePackageFormBaselineQuery(
+  packageId: string | null,
+  formId: string | null,
+  enabled = true,
+) {
+  const token = useAuthToken()
+
+  return useQuery({
+    queryKey: queryKeys.procurementPackages.baseline(packageId ?? "", formId ?? ""),
+    queryFn: () => getPackageFormBaseline(token!, packageId!, formId!),
+    enabled: Boolean(token && packageId && formId) && enabled,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useSavePackageFormBaselineMutation() {
+  const token = useAuthToken()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (params: {
+      packageId: string
+      formId: string
+      input: SavePackageBaselineInput
+    }) =>
+      savePackageFormBaseline(
+        token!,
+        params.packageId,
+        params.formId,
+        params.input,
+      ),
+    onSuccess: async (_data, variables) => {
+      await qc.invalidateQueries({
+        queryKey: queryKeys.procurementPackages.baseline(
+          variables.packageId,
+          variables.formId,
+        ),
+      })
+      await qc.invalidateQueries({
+        queryKey: queryKeys.procurementPackages.baselineForms(variables.packageId),
+      })
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyAssignments.all })
     },
   })
 }

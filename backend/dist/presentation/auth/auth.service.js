@@ -16,12 +16,15 @@ exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const token_service_port_1 = require("../../application/ports/token.service.port");
 const login_use_case_port_1 = require("../../application/ports/login.use-case.port");
+const change_own_password_use_case_1 = require("../../application/use-cases/auth/change-own-password.use-case");
 let AuthService = class AuthService {
     loginUseCase;
     tokenService;
-    constructor(loginUseCase, tokenService) {
+    changeOwnPasswordUseCase;
+    constructor(loginUseCase, tokenService, changeOwnPasswordUseCase) {
         this.loginUseCase = loginUseCase;
         this.tokenService = tokenService;
+        this.changeOwnPasswordUseCase = changeOwnPasswordUseCase;
     }
     async login(dto) {
         const input = {
@@ -30,6 +33,10 @@ let AuthService = class AuthService {
         };
         const user = await this.loginUseCase.execute(input);
         return this.buildAuthResult(user);
+    }
+    async changePassword(userId, dto) {
+        await this.changeOwnPasswordUseCase.execute(userId, dto.currentPassword, dto.newPassword);
+        return { success: true };
     }
     async buildAuthResult(user) {
         const accessToken = await this.tokenService.generateAccessToken({
@@ -44,6 +51,7 @@ let AuthService = class AuthService {
                 email: user.email,
                 username: user.username,
                 role: user.role,
+                mustChangePassword: user.mustChangePassword,
                 createdAt: user.createdAt,
             },
         };
@@ -54,6 +62,6 @@ exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(login_use_case_port_1.LOGIN_USE_CASE)),
     __param(1, (0, common_1.Inject)(token_service_port_1.TOKEN_SERVICE)),
-    __metadata("design:paramtypes", [Function, Function])
+    __metadata("design:paramtypes", [Function, Function, change_own_password_use_case_1.ChangeOwnPasswordUseCase])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

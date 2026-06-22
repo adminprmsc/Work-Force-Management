@@ -18,6 +18,7 @@ const prisma_module_1 = require("./infrastructure/database/prisma/prisma.module"
 const auth_module_1 = require("./presentation/auth/auth.module");
 const procurement_module_1 = require("./presentation/procurement/procurement.module");
 const rbac_module_1 = require("./presentation/rbac/rbac.module");
+const survey_module_1 = require("./presentation/survey/survey.module");
 const app_controller_1 = require("./app.controller");
 let AppModule = class AppModule {
 };
@@ -34,6 +35,7 @@ exports.AppModule = AppModule = __decorate([
             auth_module_1.AuthModule,
             rbac_module_1.RbacModule,
             procurement_module_1.ProcurementModule,
+            survey_module_1.SurveyModule,
         ],
         controllers: [app_controller_1.AppController],
     })

@@ -20,6 +20,7 @@ const procurement_package_repository_port_1 = require("../../ports/procurement-p
 const procurement_actor_resolver_1 = require("../../services/procurement-actor.resolver");
 const procurement_package_validator_1 = require("../../services/procurement-package.validator");
 const procurement_package_naming_service_1 = require("../../services/procurement-package-naming.service");
+const procurement_package_budget_enricher_1 = require("../../services/procurement-package-budget.enricher");
 function formatMoney(value) {
     return value.toFixed(2);
 }
@@ -32,9 +33,11 @@ async function assertUniquePackageName(repository, name, excludeId) {
 let ListProcurementPackagesUseCase = class ListProcurementPackagesUseCase {
     packageRepository;
     actorResolver;
-    constructor(packageRepository, actorResolver) {
+    budgetEnricher;
+    constructor(packageRepository, actorResolver, budgetEnricher) {
         this.packageRepository = packageRepository;
         this.actorResolver = actorResolver;
+        this.budgetEnricher = budgetEnricher;
     }
     async execute(user) {
         const actor = await this.actorResolver.resolve(user);
@@ -44,7 +47,8 @@ let ListProcurementPackagesUseCase = class ListProcurementPackagesUseCase {
         const filter = actor.role === user_entity_1.UserRole.RA_ES_TEHSIL && actor.tehsilId
             ? { tehsilId: actor.tehsilId }
             : undefined;
-        return this.packageRepository.findAll(filter);
+        const packages = await this.packageRepository.findAll(filter);
+        return this.budgetEnricher.enrich(packages);
     }
 };
 exports.ListProcurementPackagesUseCase = ListProcurementPackagesUseCase;
@@ -52,14 +56,17 @@ exports.ListProcurementPackagesUseCase = ListProcurementPackagesUseCase = __deco
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(procurement_package_repository_port_1.PROCUREMENT_PACKAGE_REPOSITORY)),
     __metadata("design:paramtypes", [procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
-        procurement_actor_resolver_1.ProcurementActorResolver])
+        procurement_actor_resolver_1.ProcurementActorResolver,
+        procurement_package_budget_enricher_1.ProcurementPackageBudgetEnricher])
 ], ListProcurementPackagesUseCase);
 let GetProcurementPackageUseCase = class GetProcurementPackageUseCase {
     packageRepository;
     actorResolver;
-    constructor(packageRepository, actorResolver) {
+    budgetEnricher;
+    constructor(packageRepository, actorResolver, budgetEnricher) {
         this.packageRepository = packageRepository;
         this.actorResolver = actorResolver;
+        this.budgetEnricher = budgetEnricher;
     }
     async execute(user, id) {
         const actor = await this.actorResolver.resolve(user);
@@ -73,7 +80,7 @@ let GetProcurementPackageUseCase = class GetProcurementPackageUseCase {
         if (!(0, procurement_access_policy_1.canReadProcurementPackage)(actor, pkg.tehsil.id)) {
             throw new common_1.ForbiddenException('Insufficient permissions');
         }
-        return pkg;
+        return this.budgetEnricher.enrichOne(pkg);
     }
 };
 exports.GetProcurementPackageUseCase = GetProcurementPackageUseCase;
@@ -81,7 +88,8 @@ exports.GetProcurementPackageUseCase = GetProcurementPackageUseCase = __decorate
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(procurement_package_repository_port_1.PROCUREMENT_PACKAGE_REPOSITORY)),
     __metadata("design:paramtypes", [procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
-        procurement_actor_resolver_1.ProcurementActorResolver])
+        procurement_actor_resolver_1.ProcurementActorResolver,
+        procurement_package_budget_enricher_1.ProcurementPackageBudgetEnricher])
 ], GetProcurementPackageUseCase);
 let PreviewProcurementPackageNameUseCase = class PreviewProcurementPackageNameUseCase {
     namingService;

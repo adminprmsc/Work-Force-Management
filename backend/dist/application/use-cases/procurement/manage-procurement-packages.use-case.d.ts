@@ -3,6 +3,7 @@ import { ProcurementPackageRepositoryPort } from '../../ports/procurement-packag
 import { ProcurementActorResolver } from '../../services/procurement-actor.resolver';
 import { ProcurementPackageValidator } from '../../services/procurement-package.validator';
 import { ProcurementPackageNamingService } from '../../services/procurement-package-naming.service';
+import { ProcurementPackageBudgetEnricher } from '../../services/procurement-package-budget.enricher';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 export interface CreateProcurementPackageCommand {
     name: string;
@@ -19,13 +20,15 @@ export interface UpdateProcurementPackageCommand {
 export declare class ListProcurementPackagesUseCase {
     private readonly packageRepository;
     private readonly actorResolver;
-    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver);
+    private readonly budgetEnricher;
+    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, budgetEnricher: ProcurementPackageBudgetEnricher);
     execute(user: AuthenticatedUser): Promise<ProcurementPackage[]>;
 }
 export declare class GetProcurementPackageUseCase {
     private readonly packageRepository;
     private readonly actorResolver;
-    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver);
+    private readonly budgetEnricher;
+    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, budgetEnricher: ProcurementPackageBudgetEnricher);
     execute(user: AuthenticatedUser, id: string): Promise<ProcurementPackage>;
 }
 export declare class PreviewProcurementPackageNameUseCase {

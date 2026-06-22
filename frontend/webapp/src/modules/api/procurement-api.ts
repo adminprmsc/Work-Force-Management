@@ -9,6 +9,9 @@ import type {
   ProcurementPackageNamePreview,
   UpdateProcurementPackageExpenseInput,
   UpdateProcurementPackageInput,
+  PackageFormBaseline,
+  PackageBaselineFormSummary,
+  SavePackageBaselineInput,
 } from "./types"
 
 export function listContractors(token: string): Promise<Contractor[]> {
@@ -190,6 +193,43 @@ export function deleteProcurementPackageExpense(
     {
       method: "DELETE",
       token,
+    },
+  )
+}
+
+export function listPackageBaselineForms(
+  token: string,
+  packageId: string,
+): Promise<PackageBaselineFormSummary[]> {
+  return apiRequest<PackageBaselineFormSummary[]>(
+    `/procurement-packages/${packageId}/baseline-forms`,
+    { method: "GET", token },
+  )
+}
+
+export function getPackageFormBaseline(
+  token: string,
+  packageId: string,
+  formId: string,
+): Promise<PackageFormBaseline> {
+  return apiRequest<PackageFormBaseline>(
+    `/procurement-packages/${packageId}/forms/${formId}/baseline`,
+    { method: "GET", token },
+  )
+}
+
+export function savePackageFormBaseline(
+  token: string,
+  packageId: string,
+  formId: string,
+  input: SavePackageBaselineInput,
+): Promise<PackageFormBaseline> {
+  return apiRequest<PackageFormBaseline>(
+    `/procurement-packages/${packageId}/forms/${formId}/baseline`,
+    {
+      method: "PUT",
+      token,
+      body: JSON.stringify(input),
     },
   )
 }

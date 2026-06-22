@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import {
+  Allow,
   IsArray,
   IsDateString,
   IsNotEmpty,
@@ -9,6 +11,7 @@ import {
   MaxLength,
   Min,
   ArrayMinSize,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateMasterNameDto {
@@ -92,4 +95,19 @@ export class UpdateProcurementPackageExpenseDto {
   @IsOptional()
   @IsDateString()
   expenseDate?: string;
+}
+
+export class SavePackageBaselineDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PackageBaselineAnswerDto)
+  answers!: PackageBaselineAnswerDto[];
+}
+
+export class PackageBaselineAnswerDto {
+  @IsUUID()
+  fieldId!: string;
+
+  @Allow()
+  value!: unknown;
 }

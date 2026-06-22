@@ -66,7 +66,10 @@ export function LoginPage() {
   );
 
   if (auth.status === "authenticated") {
-    return <Navigate to={roleToDashboardPath(auth.user.role)} replace />;
+    if (auth.user.mustChangePassword) {
+      return <Navigate to="/change-password" replace />
+    }
+    return <Navigate to={roleToDashboardPath(auth.user.role)} replace />
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -75,6 +78,10 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       const user = await auth.signIn({ email: email.trim(), password });
+      if (user.mustChangePassword) {
+        navigate("/change-password", { replace: true });
+        return;
+      }
       if (from) {
         navigate(from, { replace: true });
         return;
@@ -126,7 +133,7 @@ export function LoginPage() {
             Secure enterprise portal
           </div>
           <h1 className="text-4xl font-bold leading-[1.1] tracking-tight">
-            Work Force
+            E&S
             <br />
             Management System
           </h1>

@@ -77,6 +77,7 @@ let PrismaUserRepository = class PrismaUserRepository {
                 password: data.password,
                 role: data.role,
                 officeId: data.officeId,
+                mustChangePassword: data.mustChangePassword,
             },
             include: this.include,
         });
@@ -94,7 +95,7 @@ let PrismaUserRepository = class PrismaUserRepository {
         await this.prisma.user.delete({ where: { id } });
     }
     toDomain(record) {
-        return new user_entity_1.User(record.id, record.email, record.username, record.password, record.role, record.status, record.officeId, record.office?.name ?? null, record.office?.type ?? null, record.office?.tehsil?.name ?? null, record.createdById, record.createdAt, record.updatedAt);
+        return new user_entity_1.User(record.id, record.email, record.username, record.password, record.role, record.status, record.mustChangePassword, record.officeId, record.office?.name ?? null, record.office?.type ?? null, record.office?.tehsil?.name ?? null, record.createdById, record.createdAt, record.updatedAt);
     }
 };
 exports.PrismaUserRepository = PrismaUserRepository;

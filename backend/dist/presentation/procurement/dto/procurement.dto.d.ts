@@ -26,3 +26,10 @@ export declare class UpdateProcurementPackageExpenseDto {
     description?: string | null;
     expenseDate?: string;
 }
+export declare class SavePackageBaselineDto {
+    answers: PackageBaselineAnswerDto[];
+}
+export declare class PackageBaselineAnswerDto {
+    fieldId: string;
+    value: unknown;
+}

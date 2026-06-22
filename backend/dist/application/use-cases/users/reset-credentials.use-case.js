@@ -39,7 +39,10 @@ let ResetUserCredentialsUseCase = class ResetUserCredentialsUseCase {
         }
         const temporaryPassword = (0, crypto_1.randomBytes)(9).toString('base64url');
         const hashedPassword = await this.hashingService.hash(temporaryPassword);
-        await this.userRepository.update(userId, { password: hashedPassword });
+        await this.userRepository.update(userId, {
+            password: hashedPassword,
+            mustChangePassword: true,
+        });
         await this.auditService.logUserAction(actor.id, audit_log_entity_1.AuditAction.USER_CREDENTIALS_RESET, userId, { targetEmail: user.email, targetRole: user.role });
         return {
             email: user.email,

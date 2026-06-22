@@ -10,6 +10,7 @@ export type AuthContextValue = AuthState & {
   signIn: (input: { email: string; password: string }) => Promise<AuthenticatedUser>
   signOut: () => void
   refreshProfile: () => Promise<void>
+  changePassword: (input: { currentPassword: string; newPassword: string }) => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

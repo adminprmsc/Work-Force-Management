@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { getProfile, login } from "./auth-api"
+import { changePassword as changePasswordApi, getProfile, login } from "./auth-api"
 import type { AuthenticatedUser } from "./auth-types"
 import { AuthContext, type AuthState, type AuthContextValue } from "./auth-context"
 
@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: res.user.email,
       username: res.user.username,
       role: res.user.role,
+      mustChangePassword: res.user.mustChangePassword,
     }
     setState({
       status: "authenticated",
@@ -53,14 +54,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ status: "anonymous", token: null, user: null })
   }, [])
 
+  const changePassword = useCallback(
+    async (input: { currentPassword: string; newPassword: string }) => {
+      if (state.status !== "authenticated") return
+      await changePasswordApi(state.token, input)
+      const user = await getProfile(state.token)
+      setState({ status: "authenticated", token: state.token, user })
+    },
+    [state],
+  )
+
   const value = useMemo<AuthContextValue>(() => {
     return {
       ...state,
       signIn,
       signOut,
       refreshProfile,
+      changePassword,
     }
-  }, [refreshProfile, signIn, signOut, state])
+  }, [changePassword, refreshProfile, signIn, signOut, state])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

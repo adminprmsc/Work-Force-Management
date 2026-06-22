@@ -12,6 +12,9 @@ import { ContractorsPage } from "@/pages/procurement/contractors-page"
 import { ProcurementPackagesPage } from "@/pages/procurement/packages-page"
 import { ProfilePage } from "@/pages/profile/profile-page"
 import { SeniorManagerOverviewPage } from "@/pages/senior-manager/overview-page"
+import { MySurveysPage } from "@/pages/survey/my-surveys-page"
+import { SurveyFormsPage } from "@/pages/survey/survey-forms-page"
+import { SurveyResponsesPage } from "@/pages/survey/survey-responses-page"
 import { UsersPage } from "@/pages/users/users-page"
 
 export function DashboardRoutes() {
@@ -33,6 +36,8 @@ export function DashboardRoutes() {
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
         <Route path="procurement/contractors" element={<ContractorsPage />} />
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
+        <Route path="surveys" element={<SurveyFormsPage />} />
+        <Route path="surveys/responses" element={<SurveyResponsesPage />} />
       </Route>
 
       <Route
@@ -47,6 +52,8 @@ export function DashboardRoutes() {
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
         <Route path="procurement/contractors" element={<ContractorsPage />} />
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
+        <Route path="surveys" element={<SurveyFormsPage />} />
+        <Route path="surveys/responses" element={<SurveyResponsesPage />} />
         <Route path="geography" element={<GeographyPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
@@ -61,6 +68,7 @@ export function DashboardRoutes() {
       >
         <Route index element={<RoleOverviewPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
+        <Route path="surveys/responses" element={<SurveyResponsesPage />} />
         <Route path="geography" element={<GeographyPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
@@ -75,6 +83,7 @@ export function DashboardRoutes() {
       >
         <Route index element={<RoleOverviewPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
+        <Route path="surveys" element={<MySurveysPage />} />
         <Route path="geography" element={<GeographyPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>

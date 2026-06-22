@@ -1,9 +1,16 @@
 import { Link } from "react-router-dom"
-import { ArrowRight, MapPinned, Package } from "lucide-react"
+import { ArrowRight, ClipboardList, Inbox, MapPinned, Package } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { canManageProcurement } from "@/lib/procurement-access"
+import {
+  canFillSurveys,
+  canManageSurveys,
+  canReadSurveyResponses,
+  surveyFormsPath,
+  surveyResponsesPath,
+} from "@/lib/survey"
 import { ROLE_LABELS } from "@/lib/user-management"
 import { Role, roleToDashboardPath } from "@/modules/auth/roles"
 import { useAuth } from "@/modules/auth/use-auth"
@@ -18,32 +25,16 @@ function getGeographyPath(role: string): string {
   return `${base}/geography`
 }
 
-const features = [
-  {
-    key: "procurement",
-    icon: Package,
-    title: "Procurement",
-    manageDescription:
-      "Manage packages, contractors, and consultants across tehsils.",
-    readDescription:
-      "View procurement packages aligned with your access level.",
-    path: (role: string) => getProcurementPackagesPath(role),
-    cta: "Open procurement",
-    accent: "bg-primary/10 text-primary",
-    buttonVariant: "default" as const,
-  },
-  {
-    key: "geography",
-    icon: MapPinned,
-    title: "Geography",
-    manageDescription: "Browse tehsils, villages, and settlements.",
-    readDescription: "Browse tehsils, villages, and settlements.",
-    path: (role: string) => getGeographyPath(role),
-    cta: "Open geography",
-    accent: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-    buttonVariant: "outline" as const,
-  },
-] as const
+type OverviewFeature = {
+  key: string
+  icon: typeof Package
+  title: string
+  description: string
+  path: string
+  cta: string
+  accent: string
+  buttonVariant: "default" | "outline"
+}
 
 export function RoleOverviewPage() {
   const auth = useAuth()
@@ -52,6 +43,72 @@ export function RoleOverviewPage() {
   const { user } = auth
   const canManage = canManageProcurement(user.role)
   const roleLabel = ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role
+
+  const features: OverviewFeature[] = [
+    {
+      key: "procurement",
+      icon: Package,
+      title: "Procurement",
+      description: canManage
+        ? "Manage packages, contractors, and consultants across tehsils."
+        : "View procurement packages aligned with your access level.",
+      path: getProcurementPackagesPath(user.role),
+      cta: "Open procurement",
+      accent: "bg-primary/10 text-primary",
+      buttonVariant: "default",
+    },
+    {
+      key: "geography",
+      icon: MapPinned,
+      title: "Geography",
+      description: "Browse tehsils, villages, and settlements.",
+      path: getGeographyPath(user.role),
+      cta: "Open geography",
+      accent: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+      buttonVariant: "outline",
+    },
+  ]
+
+  if (canManageSurveys(user.role)) {
+    features.push({
+      key: "survey-forms",
+      icon: ClipboardList,
+      title: "Survey forms",
+      description:
+        "Design site-visit questionnaires and assign them to procurement packages with a submission schedule.",
+      path: surveyFormsPath(user.role),
+      cta: "Open survey forms",
+      accent: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
+      buttonVariant: "outline",
+    })
+  }
+
+  if (canFillSurveys(user.role)) {
+    features.push({
+      key: "my-surveys",
+      icon: ClipboardList,
+      title: "My surveys",
+      description:
+        "Forms assigned to your tehsil — start a site visit submission or continue a draft.",
+      path: surveyFormsPath(user.role),
+      cta: "Open my surveys",
+      accent: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
+      buttonVariant: "default",
+    })
+  }
+
+  if (canReadSurveyResponses(user.role) && !canFillSurveys(user.role)) {
+    features.push({
+      key: "survey-responses",
+      icon: Inbox,
+      title: "Survey responses",
+      description: "Review site-visit submissions collected by tehsil RAs.",
+      path: surveyResponsesPath(user.role),
+      cta: "View responses",
+      accent: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
+      buttonVariant: "outline",
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -68,12 +125,6 @@ export function RoleOverviewPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {features.map((feature) => {
           const Icon = feature.icon
-          const description =
-            feature.key === "procurement"
-              ? canManage
-                ? feature.manageDescription
-                : feature.readDescription
-              : feature.readDescription
 
           return (
             <Card key={feature.key} className="feature-card shadow-sm">
@@ -86,13 +137,13 @@ export function RoleOverviewPage() {
                   </div>
                   <div className="min-w-0 space-y-1">
                     <CardTitle className="text-base font-semibold">{feature.title}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
+                    <CardDescription>{feature.description}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="pl-6">
                 <Button asChild variant={feature.buttonVariant}>
-                  <Link to={feature.path(user.role)}>
+                  <Link to={feature.path}>
                     {feature.cta}
                     <ArrowRight className="ml-2 size-4" />
                   </Link>

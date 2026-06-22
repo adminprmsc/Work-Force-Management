@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { Mail, Pencil, Plus, Power, Trash2 } from "lucide-react"
+import { Eye, EyeOff, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Trash2, Copy } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -13,6 +13,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { ShimmerContainer, TableRowsShimmer } from "@/components/common/query-shimmer"
+import {
+  UserCredentialsDialog,
+  type UserCredentials,
+} from "@/components/dashboard/user-credentials-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +29,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -45,6 +56,7 @@ import {
   useCreateUserMutation,
   useDeleteUserMutation,
   useOfficesQuery,
+  useResetUserCredentialsMutation,
   useUpdateUserMutation,
   useUpdateUserStatusMutation,
   useUsersQuery,
@@ -60,9 +72,46 @@ import {
 } from "@/lib/user-management"
 import { getQueryViewState, mergeQueryViewStates } from "@/lib/query-view-state"
 
+const EMAIL_DOMAIN = "ens.com"
+const DEFAULT_PASSWORD = "Root123!"
+
+// Users only type the local part; keep state free of "@" and the domain.
+function sanitizeEmailLocalPart(value: string): string {
+  return value.split("@")[0].replace(/\s/g, "")
+}
+
+function randomChar(set: string): string {
+  const buf = new Uint32Array(1)
+  crypto.getRandomValues(buf)
+  return set[buf[0] % set.length]
+}
+
+// Strong password with at least one upper, lower, digit, and symbol.
+// Ambiguous characters (0/O, 1/l/I) are excluded for legibility.
+function generatePassword(length = 14): string {
+  const groups = [
+    "ABCDEFGHJKLMNPQRSTUVWXYZ",
+    "abcdefghijkmnopqrstuvwxyz",
+    "23456789",
+    "!@#$%^&*",
+  ]
+  const all = groups.join("")
+  const chars = groups.map(randomChar)
+  while (chars.length < length) chars.push(randomChar(all))
+  for (let i = chars.length - 1; i > 0; i--) {
+    const buf = new Uint32Array(1)
+    crypto.getRandomValues(buf)
+    const j = buf[0] % (i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join("")
+}
+
 type UserTableRowProps = {
   user: User
   onEditEmail: (user: User) => void
+  onViewCredentials: (user: User) => void
+  onCopyEmail: (email: string) => void
   onToggleStatus: (user: User) => void
   onDelete: (user: User) => void
   isTogglingStatus: boolean
@@ -72,6 +121,8 @@ type UserTableRowProps = {
 const UserTableRow = memo(function UserTableRow({
   user,
   onEditEmail,
+  onViewCredentials,
+  onCopyEmail,
   onToggleStatus,
   onDelete,
   isTogglingStatus,
@@ -80,7 +131,19 @@ const UserTableRow = memo(function UserTableRow({
   return (
     <TableRow>
       <TableCell className="font-medium">{user.username}</TableCell>
-      <TableCell>{user.email}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <span>{user.email}</span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Copy email"
+            onClick={() => onCopyEmail(user.email)}
+          >
+            <Copy className="size-3.5" />
+          </Button>
+        </div>
+      </TableCell>
       <TableCell>
         <Badge variant="secondary">{ROLE_LABELS[user.role] ?? user.role}</Badge>
       </TableCell>
@@ -90,6 +153,14 @@ const UserTableRow = memo(function UserTableRow({
       <TableCell className="text-muted-foreground">{user.officeName ?? "—"}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="View credentials"
+            onClick={() => onViewCredentials(user)}
+          >
+            <KeyRound className="size-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -129,6 +200,7 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
   const updateUserMutation = useUpdateUserMutation()
   const updateUserStatusMutation = useUpdateUserStatusMutation()
   const deleteUserMutation = useDeleteUserMutation()
+  const resetCredentialsMutation = useResetUserCredentialsMutation()
 
   const usersView = useMemo(() => getQueryViewState<User[]>(usersQuery), [usersQuery])
   const officesView = useMemo(() => getQueryViewState<Office[]>(officesQuery), [officesQuery])
@@ -144,12 +216,18 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
   const [createOfficeId, setCreateOfficeId] = useState("")
   const [createEmail, setCreateEmail] = useState("")
   const [createUsername, setCreateUsername] = useState("")
-  const [createPassword, setCreatePassword] = useState("")
+  const [createPassword, setCreatePassword] = useState(DEFAULT_PASSWORD)
+  const [showPassword, setShowPassword] = useState(false)
 
   const [editUser, setEditUser] = useState<User | null>(null)
   const [editEmail, setEditEmail] = useState("")
 
   const [deleteUser, setDeleteUser] = useState<User | null>(null)
+
+  const [credentialsOpen, setCredentialsOpen] = useState(false)
+  const [credentials, setCredentials] = useState<UserCredentials | null>(null)
+  const [credentialsUserId, setCredentialsUserId] = useState<string | null>(null)
+  const [credentialsTitle, setCredentialsTitle] = useState("User credentials")
 
   const availableOffices = useMemo(
     () => officesForRole(officesView.data ?? [], createRole),
@@ -192,16 +270,20 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
     setCreateOfficeId("")
     setCreateEmail("")
     setCreateUsername("")
-    setCreatePassword("")
+    setCreatePassword(DEFAULT_PASSWORD)
+    setShowPassword(false)
   }, [])
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return
 
+    const email = `${createEmail.trim()}@${EMAIL_DOMAIN}`
+    const username = createUsername.trim()
+
     try {
       await createUserMutation.mutateAsync({
-        email: createEmail.trim(),
-        username: createUsername.trim(),
+        email,
+        username,
         password: createPassword,
         role: createRole,
         officeId: needsOffice ? createOfficeId : undefined,
@@ -209,6 +291,10 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
       toast.success(`${ROLE_LABELS[createRole]} user created`)
       setCreateOpen(false)
       resetCreateForm()
+      setCredentialsUserId(null)
+      setCredentialsTitle("New user credentials")
+      setCredentials({ username, email, password: createPassword })
+      setCredentialsOpen(true)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create user")
     }
@@ -268,6 +354,42 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
     }
   }, [deleteUser, deleteUserMutation])
 
+  const handleCopyEmail = useCallback(async (email: string) => {
+    try {
+      await navigator.clipboard.writeText(email)
+      toast.success("Email copied")
+    } catch {
+      toast.error("Failed to copy email")
+    }
+  }, [])
+
+  const handleViewCredentials = useCallback((user: User) => {
+    setCredentialsUserId(user.id)
+    setCredentialsTitle(`Credentials — ${user.username}`)
+    setCredentials({
+      username: user.username,
+      email: user.email,
+      password: null,
+    })
+    setCredentialsOpen(true)
+  }, [])
+
+  const handleResetPassword = useCallback(async () => {
+    if (!credentialsUserId) return
+
+    try {
+      const result = await resetCredentialsMutation.mutateAsync(credentialsUserId)
+      setCredentials({
+        username: result.username,
+        email: result.email,
+        password: result.temporaryPassword,
+      })
+      toast.success("New temporary password generated")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reset password")
+    }
+  }, [credentialsUserId, resetCredentialsMutation])
+
   return (
     <>
       <Card>
@@ -309,6 +431,8 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
                       key={user.id}
                       user={user}
                       onEditEmail={handleEditEmail}
+                      onViewCredentials={handleViewCredentials}
+                      onCopyEmail={(email) => void handleCopyEmail(email)}
                       onToggleStatus={(selected) => void handleToggleStatus(selected)}
                       onDelete={setDeleteUser}
                       isTogglingStatus={updateUserStatusMutation.isPending}
@@ -386,13 +510,20 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
 
             <div className="grid gap-2">
               <Label htmlFor="create-email">Email</Label>
-              <Input
-                id="create-email"
-                type="email"
-                value={createEmail}
-                onChange={(e) => setCreateEmail(e.target.value)}
-                placeholder="user@example.com"
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id="create-email"
+                  value={createEmail}
+                  onChange={(e) =>
+                    setCreateEmail(sanitizeEmailLocalPart(e.target.value))
+                  }
+                  placeholder="username"
+                  autoComplete="off"
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupText>@{EMAIL_DOMAIN}</InputGroupText>
+                </InputGroupAddon>
+              </InputGroup>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="create-username">Username</Label>
@@ -405,13 +536,38 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="create-password">Password</Label>
-              <Input
-                id="create-password"
-                type="password"
-                value={createPassword}
-                onChange={(e) => setCreatePassword(e.target.value)}
-                placeholder="Min. 8 characters"
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id="create-password"
+                  type={showPassword ? "text" : "password"}
+                  value={createPassword}
+                  onChange={(e) => setCreatePassword(e.target.value)}
+                  placeholder="Min. 8 characters"
+                  autoComplete="new-password"
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((v) => !v)}
+                  >
+                    {showPassword ? <EyeOff /> : <Eye />}
+                  </InputGroupButton>
+                  <InputGroupButton
+                    onClick={() => {
+                      setCreatePassword(generatePassword())
+                      setShowPassword(true)
+                    }}
+                  >
+                    <RefreshCw />
+                    Generate
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+              <p className="text-xs text-muted-foreground">
+                Defaults to <code>{DEFAULT_PASSWORD}</code>. Use Generate for a
+                strong random password.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -496,6 +652,16 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UserCredentialsDialog
+        open={credentialsOpen}
+        onOpenChange={setCredentialsOpen}
+        credentials={credentials}
+        title={credentialsTitle}
+        canResetPassword={Boolean(credentialsUserId)}
+        isResetting={resetCredentialsMutation.isPending}
+        onResetPassword={() => void handleResetPassword()}
+      />
     </>
   )
 })

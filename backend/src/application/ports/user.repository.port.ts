@@ -15,6 +15,7 @@ export interface UpdateUserData {
   password?: string;
   role?: UserRole;
   officeId?: string | null;
+  mustChangePassword?: boolean;
 }
 
 export interface ListUsersFilter {

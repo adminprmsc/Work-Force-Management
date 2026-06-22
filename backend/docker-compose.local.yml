@@ -1,5 +1,7 @@
 # Local development — PostgreSQL + API (hot-reload)
-# Usage: docker compose -f docker-compose.local.yml up --build
+# Usage: npm run docker:dev
+# API is published on API_PORT from .env (default 3001). Do not run npm run dev:local
+# on the same machine at the same time — it uses PORT from .env and must differ from API_PORT.
 
 name: wfm-local
 

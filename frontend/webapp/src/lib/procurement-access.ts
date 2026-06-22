@@ -16,3 +16,7 @@ export function canManageProcurement(role: RoleType): boolean {
 export function canReadProcurementPackages(role: RoleType): boolean {
   return PROCUREMENT_READERS.includes(role)
 }
+
+export function canManagePackageCompliance(role: RoleType): boolean {
+  return canManageProcurement(role) || role === Role.RA_ES_TEHSIL
+}

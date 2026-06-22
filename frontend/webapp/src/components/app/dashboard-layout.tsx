@@ -91,10 +91,10 @@ export function DashboardLayout() {
               </div>
               <div className="min-w-0 group-data-[collapsible=icon]/sidebar:hidden">
                 <div className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
-                  WFM
+                  ESMS
                 </div>
                 <div className="truncate text-[11px] text-sidebar-foreground/65">
-                  PRMSC Administration
+                  Environment & Social Safeguard
                 </div>
               </div>
             </div>
@@ -109,9 +109,11 @@ export function DashboardLayout() {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {group.items.map((item) => {
+                      const peerPaths = group.items.map((entry) => entry.path)
                       const active = isNavItemActive(
                         location.pathname,
                         item.path,
+                        peerPaths,
                       );
                       const Icon = item.icon;
 

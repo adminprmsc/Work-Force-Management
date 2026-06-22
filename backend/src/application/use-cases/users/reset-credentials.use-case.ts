@@ -57,7 +57,10 @@ export class ResetUserCredentialsUseCase {
     const temporaryPassword = randomBytes(9).toString('base64url');
     const hashedPassword = await this.hashingService.hash(temporaryPassword);
 
-    await this.userRepository.update(userId, { password: hashedPassword });
+    await this.userRepository.update(userId, {
+      password: hashedPassword,
+      mustChangePassword: true,
+    });
 
     await this.auditService.logUserAction(
       actor.id,

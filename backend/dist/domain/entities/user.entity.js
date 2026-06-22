@@ -26,6 +26,7 @@ class User {
     password;
     role;
     status;
+    mustChangePassword;
     officeId;
     officeName;
     officeType;
@@ -33,13 +34,14 @@ class User {
     createdById;
     createdAt;
     updatedAt;
-    constructor(id, email, username, password, role, status, officeId, officeName, officeType, tehsilName, createdById, createdAt, updatedAt) {
+    constructor(id, email, username, password, role, status, mustChangePassword, officeId, officeName, officeType, tehsilName, createdById, createdAt, updatedAt) {
         this.id = id;
         this.email = email;
         this.username = username;
         this.password = password;
         this.role = role;
         this.status = status;
+        this.mustChangePassword = mustChangePassword;
         this.officeId = officeId;
         this.officeName = officeName;
         this.officeType = officeType;

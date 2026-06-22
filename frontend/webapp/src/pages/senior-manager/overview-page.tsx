@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import { format, subDays } from "date-fns";
-import { RefreshCw } from "lucide-react";
+import { ClipboardList, Inbox, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import {
   DashboardActivityChart,
@@ -13,8 +14,9 @@ import {
 } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { useSeniorManagerDashboardData } from "@/hooks/use-senior-manager-dashboard";
-// import { useAuth } from "@/modules/auth/use-auth";
+import { surveyFormsPath, surveyResponsesPath } from "@/lib/survey";
 import { cn } from "@/lib/utils";
+import { Role } from "@/modules/auth/roles";
 
 function buildActivitySeries(
   items: { createdAt: string }[] | undefined,
@@ -109,6 +111,21 @@ export const SeniorManagerOverviewPage = memo(
             isInitialLoading={auditView.isInitialLoading}
             isRefreshing={auditView.isRefreshing}
           />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to={surveyFormsPath(Role.SENIOR_MANAGER_ES)}>
+              <ClipboardList className="mr-2 size-4" />
+              Survey forms
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to={surveyResponsesPath(Role.SENIOR_MANAGER_ES)}>
+              <Inbox className="mr-2 size-4" />
+              Survey responses
+            </Link>
+          </Button>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">

@@ -1,7 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import {
   Building2,
+  ClipboardList,
   HardHat,
+  Inbox,
   LayoutDashboard,
   MapPinned,
   Package,
@@ -135,7 +137,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Packages",
         path: "/dashboard/senior-manager/procurement/packages",
         icon: Package,
-        roles: [...PROCUREMENT_MANAGERS],
+        roles: [Role.SENIOR_MANAGER_ES],
         meta: {
           title: "Procurement packages",
           description: "Contracts linking contractors, consultants, tehsils, and villages",
@@ -145,7 +147,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Contractors",
         path: "/dashboard/senior-manager/procurement/contractors",
         icon: HardHat,
-        roles: [...PROCUREMENT_MANAGERS],
+        roles: [Role.SENIOR_MANAGER_ES],
         meta: {
           title: "Contractors",
           description: "Master list of contractors for procurement packages",
@@ -155,7 +157,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Consultants",
         path: "/dashboard/senior-manager/procurement/consultants",
         icon: UserSquare2,
-        roles: [...PROCUREMENT_MANAGERS],
+        roles: [Role.SENIOR_MANAGER_ES],
         meta: {
           title: "Consultants",
           description: "Master list of consultants for procurement packages",
@@ -208,7 +210,74 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: [Role.RA_ES_TEHSIL],
         meta: {
           title: "Procurement packages",
-          description: "Procurement packages for your tehsil office",
+          description:
+            "Step 1: record ESMP baseline (mobilization date) for each package",
+        },
+      },
+    ],
+  },
+  {
+    label: "Surveys",
+    items: [
+      {
+        label: "Survey forms",
+        path: "/dashboard/senior-manager/surveys",
+        icon: ClipboardList,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Survey forms",
+          description: "Design forms and assign them to procurement packages",
+        },
+      },
+      {
+        label: "Responses",
+        path: "/dashboard/senior-manager/surveys/responses",
+        icon: Inbox,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Survey responses",
+          description: "Site-visit submissions collected by tehsil RAs",
+        },
+      },
+      {
+        label: "Survey forms",
+        path: "/dashboard/ra-environment/surveys",
+        icon: ClipboardList,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Survey forms",
+          description: "Design forms and assign them to procurement packages",
+        },
+      },
+      {
+        label: "Responses",
+        path: "/dashboard/ra-environment/surveys/responses",
+        icon: Inbox,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Survey responses",
+          description: "Site-visit submissions collected by tehsil RAs",
+        },
+      },
+      {
+        label: "Survey responses",
+        path: "/dashboard/world-bank/surveys/responses",
+        icon: Inbox,
+        roles: [Role.WORLD_BANK_USER],
+        meta: {
+          title: "Survey responses",
+          description: "Site-visit submissions collected by tehsil RAs",
+        },
+      },
+      {
+        label: "My surveys",
+        path: "/dashboard/ra-tehsil/surveys",
+        icon: ClipboardList,
+        roles: [Role.RA_ES_TEHSIL],
+        meta: {
+          title: "My surveys",
+          description:
+            "ESMP baseline and village monitoring submissions for your tehsil",
         },
       },
     ],
@@ -310,11 +379,29 @@ export function getRouteMeta(pathname: string): RouteMeta {
   return { title: "Dashboard" }
 }
 
-export function isNavItemActive(pathname: string, itemPath: string): boolean {
-  if (itemPath.endsWith("/senior-manager") || itemPath.endsWith("/ra-environment") || itemPath.endsWith("/world-bank") || itemPath.endsWith("/ra-tehsil")) {
+export function isNavItemActive(
+  pathname: string,
+  itemPath: string,
+  peerPaths: string[] = [],
+): boolean {
+  if (
+    itemPath.endsWith("/senior-manager") ||
+    itemPath.endsWith("/ra-environment") ||
+    itemPath.endsWith("/world-bank") ||
+    itemPath.endsWith("/ra-tehsil")
+  ) {
     return pathname === itemPath
   }
-  return pathname === itemPath || pathname.startsWith(`${itemPath}/`)
+  if (pathname === itemPath) return true
+  if (!pathname.startsWith(`${itemPath}/`)) return false
+
+  const hasMoreSpecificPeer = peerPaths.some(
+    (peer) =>
+      peer !== itemPath &&
+      peer.startsWith(`${itemPath}/`) &&
+      (pathname === peer || pathname.startsWith(`${peer}/`)),
+  )
+  return !hasMoreSpecificPeer
 }
 
 export { ALL_ROLES, PROCUREMENT_MANAGERS, PROCUREMENT_READERS }

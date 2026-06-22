@@ -4,6 +4,10 @@ import {
   ProcurementPackage,
   ProcurementPackageExpense,
 } from '../../../domain/entities/procurement-package.entity';
+import {
+  PackageFormBaselineState,
+  type PackageBaselineFormSummary,
+} from '../../../application/ports/package-baseline.repository.port';
 
 export function toContractorResponse(contractor: Contractor) {
   return {
@@ -65,5 +69,42 @@ export function toProcurementPackageResponse(pkg: ProcurementPackage) {
     expenses: pkg.expenses.map(toProcurementPackageExpenseResponse),
     createdAt: pkg.createdAt,
     updatedAt: pkg.updatedAt,
+  };
+}
+
+export function toPackageFormBaselineResponse(state: PackageFormBaselineState) {
+  return {
+    packageId: state.packageId,
+    formId: state.formId,
+    formTitle: state.formTitle,
+    baselineTitle: state.baselineTitle,
+    baselineDescription: state.baselineDescription,
+    fields: state.fields.map((field) => ({
+      id: field.id,
+      type: field.type,
+      label: field.label,
+      helpText: field.helpText,
+      required: field.required,
+      writeOnce: field.writeOnce,
+      order: field.order,
+      config: field.config,
+    })),
+    answers: state.answers,
+    isBaselineComplete: state.isBaselineComplete,
+    isMobilized: state.isBaselineComplete,
+    submittedAt: state.submittedAt,
+    submittedBy: state.submittedBy,
+    updatedAt: state.updatedAt,
+  };
+}
+
+export function toPackageBaselineFormSummaryResponse(
+  summary: PackageBaselineFormSummary,
+) {
+  return {
+    formId: summary.formId,
+    formTitle: summary.formTitle,
+    baselineTitle: summary.baselineTitle,
+    isBaselineComplete: summary.isBaselineComplete,
   };
 }

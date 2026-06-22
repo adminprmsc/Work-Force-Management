@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import type { CreateUserInput, UpdateUserInput } from "@/modules/api/users-api"
-import { createUser, deleteUser, listUsers, updateUser, updateUserStatus } from "@/modules/api/users-api"
+import { createUser, deleteUser, listUsers, resetUserCredentials, updateUser, updateUserStatus } from "@/modules/api/users-api"
 import { queryKeys } from "@/lib/query-keys"
 import { useAuthToken } from "@/hooks/use-auth-token"
 
@@ -65,6 +65,18 @@ export function useDeleteUserMutation() {
     mutationFn: (userId: string) => deleteUser(token!, userId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.users.all })
+      await qc.invalidateQueries({ queryKey: queryKeys.audit.list({ page: 1, limit: 20 }) })
+    },
+  })
+}
+
+export function useResetUserCredentialsMutation() {
+  const token = useAuthToken()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (userId: string) => resetUserCredentials(token!, userId),
+    onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.audit.list({ page: 1, limit: 20 }) })
     },
   })

@@ -19,7 +19,7 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
         transform: true,
     }));
-    const port = process.env.PORT ?? 3000;
+    const port = configService.get('port') ?? 3000;
     await app.listen(port);
 }
 bootstrap().catch((error) => {

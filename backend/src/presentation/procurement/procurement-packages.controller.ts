@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,11 @@ import {
   ListProcurementPackageExpensesUseCase,
   UpdateProcurementPackageExpenseUseCase,
 } from '../../application/use-cases/procurement/manage-procurement-package-expenses.use-case';
+import { ListPackageBaselineFormsUseCase } from '../../application/use-cases/procurement/list-package-baseline-forms.use-case';
+import {
+  GetPackageFormBaselineUseCase,
+  SavePackageFormBaselineUseCase,
+} from '../../application/use-cases/procurement/manage-package-baseline.use-case';
 import {
   CreateProcurementPackageUseCase,
   DeleteProcurementPackageUseCase,
@@ -35,8 +41,11 @@ import {
   CreateProcurementPackageExpenseDto,
   UpdateProcurementPackageDto,
   UpdateProcurementPackageExpenseDto,
+  SavePackageBaselineDto,
 } from './dto/procurement.dto';
 import {
+  toPackageBaselineFormSummaryResponse,
+  toPackageFormBaselineResponse,
   toProcurementPackageExpenseResponse,
   toProcurementPackageResponse,
 } from './mappers/procurement.mapper';
@@ -53,6 +62,12 @@ const PROCUREMENT_MANAGERS = [
   UserRole.RA_ENVIRONMENT_HO,
 ] as const;
 
+const PROCUREMENT_COMPLIANCE_WRITERS = [
+  UserRole.SENIOR_MANAGER_ES,
+  UserRole.RA_ENVIRONMENT_HO,
+  UserRole.RA_ES_TEHSIL,
+] as const;
+
 @Controller('procurement-packages')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProcurementPackagesController {
@@ -67,6 +82,9 @@ export class ProcurementPackagesController {
     private readonly createExpenseUseCase: CreateProcurementPackageExpenseUseCase,
     private readonly updateExpenseUseCase: UpdateProcurementPackageExpenseUseCase,
     private readonly deleteExpenseUseCase: DeleteProcurementPackageExpenseUseCase,
+    private readonly getPackageBaselineUseCase: GetPackageFormBaselineUseCase,
+    private readonly savePackageBaselineUseCase: SavePackageFormBaselineUseCase,
+    private readonly listPackageBaselineFormsUseCase: ListPackageBaselineFormsUseCase,
   ) {}
 
   @Get()
@@ -132,6 +150,48 @@ export class ProcurementPackagesController {
   ) {
     await this.deleteExpenseUseCase.execute(user, id, expenseId);
     return { success: true };
+  }
+
+  @Get(':id/baseline-forms')
+  @Roles(...PROCUREMENT_READERS)
+  async listBaselineForms(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const forms = await this.listPackageBaselineFormsUseCase.execute(user, id);
+    return forms.map(toPackageBaselineFormSummaryResponse);
+  }
+
+  @Get(':id/forms/:formId/baseline')
+  @Roles(...PROCUREMENT_READERS)
+  async getBaseline(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('formId', ParseUUIDPipe) formId: string,
+  ) {
+    const state = await this.getPackageBaselineUseCase.execute(
+      user,
+      id,
+      formId,
+    );
+    return toPackageFormBaselineResponse(state);
+  }
+
+  @Put(':id/forms/:formId/baseline')
+  @Roles(...PROCUREMENT_COMPLIANCE_WRITERS)
+  async saveBaseline(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('formId', ParseUUIDPipe) formId: string,
+    @Body() dto: SavePackageBaselineDto,
+  ) {
+    const state = await this.savePackageBaselineUseCase.execute(
+      user,
+      id,
+      formId,
+      { answers: dto.answers },
+    );
+    return toPackageFormBaselineResponse(state);
   }
 
   @Get(':id')

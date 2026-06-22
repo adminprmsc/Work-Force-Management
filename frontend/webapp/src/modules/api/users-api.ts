@@ -16,6 +16,12 @@ export type UpdateUserInput = {
   officeId?: string
 }
 
+export type ResetUserCredentialsResult = {
+  email: string
+  username: string
+  temporaryPassword: string
+}
+
 export function listUsers(token: string): Promise<User[]> {
   return apiRequest<User[]>("/users", { method: "GET", token })
 }
@@ -55,6 +61,16 @@ export function updateUserStatus(
 export function deleteUser(token: string, userId: string): Promise<{ success: boolean }> {
   return apiRequest<{ success: boolean }>(`/users/${userId}`, {
     method: "DELETE",
+    token,
+  })
+}
+
+export function resetUserCredentials(
+  token: string,
+  userId: string,
+): Promise<ResetUserCredentialsResult> {
+  return apiRequest<ResetUserCredentialsResult>(`/users/${userId}/reset-credentials`, {
+    method: "POST",
     token,
   })
 }

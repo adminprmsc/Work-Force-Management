@@ -6,6 +6,7 @@ import { PrismaModule } from './infrastructure/database/prisma/prisma.module';
 import { AuthModule } from './presentation/auth/auth.module';
 import { ProcurementModule } from './presentation/procurement/procurement.module';
 import { RbacModule } from './presentation/rbac/rbac.module';
+import { SurveyModule } from './presentation/survey/survey.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -19,6 +20,7 @@ import { AppController } from './app.controller';
     AuthModule,
     RbacModule,
     ProcurementModule,
+    SurveyModule,
   ],
   controllers: [AppController],
 })

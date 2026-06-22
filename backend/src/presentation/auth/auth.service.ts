@@ -6,7 +6,9 @@ import type {
   LoginInput,
   LoginUseCasePort,
 } from '../../application/ports/login.use-case.port';
+import { ChangeOwnPasswordUseCase } from '../../application/use-cases/auth/change-own-password.use-case';
 import { User } from '../../domain/entities/user.entity';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import type { AuthResult } from './types/auth.types';
 
@@ -17,6 +19,7 @@ export class AuthService {
     private readonly loginUseCase: LoginUseCasePort,
     @Inject(TOKEN_SERVICE)
     private readonly tokenService: TokenServicePort,
+    private readonly changeOwnPasswordUseCase: ChangeOwnPasswordUseCase,
   ) {}
 
   async login(dto: LoginDto): Promise<AuthResult> {
@@ -28,6 +31,18 @@ export class AuthService {
     const user: User = await this.loginUseCase.execute(input);
 
     return this.buildAuthResult(user);
+  }
+
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ success: true }> {
+    await this.changeOwnPasswordUseCase.execute(
+      userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+    return { success: true };
   }
 
   private async buildAuthResult(user: User): Promise<AuthResult> {
@@ -44,6 +59,7 @@ export class AuthService {
         email: user.email,
         username: user.username,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
         createdAt: user.createdAt,
       },
     };

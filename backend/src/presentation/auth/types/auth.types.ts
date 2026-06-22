@@ -10,6 +10,7 @@ export interface AuthResult {
     email: string;
     username: string;
     role: UserRole;
+    mustChangePassword: boolean;
     createdAt: Date;
   };
 }

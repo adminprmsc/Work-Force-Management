@@ -4,6 +4,8 @@ exports.toContractorResponse = toContractorResponse;
 exports.toConsultantResponse = toConsultantResponse;
 exports.toProcurementPackageExpenseResponse = toProcurementPackageExpenseResponse;
 exports.toProcurementPackageResponse = toProcurementPackageResponse;
+exports.toPackageFormBaselineResponse = toPackageFormBaselineResponse;
+exports.toPackageBaselineFormSummaryResponse = toPackageBaselineFormSummaryResponse;
 function toContractorResponse(contractor) {
     return {
         id: contractor.id,
@@ -59,6 +61,39 @@ function toProcurementPackageResponse(pkg) {
         expenses: pkg.expenses.map(toProcurementPackageExpenseResponse),
         createdAt: pkg.createdAt,
         updatedAt: pkg.updatedAt,
+    };
+}
+function toPackageFormBaselineResponse(state) {
+    return {
+        packageId: state.packageId,
+        formId: state.formId,
+        formTitle: state.formTitle,
+        baselineTitle: state.baselineTitle,
+        baselineDescription: state.baselineDescription,
+        fields: state.fields.map((field) => ({
+            id: field.id,
+            type: field.type,
+            label: field.label,
+            helpText: field.helpText,
+            required: field.required,
+            writeOnce: field.writeOnce,
+            order: field.order,
+            config: field.config,
+        })),
+        answers: state.answers,
+        isBaselineComplete: state.isBaselineComplete,
+        isMobilized: state.isBaselineComplete,
+        submittedAt: state.submittedAt,
+        submittedBy: state.submittedBy,
+        updatedAt: state.updatedAt,
+    };
+}
+function toPackageBaselineFormSummaryResponse(summary) {
+    return {
+        formId: summary.formId,
+        formTitle: summary.formTitle,
+        baselineTitle: summary.baselineTitle,
+        isBaselineComplete: summary.isBaselineComplete,
     };
 }
 //# sourceMappingURL=procurement.mapper.js.map

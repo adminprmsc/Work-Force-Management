@@ -15,6 +15,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcurementPackagesController = void 0;
 const common_1 = require("@nestjs/common");
 const manage_procurement_package_expenses_use_case_1 = require("../../application/use-cases/procurement/manage-procurement-package-expenses.use-case");
+const list_package_baseline_forms_use_case_1 = require("../../application/use-cases/procurement/list-package-baseline-forms.use-case");
+const manage_package_baseline_use_case_1 = require("../../application/use-cases/procurement/manage-package-baseline.use-case");
 const manage_procurement_packages_use_case_1 = require("../../application/use-cases/procurement/manage-procurement-packages.use-case");
 const user_entity_1 = require("../../domain/entities/user.entity");
 const current_user_decorator_1 = require("../auth/decorators/current-user.decorator");
@@ -33,6 +35,11 @@ const PROCUREMENT_MANAGERS = [
     user_entity_1.UserRole.SENIOR_MANAGER_ES,
     user_entity_1.UserRole.RA_ENVIRONMENT_HO,
 ];
+const PROCUREMENT_COMPLIANCE_WRITERS = [
+    user_entity_1.UserRole.SENIOR_MANAGER_ES,
+    user_entity_1.UserRole.RA_ENVIRONMENT_HO,
+    user_entity_1.UserRole.RA_ES_TEHSIL,
+];
 let ProcurementPackagesController = class ProcurementPackagesController {
     listPackagesUseCase;
     getPackageUseCase;
@@ -44,7 +51,10 @@ let ProcurementPackagesController = class ProcurementPackagesController {
     createExpenseUseCase;
     updateExpenseUseCase;
     deleteExpenseUseCase;
-    constructor(listPackagesUseCase, getPackageUseCase, previewNameUseCase, createPackageUseCase, updatePackageUseCase, deletePackageUseCase, listExpensesUseCase, createExpenseUseCase, updateExpenseUseCase, deleteExpenseUseCase) {
+    getPackageBaselineUseCase;
+    savePackageBaselineUseCase;
+    listPackageBaselineFormsUseCase;
+    constructor(listPackagesUseCase, getPackageUseCase, previewNameUseCase, createPackageUseCase, updatePackageUseCase, deletePackageUseCase, listExpensesUseCase, createExpenseUseCase, updateExpenseUseCase, deleteExpenseUseCase, getPackageBaselineUseCase, savePackageBaselineUseCase, listPackageBaselineFormsUseCase) {
         this.listPackagesUseCase = listPackagesUseCase;
         this.getPackageUseCase = getPackageUseCase;
         this.previewNameUseCase = previewNameUseCase;
@@ -55,6 +65,9 @@ let ProcurementPackagesController = class ProcurementPackagesController {
         this.createExpenseUseCase = createExpenseUseCase;
         this.updateExpenseUseCase = updateExpenseUseCase;
         this.deleteExpenseUseCase = deleteExpenseUseCase;
+        this.getPackageBaselineUseCase = getPackageBaselineUseCase;
+        this.savePackageBaselineUseCase = savePackageBaselineUseCase;
+        this.listPackageBaselineFormsUseCase = listPackageBaselineFormsUseCase;
     }
     async list(user) {
         const packages = await this.listPackagesUseCase.execute(user);
@@ -78,6 +91,18 @@ let ProcurementPackagesController = class ProcurementPackagesController {
     async deleteExpense(user, id, expenseId) {
         await this.deleteExpenseUseCase.execute(user, id, expenseId);
         return { success: true };
+    }
+    async listBaselineForms(user, id) {
+        const forms = await this.listPackageBaselineFormsUseCase.execute(user, id);
+        return forms.map(procurement_mapper_1.toPackageBaselineFormSummaryResponse);
+    }
+    async getBaseline(user, id, formId) {
+        const state = await this.getPackageBaselineUseCase.execute(user, id, formId);
+        return (0, procurement_mapper_1.toPackageFormBaselineResponse)(state);
+    }
+    async saveBaseline(user, id, formId, dto) {
+        const state = await this.savePackageBaselineUseCase.execute(user, id, formId, { answers: dto.answers });
+        return (0, procurement_mapper_1.toPackageFormBaselineResponse)(state);
     }
     async getOne(user, id) {
         const pkg = await this.getPackageUseCase.execute(user, id);
@@ -155,6 +180,36 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ProcurementPackagesController.prototype, "deleteExpense", null);
 __decorate([
+    (0, common_1.Get)(':id/baseline-forms'),
+    (0, roles_decorator_1.Roles)(...PROCUREMENT_READERS),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ProcurementPackagesController.prototype, "listBaselineForms", null);
+__decorate([
+    (0, common_1.Get)(':id/forms/:formId/baseline'),
+    (0, roles_decorator_1.Roles)(...PROCUREMENT_READERS),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
+    __param(2, (0, common_1.Param)('formId', common_1.ParseUUIDPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], ProcurementPackagesController.prototype, "getBaseline", null);
+__decorate([
+    (0, common_1.Put)(':id/forms/:formId/baseline'),
+    (0, roles_decorator_1.Roles)(...PROCUREMENT_COMPLIANCE_WRITERS),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
+    __param(2, (0, common_1.Param)('formId', common_1.ParseUUIDPipe)),
+    __param(3, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, procurement_dto_1.SavePackageBaselineDto]),
+    __metadata("design:returntype", Promise)
+], ProcurementPackagesController.prototype, "saveBaseline", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, roles_decorator_1.Roles)(...PROCUREMENT_READERS),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -203,6 +258,9 @@ exports.ProcurementPackagesController = ProcurementPackagesController = __decora
         manage_procurement_package_expenses_use_case_1.ListProcurementPackageExpensesUseCase,
         manage_procurement_package_expenses_use_case_1.CreateProcurementPackageExpenseUseCase,
         manage_procurement_package_expenses_use_case_1.UpdateProcurementPackageExpenseUseCase,
-        manage_procurement_package_expenses_use_case_1.DeleteProcurementPackageExpenseUseCase])
+        manage_procurement_package_expenses_use_case_1.DeleteProcurementPackageExpenseUseCase,
+        manage_package_baseline_use_case_1.GetPackageFormBaselineUseCase,
+        manage_package_baseline_use_case_1.SavePackageFormBaselineUseCase,
+        list_package_baseline_forms_use_case_1.ListPackageBaselineFormsUseCase])
 ], ProcurementPackagesController);
 //# sourceMappingURL=procurement-packages.controller.js.map

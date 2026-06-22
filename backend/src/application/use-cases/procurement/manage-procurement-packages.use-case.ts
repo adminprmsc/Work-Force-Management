@@ -23,6 +23,7 @@ import {
 } from '../../services/procurement-actor.resolver';
 import { ProcurementPackageValidator } from '../../services/procurement-package.validator';
 import { ProcurementPackageNamingService } from '../../services/procurement-package-naming.service';
+import { ProcurementPackageBudgetEnricher } from '../../services/procurement-package-budget.enricher';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 
 export interface CreateProcurementPackageCommand {
@@ -62,6 +63,7 @@ export class ListProcurementPackagesUseCase {
     @Inject(PROCUREMENT_PACKAGE_REPOSITORY)
     private readonly packageRepository: ProcurementPackageRepositoryPort,
     private readonly actorResolver: ProcurementActorResolver,
+    private readonly budgetEnricher: ProcurementPackageBudgetEnricher,
   ) {}
 
   async execute(user: AuthenticatedUser): Promise<ProcurementPackage[]> {
@@ -75,7 +77,8 @@ export class ListProcurementPackagesUseCase {
         ? { tehsilId: actor.tehsilId }
         : undefined;
 
-    return this.packageRepository.findAll(filter);
+    const packages = await this.packageRepository.findAll(filter);
+    return this.budgetEnricher.enrich(packages);
   }
 }
 
@@ -85,6 +88,7 @@ export class GetProcurementPackageUseCase {
     @Inject(PROCUREMENT_PACKAGE_REPOSITORY)
     private readonly packageRepository: ProcurementPackageRepositoryPort,
     private readonly actorResolver: ProcurementActorResolver,
+    private readonly budgetEnricher: ProcurementPackageBudgetEnricher,
   ) {}
 
   async execute(
@@ -105,7 +109,7 @@ export class GetProcurementPackageUseCase {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    return pkg;
+    return this.budgetEnricher.enrichOne(pkg);
   }
 }
 

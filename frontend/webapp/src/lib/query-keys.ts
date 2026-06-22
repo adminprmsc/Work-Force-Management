@@ -34,8 +34,32 @@ export const queryKeys = {
     all: ["procurement-packages"] as const,
     list: () => ["procurement-packages", "list"] as const,
     detail: (id: string) => ["procurement-packages", id] as const,
+    baseline: (packageId: string, formId: string) =>
+      ["procurement-packages", packageId, "baseline", formId] as const,
+    baselineForms: (packageId: string) =>
+      ["procurement-packages", packageId, "baseline-forms"] as const,
     namePreview: (tehsilId: string) =>
       ["procurement-packages", "name-preview", tehsilId] as const,
+  },
+  surveyForms: {
+    all: ["survey-forms"] as const,
+    list: () => ["survey-forms", "list"] as const,
+    detail: (id: string) => ["survey-forms", id] as const,
+    assignments: (id: string) => ["survey-forms", id, "assignments"] as const,
+  },
+  surveyAssignments: {
+    all: ["survey-assignments"] as const,
+    mine: () => ["survey-assignments", "mine"] as const,
+  },
+  surveyResponses: {
+    all: ["survey-responses"] as const,
+    list: (filter: { formId?: string; assignmentId?: string }) =>
+      [
+        "survey-responses",
+        "list",
+        { formId: filter.formId ?? null, assignmentId: filter.assignmentId ?? null },
+      ] as const,
+    detail: (id: string) => ["survey-responses", id] as const,
   },
 }
 

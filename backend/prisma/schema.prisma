@@ -33,14 +33,50 @@ enum AuditAction {
   USER_CREDENTIALS_RESET
 }
 
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SurveyFieldType {
+  TEXT
+  PARAGRAPH
+  CHECKBOXES
+  MULTIPLE_CHOICE
+  DATE
+  DROPDOWN
+  TIME
+  NUMBER
+  CNIC
+  EMAIL
+  CONTACT
+  FILE
+  IMAGE
+  SECTION_BREAK
+}
+
+enum SurveyResponseStatus {
+  DRAFT
+  SUBMITTED
+}
+
+enum SurveyFrequency {
+  ONE_TIME
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 model User {
-  id          String     @id @default(uuid())
-  email       String     @unique
-  username    String     @unique
-  password    String
-  role        UserRole
-  status      UserStatus @default(ACTIVE)
-  officeId    String?    @map("office_id")
+  id                 String     @id @default(uuid())
+  email              String     @unique
+  username           String     @unique
+  password           String
+  role               UserRole
+  status             UserStatus @default(ACTIVE)
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  officeId           String?    @map("office_id")
   createdById String?    @map("created_by_id")
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
@@ -50,6 +86,10 @@ model User {
   createdUsers User[]     @relation("UserCreatedBy")
   auditLogs    AuditLog[] @relation("AuditActor")
   procurementExpenses ProcurementPackageExpense[] @relation("ExpenseCreatedBy")
+  surveyFormsCreated  SurveyForm[]       @relation("SurveyFormCreatedBy")
+  surveyAssignments   SurveyAssignment[] @relation("SurveyAssignmentAssignedBy")
+  surveyResponses     SurveyResponse[]   @relation("SurveyResponseRespondent")
+  baselineAnswers     ProcurementPackageBaselineAnswer[] @relation("BaselineAnswerSubmittedBy")
 
   @@map("users")
 }
@@ -76,6 +116,8 @@ model Tehsil {
   office               Office?
   villages             Village[]
   procurementPackages  ProcurementPackage[]
+  surveyAssignments    SurveyAssignment[]
+  surveyResponses      SurveyResponse[]
 
   @@map("tehsils")
 }
@@ -89,6 +131,7 @@ model Village {
   tehsil              Tehsil                      @relation(fields: [tehsilId], references: [id], onDelete: Cascade)
   settlements         Settlement[]
   procurementPackages ProcurementPackageVillage[]
+  surveyResponses     SurveyResponse[]
 
   @@unique([tehsilId, name])
   @@map("villages")
@@ -100,7 +143,8 @@ model Settlement {
   villageId String   @map("village_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  village Village @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  village         Village          @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  surveyResponses SurveyResponse[]
 
   @@unique([villageId, name])
   @@map("settlements")
@@ -159,8 +203,48 @@ model ProcurementPackage {
   tehsil     Tehsil                      @relation(fields: [tehsilId], references: [id], onDelete: Restrict)
   villages   ProcurementPackageVillage[]
   expenses   ProcurementPackageExpense[]
+  surveyAssignments SurveyAssignment[]
+  baselineAnswers ProcurementPackageBaselineAnswer[]
 
   @@map("procurement_packages")
+}
+
+model SurveyFormBaselineField {
+  id        String          @id @default(uuid())
+  formId    String          @map("form_id")
+  type      SurveyFieldType
+  label     String
+  helpText  String?         @map("help_text")
+  required  Boolean         @default(false)
+  writeOnce Boolean         @default(false) @map("write_once")
+  order     Int
+  config    Json?
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  form    SurveyForm                       @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@map("survey_form_baseline_fields")
+}
+
+model ProcurementPackageBaselineAnswer {
+  id            String   @id @default(uuid())
+  packageId     String   @map("package_id")
+  formId        String   @map("form_id")
+  fieldId       String   @map("field_id")
+  value         Json
+  submittedById String?  @map("submitted_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  package     ProcurementPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  form        SurveyForm         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  submittedBy User?              @relation("BaselineAnswerSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  @@unique([packageId, fieldId])
+  @@index([packageId, formId])
+  @@index([fieldId])
+  @@map("procurement_package_baseline_answers")
 }
 
 model ProcurementPackageExpense {
@@ -190,4 +274,146 @@ model ProcurementPackageVillage {
 
   @@id([packageId, villageId])
   @@map("procurement_package_villages")
+}
+
+model SurveyForm {
+  id                      String       @id @default(uuid())
+  title                   String
+  description             String?
+  status                  SurveyStatus @default(DRAFT)
+  requiresPackageBaseline Boolean      @default(false) @map("requires_package_baseline")
+  baselineTitle           String?      @map("baseline_title")
+  baselineDescription     String?      @map("baseline_description")
+  createdById             String       @map("created_by_id")
+  publishedAt             DateTime?    @map("published_at")
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
+  currentRevisionId       String?      @unique @map("current_revision_id")
+
+  createdBy       User                         @relation("SurveyFormCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  currentRevision SurveyFormRevision?          @relation("SurveyFormCurrentRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  fields          SurveyField[]
+  baselineFields  SurveyFormBaselineField[]
+  revisions       SurveyFormRevision[]         @relation("SurveyFormRevisions")
+  assignments     SurveyAssignment[]
+  responses       SurveyResponse[]
+  baselineAnswers ProcurementPackageBaselineAnswer[]
+
+  @@index([status])
+  @@map("survey_forms")
+}
+
+model SurveyFormRevision {
+  id                      String   @id @default(uuid())
+  formId                  String   @map("form_id")
+  version                 Int
+  title                   String
+  description             String?
+  requiresPackageBaseline Boolean  @default(false) @map("requires_package_baseline")
+  baselineTitle           String?  @map("baseline_title")
+  baselineDescription     String?  @map("baseline_description")
+  fields                  Json
+  baselineFields          Json     @map("baseline_fields")
+  publishedAt             DateTime @map("published_at")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  form                SurveyForm         @relation("SurveyFormRevisions", fields: [formId], references: [id], onDelete: Cascade)
+  currentForForm      SurveyForm?        @relation("SurveyFormCurrentRevision")
+  assignments         SurveyAssignment[]
+  responses           SurveyResponse[]
+
+  @@unique([formId, version])
+  @@index([formId])
+  @@map("survey_form_revisions")
+}
+
+model SurveyField {
+  id        String          @id @default(uuid())
+  formId    String          @map("form_id")
+  type      SurveyFieldType
+  label     String
+  helpText  String?         @map("help_text")
+  required  Boolean         @default(false)
+  order     Int
+  config    Json?
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  form    SurveyForm     @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@map("survey_fields")
+}
+
+model SurveyAssignment {
+  id                   String          @id @default(uuid())
+  formId               String          @map("form_id")
+  formRevisionId       String          @map("form_revision_id")
+  tehsilId             String          @map("tehsil_id")
+  procurementPackageId String          @map("procurement_package_id")
+  assignedById         String          @map("assigned_by_id")
+  frequency            SurveyFrequency @default(ONE_TIME)
+  startDate            DateTime        @map("start_date")
+  endDate              DateTime        @map("end_date")
+  instructions         String?
+  createdAt            DateTime        @default(now()) @map("created_at")
+
+  form               SurveyForm         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formRevision       SurveyFormRevision @relation(fields: [formRevisionId], references: [id], onDelete: Restrict)
+  tehsil             Tehsil             @relation(fields: [tehsilId], references: [id], onDelete: Cascade)
+  procurementPackage ProcurementPackage @relation(fields: [procurementPackageId], references: [id], onDelete: Cascade)
+  assignedBy         User               @relation("SurveyAssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  responses          SurveyResponse[]
+
+  @@unique([formId, procurementPackageId])
+  @@index([tehsilId])
+  @@index([procurementPackageId])
+  @@index([formRevisionId])
+  @@map("survey_assignments")
+}
+
+model SurveyResponse {
+  id             String               @id @default(uuid())
+  assignmentId   String               @map("assignment_id")
+  formId         String               @map("form_id")
+  formRevisionId String               @map("form_revision_id")
+  respondentId   String               @map("respondent_id")
+  tehsilId     String               @map("tehsil_id")
+  villageId    String               @map("village_id")
+  settlementId String?              @map("settlement_id")
+  visitDate    DateTime?            @map("visit_date") @db.Date
+  status       SurveyResponseStatus @default(DRAFT)
+  submittedAt  DateTime?            @map("submitted_at")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  assignment   SurveyAssignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  form         SurveyForm         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formRevision SurveyFormRevision @relation(fields: [formRevisionId], references: [id], onDelete: Restrict)
+  respondent   User               @relation("SurveyResponseRespondent", fields: [respondentId], references: [id], onDelete: Restrict)
+  tehsil     Tehsil           @relation(fields: [tehsilId], references: [id], onDelete: Restrict)
+  village    Village          @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  settlement Settlement?      @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  answers    SurveyAnswer[]
+
+  @@index([assignmentId])
+  @@index([respondentId])
+  @@index([formId])
+  @@index([formRevisionId])
+  @@map("survey_responses")
+}
+
+model SurveyAnswer {
+  id         String   @id @default(uuid())
+  responseId String   @map("response_id")
+  fieldId    String   @map("field_id")
+  value      Json
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  response SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, fieldId])
+  @@index([responseId])
+  @@index([fieldId])
+  @@map("survey_answers")
 }

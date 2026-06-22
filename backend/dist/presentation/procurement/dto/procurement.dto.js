@@ -9,7 +9,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdateProcurementPackageExpenseDto = exports.CreateProcurementPackageExpenseDto = exports.UpdateProcurementPackageDto = exports.CreateProcurementPackageDto = exports.UpdateMasterNameDto = exports.CreateMasterNameDto = void 0;
+exports.PackageBaselineAnswerDto = exports.SavePackageBaselineDto = exports.UpdateProcurementPackageExpenseDto = exports.CreateProcurementPackageExpenseDto = exports.UpdateProcurementPackageDto = exports.CreateProcurementPackageDto = exports.UpdateMasterNameDto = exports.CreateMasterNameDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CreateMasterNameDto {
     name;
@@ -132,4 +133,27 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], UpdateProcurementPackageExpenseDto.prototype, "expenseDate", void 0);
+class SavePackageBaselineDto {
+    answers;
+}
+exports.SavePackageBaselineDto = SavePackageBaselineDto;
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => PackageBaselineAnswerDto),
+    __metadata("design:type", Array)
+], SavePackageBaselineDto.prototype, "answers", void 0);
+class PackageBaselineAnswerDto {
+    fieldId;
+    value;
+}
+exports.PackageBaselineAnswerDto = PackageBaselineAnswerDto;
+__decorate([
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], PackageBaselineAnswerDto.prototype, "fieldId", void 0);
+__decorate([
+    (0, class_validator_1.Allow)(),
+    __metadata("design:type", Object)
+], PackageBaselineAnswerDto.prototype, "value", void 0);
 //# sourceMappingURL=procurement.dto.js.map

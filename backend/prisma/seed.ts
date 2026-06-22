@@ -8,6 +8,7 @@ import {
   tehsilRaUsername,
 } from './data/tehsils';
 import { seedGeography } from './seed-geography';
+import { seedCesmpVillageMonitoringForm } from './seed-cesmp-form';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -119,6 +120,8 @@ async function main() {
   console.log(`16 RA E&S users ensured (password: ${raPassword})`);
   console.log(`Head Office id: ${headOffice.id}`);
   console.log(`World Bank Office id: ${worldBankOffice.id}`);
+
+  await seedCesmpVillageMonitoringForm(prisma);
 }
 
 main()
