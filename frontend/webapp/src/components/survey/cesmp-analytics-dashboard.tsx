@@ -12,11 +12,13 @@ import {
 import {
   AlertTriangle,
   Building2,
+  CheckCircle2,
   Cloud,
   HardHat,
   MapPinned,
   Package,
   Shield,
+  ShieldAlert,
   TrendingUp,
   Users,
   Wind,
@@ -44,13 +46,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 import type {
   CesmpFormInsights,
   CesmpPatternInsight,
 } from "@/modules/api/survey-types"
-import { CHART_SERIES_COLORS, chartSeriesColor } from "@/lib/chart-colors"
-
-const CHART_COLORS = [...CHART_SERIES_COLORS]
+import {
+  type ComplianceImpactKind,
+  IMPACT_CHIP_CLASSES,
+  IMPACT_LABELS,
+  type ImpactTone,
+  impactBarGradient,
+  impactColorForComplianceLabel,
+  impactToneForComplianceLabel,
+} from "@/lib/impact-colors"
 
 function formatCurrency(value: number): string {
   return value.toLocaleString(undefined, {
@@ -75,20 +84,34 @@ function PatternAnalysisCard({
   insight,
   icon,
   riskHint,
+  impactKind,
 }: {
   title: string
   description: string
   insight: CesmpPatternInsight
   icon: React.ReactNode
   riskHint?: string
+  impactKind: ComplianceImpactKind
 }) {
-  const rows = useMemo(() => patternRows(insight), [insight])
+  const rows = useMemo(
+    () =>
+      Object.entries(insight.counts)
+        .map(([name, count]) => ({
+          name,
+          count,
+          pct: insight.total > 0 ? Math.round((count / insight.total) * 100) : 0,
+          tone: impactToneForComplianceLabel(name, impactKind),
+          color: impactColorForComplianceLabel(name, impactKind),
+        }))
+        .sort((a, b) => b.count - a.count),
+    [impactKind, insight.counts, insight.total],
+  )
   const chartConfig = useMemo(
     () =>
       Object.fromEntries(
-        rows.map((row, index) => [
+        rows.map((row) => [
           row.name,
-          { label: row.name, color: chartSeriesColor(index) },
+          { label: row.name, color: row.color },
         ]),
       ) satisfies ChartConfig,
     [rows],
@@ -135,21 +158,34 @@ function PatternAnalysisCard({
                   outerRadius={68}
                   paddingAngle={2}
                 >
-                  {rows.map((row, index) => (
-                    <Cell
-                      key={row.name}
-                      fill={CHART_COLORS[index % CHART_COLORS.length]}
-                    />
+                  {rows.map((row) => (
+                    <Cell key={row.name} fill={row.color} />
                   ))}
                 </Pie>
               </PieChart>
             </ChartContainer>
             <div className="space-y-2">
-              {rows.map((row, index) => (
+              {rows.map((row) => (
                 <div key={row.name} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">{row.name}</span>
-                    <span className="font-medium tabular-nums">
+                  <div className="flex justify-between gap-2 text-xs">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: row.color }}
+                      />
+                      <span className="truncate text-muted-foreground">
+                        {row.name}
+                      </span>
+                      <span
+                        className={cn(
+                          "hidden shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium sm:inline",
+                          IMPACT_CHIP_CLASSES[row.tone],
+                        )}
+                      >
+                        {IMPACT_LABELS[row.tone]}
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-medium tabular-nums">
                       {row.count} ({row.pct}%)
                     </span>
                   </div>
@@ -158,7 +194,7 @@ function PatternAnalysisCard({
                       className="h-full rounded-full"
                       style={{
                         width: `${row.pct}%`,
-                        backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+                        background: impactBarGradient(row.color),
                       }}
                     />
                   </div>
@@ -172,16 +208,207 @@ function PatternAnalysisCard({
   )
 }
 
-function deriveRiskHints(insights: CesmpFormInsights) {
-  const hints: string[] = []
+function ImpactLegend() {
+  const tones = ["positive", "neutral", "warning", "negative"] as const
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
+      <span className="text-xs font-medium text-muted-foreground">
+        Impact scale
+      </span>
+      {tones.map((tone) => (
+        <span
+          key={tone}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium",
+            IMPACT_CHIP_CLASSES[tone],
+          )}
+        >
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: `var(--impact-${tone})` }}
+          />
+          {IMPACT_LABELS[tone]}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+type IntelligenceAlert = {
+  id: string
+  severity: ImpactTone
+  category: string
+  metric: string
+  detail: string
+}
+
+const ALERT_PANEL_CLASSES: Record<
+  ImpactTone,
+  { border: string; bg: string; iconClass: string }
+> = {
+  negative: {
+    border: "border-l-[var(--impact-negative)]",
+    bg: "bg-[color-mix(in_oklch,var(--impact-negative)_7%,var(--card))]",
+    iconClass: "text-[var(--impact-negative)]",
+  },
+  warning: {
+    border: "border-l-[var(--impact-warning)]",
+    bg: "bg-[color-mix(in_oklch,var(--impact-warning)_8%,var(--card))]",
+    iconClass: "text-[var(--impact-warning)]",
+  },
+  neutral: {
+    border: "border-l-[var(--impact-neutral)]",
+    bg: "bg-[color-mix(in_oklch,var(--impact-neutral)_8%,var(--card))]",
+    iconClass: "text-[var(--impact-neutral)]",
+  },
+  positive: {
+    border: "border-l-[var(--impact-positive)]",
+    bg: "bg-[color-mix(in_oklch,var(--impact-positive)_8%,var(--card))]",
+    iconClass: "text-[var(--impact-positive)]",
+  },
+}
+
+function IntelligenceAlertCard({ alert }: { alert: IntelligenceAlert }) {
+  const styles = ALERT_PANEL_CLASSES[alert.severity]
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-border/70 border-l-4 p-4 shadow-sm",
+        styles.border,
+        styles.bg,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div
+            className={cn(
+              "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-background/80",
+              styles.iconClass,
+            )}
+          >
+            <ShieldAlert className="size-4" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {alert.category}
+              </p>
+              <span
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                  IMPACT_CHIP_CLASSES[alert.severity],
+                )}
+              >
+                {IMPACT_LABELS[alert.severity]}
+              </span>
+            </div>
+            <p className="text-sm font-medium leading-snug text-foreground">
+              {alert.detail}
+            </p>
+          </div>
+        </div>
+        <p
+          className={cn(
+            "shrink-0 text-right text-lg font-semibold tabular-nums tracking-tight",
+            styles.iconClass,
+          )}
+        >
+          {alert.metric}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function StakeholderIntelligencePanel({
+  alerts,
+}: {
+  alerts: IntelligenceAlert[]
+}) {
+  const criticalCount = alerts.filter((a) => a.severity === "negative").length
+
+  return (
+    <Card className="overflow-hidden border-border/80 shadow-sm">
+      <div className="border-b bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-6 py-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-background shadow-sm">
+              <Shield className="size-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                C-ESMP stakeholder intelligence
+              </p>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Executive briefing on environmental safeguards, budget utilization,
+                and field compliance. Scope using the package and date filters above.
+              </p>
+            </div>
+          </div>
+          {alerts.length > 0 ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                "shrink-0 self-start px-2.5 py-1 text-xs font-semibold",
+                criticalCount > 0
+                  ? "border-[color-mix(in_oklch,var(--impact-negative)_35%,transparent)] bg-[color-mix(in_oklch,var(--impact-negative)_10%,transparent)] text-[var(--impact-negative)]"
+                  : "border-[color-mix(in_oklch,var(--impact-warning)_35%,transparent)] bg-[color-mix(in_oklch,var(--impact-warning)_10%,transparent)] text-[var(--impact-warning)]",
+              )}
+            >
+              {alerts.length} action item{alerts.length === 1 ? "" : "s"}
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+
+      <CardContent className="p-6">
+        {alerts.length === 0 ? (
+          <div className="flex items-start gap-4 rounded-lg border border-[color-mix(in_oklch,var(--impact-positive)_25%,transparent)] bg-[color-mix(in_oklch,var(--impact-positive)_8%,var(--card))] p-4">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--impact-positive)_15%,transparent)] text-[var(--impact-positive)]">
+              <CheckCircle2 className="size-5" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground">
+                No critical compliance gaps in current scope
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Field indicators are within acceptable thresholds for the selected
+                package and date window. Continue routine monitoring.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Priority findings
+            </p>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {alerts.map((alert) => (
+                <IntelligenceAlertCard key={alert.id} alert={alert} />
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function deriveRiskHints(insights: CesmpFormInsights): IntelligenceAlert[] {
+  const alerts: IntelligenceAlert[] = []
   const ppe = patternRows(insights.ppeCompliance.wearingRate)
   const lowPpe = ppe.find((row) =>
     ["none", "some"].includes(row.name.toLowerCase()),
   )
   if (lowPpe && lowPpe.pct >= 25) {
-    hints.push(
-      `PPE compliance risk: ${lowPpe.pct}% of visits report "${lowPpe.name}" workers wearing appropriate PPE.`,
-    )
+    alerts.push({
+      id: "ppe-compliance",
+      severity: lowPpe.pct >= 50 ? "negative" : "warning",
+      category: "PPE compliance",
+      metric: `${lowPpe.pct}%`,
+      detail: `Visits report "${lowPpe.name}" workers wearing appropriate PPE — immediate contractor engagement recommended.`,
+    })
   }
 
   const dust = patternRows(insights.dust.level)
@@ -193,32 +420,52 @@ function deriveRiskHints(insights: CesmpFormInsights) {
     ["never", "rarely"].includes(row.name.toLowerCase()),
   )
   if (highDust && highDust.pct >= 20) {
-    hints.push(
-      `Dust exposure elevated on ${highDust.pct}% of visits — prioritize water sprinkling and dust suppression.`,
-    )
+    alerts.push({
+      id: "dust-exposure",
+      severity: highDust.pct >= 40 ? "negative" : "warning",
+      category: "Dust exposure",
+      metric: `${highDust.pct}%`,
+      detail:
+        "Visits report elevated fugitive dust — prioritize water sprinkling and dust suppression on site.",
+    })
   }
   if (weakControl && weakControl.pct >= 30) {
-    hints.push(
-      `Dust control gap: sprinkling is "${weakControl.name}" on ${weakControl.pct}% of visits.`,
-    )
+    alerts.push({
+      id: "dust-control",
+      severity: "warning",
+      category: "Dust control",
+      metric: `${weakControl.pct}%`,
+      detail: `Water sprinkling reported as "${weakControl.name}" — review dust mitigation frequency with contractors.`,
+    })
   }
 
   if (insights.budget.overallUtilizationRate >= 85) {
-    hints.push(
-      `ESMP budget is ${insights.budget.overallUtilizationRate}% utilized — review remaining headroom before new commitments.`,
-    )
+    alerts.push({
+      id: "budget-utilization",
+      severity:
+        insights.budget.overallUtilizationRate >= 95 ? "warning" : "neutral",
+      category: "ESMP budget",
+      metric: `${insights.budget.overallUtilizationRate}%`,
+      detail:
+        "Budget utilization is high — review remaining headroom before new ESMP commitments.",
+    })
   }
 
   if (
     insights.summary.hseStaffHiredRate < 100 &&
     insights.summary.totalProcurementPackages > 0
   ) {
-    hints.push(
-      `Only ${insights.summary.hseStaffHiredRate}% of packages report HSE staff hired in baseline.`,
-    )
+    alerts.push({
+      id: "hse-staff",
+      severity:
+        insights.summary.hseStaffHiredRate < 50 ? "negative" : "warning",
+      category: "HSE staffing",
+      metric: `${insights.summary.hseStaffHiredRate}%`,
+      detail: `Only ${insights.summary.hseStaffHiredPackages} of ${insights.summary.totalProcurementPackages} packages report HSE staff hired in baseline.`,
+    })
   }
 
-  return hints
+  return alerts
 }
 
 type CesmpAnalyticsDashboardProps = {
@@ -230,7 +477,7 @@ export function CesmpAnalyticsDashboard({
   insights,
   selectedPackageId,
 }: CesmpAnalyticsDashboardProps) {
-  const riskHints = useMemo(() => deriveRiskHints(insights), [insights])
+  const riskAlerts = useMemo(() => deriveRiskHints(insights), [insights])
 
   const budgetHeadData = [
     { head: "PPE", amount: insights.budget.byHead.ppe },
@@ -251,25 +498,7 @@ export function CesmpAnalyticsDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-          C-ESMP stakeholder intelligence
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Executive KPIs for environmental safeguards, budget utilization, and
-          field compliance — use package filter above to scope decisions.
-        </p>
-        {riskHints.length > 0 ? (
-          <ul className="mt-3 space-y-1.5 text-sm">
-            {riskHints.map((hint) => (
-              <li key={hint} className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-                <span>{hint}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
+      <StakeholderIntelligencePanel alerts={riskAlerts} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="shadow-sm">
@@ -463,30 +692,36 @@ export function CesmpAnalyticsDashboard({
         </Card>
       </div>
 
+      <ImpactLegend />
+
       <div className="grid gap-6 xl:grid-cols-2">
         <PatternAnalysisCard
           title="PPE compliance"
           description="Worker PPE wearing rate across site visits"
           insight={insights.ppeCompliance.wearingRate}
           icon={<Shield className="size-4" />}
+          impactKind="ppe-wearing"
         />
         <PatternAnalysisCard
           title="PPE condition & fit"
           description="Whether PPE is in good condition and properly fitted"
           insight={insights.ppeCompliance.goodCondition}
           icon={<Shield className="size-4" />}
+          impactKind="yes-no"
         />
         <PatternAnalysisCard
           title="Noise pattern"
           description="Average noise level observed during inspections"
           insight={insights.noise.level}
           icon={<Wind className="size-4" />}
+          impactKind="noise-severity"
         />
         <PatternAnalysisCard
           title="Noise reduction measures"
           description="Frequency of machinery noise reduction integration"
           insight={insights.noise.reductionMeasures}
           icon={<Wind className="size-4" />}
+          impactKind="mitigation-frequency"
         />
         <PatternAnalysisCard
           title="Dust emission pattern"
@@ -494,12 +729,14 @@ export function CesmpAnalyticsDashboard({
           insight={insights.dust.level}
           icon={<Cloud className="size-4" />}
           riskHint="High or extreme dust on multiple visits may require immediate mitigation."
+          impactKind="dust-severity"
         />
         <PatternAnalysisCard
           title="Dust reduction measures"
           description="Water sprinkling frequency for dust control"
           insight={insights.dust.reductionMeasures}
           icon={<Cloud className="size-4" />}
+          impactKind="mitigation-frequency"
         />
       </div>
 

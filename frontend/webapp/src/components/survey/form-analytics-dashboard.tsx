@@ -3,8 +3,10 @@ import type { ReactNode } from "react";
 import {
   CalendarRange,
   // ClipboardList,
+  ClipboardCheck,
   Filter,
   Info,
+  MapPin,
   MapPinned,
   Package,
 } from "lucide-react";
@@ -29,8 +31,16 @@ import {
 } from "@/lib/survey-analytics-dates";
 import {
   DEMOGRAPHIC_ACCENTS,
-  chartSeriesColor,
 } from "@/lib/chart-colors";
+import {
+  IMPACT_CHIP_CLASSES,
+  IMPACT_LABELS,
+  impactBarGradient,
+  impactColor,
+  impactColorForCoverageShare,
+  impactToneForCoverageShare,
+  type ImpactTone,
+} from "@/lib/impact-colors";
 import { cn } from "@/lib/utils";
 import type {
   SurveyFormAnalytics,
@@ -188,48 +198,62 @@ function ActiveScopeSummary({
   const tehsilCount = analytics.byTehsil.length;
 
   return (
-    <Card className="border-primary/20 bg-primary/5 shadow-sm">
-      <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-primary">
-            <Filter className="size-4" />
-            <p className="text-xs font-medium uppercase tracking-wider">
-              Current view
-            </p>
+    <Card className="overflow-hidden border-border/80 shadow-sm">
+      <div className="border-b bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-6 py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-background shadow-sm">
+              <Filter className="size-4 text-primary" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                Current view
+              </p>
+              <p className="text-lg font-semibold tracking-tight">
+                {selectedPackage
+                  ? selectedPackage.packageName
+                  : "All procurement packages"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {selectedPackage
+                  ? `${selectedPackage.tehsilName} · single package scope`
+                  : `${summary.packageCount} packages in programme`}
+                <span className="mx-1.5 text-border">·</span>
+                Submissions: {dateLabel}
+              </p>
+            </div>
           </div>
-          <p className="text-lg font-semibold">
-            {selectedPackage
-              ? selectedPackage.packageName
-              : "All procurement packages"}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {selectedPackage
-              ? `${selectedPackage.tehsilName} · one package`
-              : `${summary.packageCount} packages in programme`}
-            {" · "}
-            Submissions received: {dateLabel}
-          </p>
         </div>
+      </div>
+      <CardContent className="p-6">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <ScopeStat
             label="Submitted"
             value={summary.submitted}
             hint="In selected window"
+            tone="positive"
+            icon={<ClipboardCheck className="size-4" />}
           />
           <ScopeStat
             label="Villages"
             value={villageCount}
             hint="With responses"
+            tone="neutral"
+            icon={<MapPin className="size-4" />}
           />
           <ScopeStat
             label="Tehsils"
             value={tehsilCount}
             hint="With responses"
+            tone="neutral"
+            icon={<MapPinned className="size-4" />}
           />
           <ScopeStat
             label="Drafts"
             value={summary.draft}
-            hint={summary.draft > 0 ? "Not in date filter" : "In progress"}
+            hint={summary.draft > 0 ? "Outside date filter" : "In progress"}
+            tone={summary.draft > 0 ? "warning" : "neutral"}
+            icon={<Package className="size-4" />}
           />
         </div>
       </CardContent>
@@ -241,16 +265,38 @@ function ScopeStat({
   label,
   value,
   hint,
+  tone,
+  icon,
 }: {
   label: string;
   value: number;
   hint: string;
+  tone: ImpactTone;
+  icon: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border bg-background/80 px-3 py-2">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-xl font-semibold tabular-nums">{value}</p>
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
+    <div
+      className={cn(
+        "rounded-xl border border-border/70 bg-card p-4 shadow-sm",
+        "border-t-[3px]",
+      )}
+      style={{ borderTopColor: impactColor(tone) }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <span className="opacity-90" style={{ color: impactColor(tone) }}>
+          {icon}
+        </span>
+      </div>
+      <p
+        className="mt-2 text-2xl font-semibold tabular-nums tracking-tight"
+        style={{ color: impactColor(tone) }}
+      >
+        {value}
+      </p>
+      <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>
     </div>
   );
 }
@@ -260,29 +306,36 @@ function DemographicBarRow({
   sublabel,
   value,
   max,
-  colorIndex,
   sharePct,
 }: {
   label: string;
   sublabel?: string;
   value: number;
   max: number;
-  colorIndex: number;
   sharePct: number;
 }) {
   const widthPct = max > 0 ? Math.round((value / max) * 100) : 0;
-  const color = chartSeriesColor(colorIndex);
+  const tone = impactToneForCoverageShare(sharePct);
+  const color = impactColorForCoverageShare(sharePct);
 
   return (
     <div className="group rounded-lg border border-border/60 bg-card px-3 py-2.5 transition-colors hover:border-border hover:bg-muted/20">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className="size-2.5 shrink-0 rounded-full ring-2 ring-background"
               style={{ backgroundColor: color }}
             />
             <p className="truncate text-sm font-medium">{label}</p>
+            <span
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                IMPACT_CHIP_CLASSES[tone],
+              )}
+            >
+              {IMPACT_LABELS[tone]}
+            </span>
           </div>
           {sublabel ? (
             <p className="mt-0.5 truncate pl-4.5 text-xs text-muted-foreground">
@@ -302,7 +355,7 @@ function DemographicBarRow({
           className="h-full rounded-full transition-[width] duration-500 ease-out"
           style={{
             width: `${widthPct}%`,
-            background: `linear-gradient(90deg, ${color}, color-mix(in oklch, ${color} 72%, white))`,
+            background: impactBarGradient(color),
           }}
         />
       </div>
@@ -394,8 +447,8 @@ function GeographicDemographics({
           Geographic demographics
         </CardTitle>
         <CardDescription>
-          Submission distribution by tehsil and village in the current filter —
-          bar length shows relative volume within each group.
+          Submission distribution by tehsil and village — colour reflects
+          coverage strength (green = well represented, red = monitoring gap).
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
@@ -406,13 +459,12 @@ function GeographicDemographics({
             total={tehsilTotal}
             accent={DEMOGRAPHIC_ACCENTS.tehsil}
           >
-            {analytics.byTehsil.map((row, index) => (
+            {analytics.byTehsil.map((row) => (
               <DemographicBarRow
                 key={row.tehsilId}
                 label={row.tehsilName}
                 value={row.submitted}
                 max={maxTehsil}
-                colorIndex={index}
                 sharePct={
                   tehsilTotal > 0
                     ? Math.round((row.submitted / tehsilTotal) * 100)
@@ -430,14 +482,13 @@ function GeographicDemographics({
             total={villageTotal}
             accent={DEMOGRAPHIC_ACCENTS.village}
           >
-            {villageRows.map((row, index) => (
+            {villageRows.map((row) => (
               <DemographicBarRow
                 key={row.villageId}
                 label={row.villageName}
                 sublabel={row.tehsilName}
                 value={row.submitted}
                 max={maxVillage}
-                colorIndex={index + 1}
                 sharePct={
                   villageTotal > 0
                     ? Math.round((row.submitted / villageTotal) * 100)
