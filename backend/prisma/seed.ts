@@ -55,9 +55,16 @@ async function main() {
   const seniorPassword =
     process.env.SEED_SENIOR_MANAGER_PASSWORD ?? 'SeniorManager@123';
 
-  const existingSenior = await prisma.user.findUnique({
-    where: { email: seniorEmail },
+  const existingSenior = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: seniorEmail },
+        { username: seniorUsername },
+        { role: UserRole.SENIOR_MANAGER_ES },
+      ],
+    },
   });
+
   if (!existingSenior) {
     await prisma.user.create({
       data: {
@@ -72,7 +79,24 @@ async function main() {
     console.log(`  Username: ${seniorUsername}`);
     console.log(`  Password: ${seniorPassword}`);
   } else {
-    console.log(`Senior Manager already exists: ${seniorEmail}`);
+    const needsUpdate =
+      existingSenior.email !== seniorEmail ||
+      existingSenior.username !== seniorUsername;
+
+    if (needsUpdate) {
+      await prisma.user.update({
+        where: { id: existingSenior.id },
+        data: {
+          email: seniorEmail,
+          username: seniorUsername,
+        },
+      });
+      console.log(
+        `Senior Manager updated (${existingSenior.email} → ${seniorEmail})`,
+      );
+    } else {
+      console.log(`Senior Manager already exists: ${seniorEmail}`);
+    }
   }
 
   const raPassword = process.env.SEED_RA_ES_PASSWORD ?? 'RaEs@123';
@@ -98,7 +122,12 @@ async function main() {
 
     const email = tehsilRaEmail(tehsilName);
     const username = tehsilRaUsername(tehsilName);
-    const existingRa = await prisma.user.findUnique({ where: { email } });
+    const existingRa = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { username }],
+      },
+    });
+
     if (!existingRa) {
       await prisma.user.create({
         data: {
@@ -110,10 +139,16 @@ async function main() {
           status: 'ACTIVE',
         },
       });
-    } else if (existingRa.officeId !== tehsilOffice.id) {
+    } else {
       await prisma.user.update({
         where: { id: existingRa.id },
-        data: { officeId: tehsilOffice.id },
+        data: {
+          email,
+          username,
+          officeId: tehsilOffice.id,
+          role: UserRole.RA_ES_TEHSIL,
+          status: 'ACTIVE',
+        },
       });
     }
   }
