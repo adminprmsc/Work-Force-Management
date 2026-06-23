@@ -91,6 +91,7 @@ import {
   officesForRole,
   roleRequiresOffice,
 } from "@/lib/user-management"
+import { copyTextToClipboard } from "@/lib/copy-to-clipboard"
 import { roleBadgeClass, roleLabel, userInitials } from "@/lib/user-display"
 import { getQueryViewState, mergeQueryViewStates } from "@/lib/query-view-state"
 import { cn } from "@/lib/utils"
@@ -520,7 +521,7 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
 
   const handleCopyEmail = useCallback(async (email: string) => {
     try {
-      await navigator.clipboard.writeText(email)
+      await copyTextToClipboard(email)
       toast.success("Email copied")
     } catch {
       toast.error("Failed to copy email")

@@ -7,6 +7,7 @@ import {
   tehsilRaEmail,
   tehsilRaUsername,
 } from './data/tehsils';
+import { seedEmail } from './data/email-domain';
 import { seedGeography } from './seed-geography';
 import { seedCesmpVillageMonitoringForm } from './seed-cesmp-form';
 
@@ -48,7 +49,7 @@ async function main() {
   }
 
   const seniorEmail =
-    process.env.SEED_SENIOR_MANAGER_EMAIL ?? 'senior.manager@wfm.local';
+    process.env.SEED_SENIOR_MANAGER_EMAIL ?? seedEmail('senior.manager');
   const seniorUsername =
     process.env.SEED_SENIOR_MANAGER_USERNAME ?? 'senior_manager_es';
   const seniorPassword =

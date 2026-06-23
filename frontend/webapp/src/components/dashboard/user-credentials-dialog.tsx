@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { copyTextToClipboard } from "@/lib/copy-to-clipboard"
 
 export type UserCredentials = {
   username: string
@@ -33,7 +34,7 @@ type UserCredentialsDialogProps = {
 
 async function copyToClipboard(text: string, label: string) {
   try {
-    await navigator.clipboard.writeText(text)
+    await copyTextToClipboard(text)
     toast.success(`${label} copied`)
   } catch {
     toast.error(`Failed to copy ${label}`)

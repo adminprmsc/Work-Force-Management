@@ -54,7 +54,7 @@ export function LoginPage() {
 
   const from = (location.state as LocationState)?.from;
 
-  const [email, setEmail] = useState(isDev ? "senior.manager@wfm.local" : "");
+  const [email, setEmail] = useState(isDev ? "senior.manager@ens.com" : "");
   const [password, setPassword] = useState(isDev ? "SeniorManager@123" : "");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +200,7 @@ export function LoginPage() {
                     autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@wfm.local"
+                    placeholder="name@ens.com"
                     className="h-11"
                   />
                 </div>
@@ -259,7 +259,7 @@ export function LoginPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setEmail("senior.manager@wfm.local");
+                          setEmail("senior.manager@ens.com");
                           setPassword("SeniorManager@123");
                           setError(null);
                         }}
@@ -271,7 +271,7 @@ export function LoginPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setEmail("ra.es.ahmadpur-sial@wfm.local");
+                          setEmail("ra.es.ahmadpur-sial@ens.com");
                           setPassword("RaEs@123");
                           setError(null);
                         }}

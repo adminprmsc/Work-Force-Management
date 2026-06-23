@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "wfm-backend-collection",
     "name": "WFM Backend API",
-    "description": "Work Force Management Backend API — Spec 002 (Clean Architecture / NestJS 11)\n\n**Base URL:** `http://localhost:3001/api`\n\n**Start stack:** `npm run docker:dev`\n**Seed data:** `npm run db:seed`\n\n---\n\n## Architecture\n\n```\nHTTP → Controller → Use Case → Domain Policy → Repository (Prisma)\n```\n\nBusiness rules live in **use cases** and **domain policies** (`user-management.policy.ts`). Controllers only handle HTTP; repositories only handle persistence.\n\n---\n\n## User roles\n\n| Role | Code | Office | Created via API |\n|------|------|--------|-----------------|\n| Senior Manager E&S | `SENIOR_MANAGER_ES` | — | Seed only |\n| RA Environment (HO) | `RA_ENVIRONMENT_HO` | `HEAD_OFFICE` | Yes |\n| RA E&S (Tehsil) | `RA_ES_TEHSIL` | `TEHSIL_OFFICE` | Seed only (1 per tehsil) |\n| World Bank User | `WORLD_BANK_USER` | `WORLD_BANK_OFFICE` | Yes |\n\n## Senior Manager permissions\n\n- **Create:** `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` (must assign matching office)\n- **Activate / deactivate:** all roles including seeded tehsil RAs\n- **Edit / delete / reset credentials:** `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` only\n- **Cannot:** create or delete `RA_ES_TEHSIL`, change user roles, delete self\n- **View:** audit logs, offices, users\n\n## Authenticated (non-admin) access\n\n`RA_ES_TEHSIL`, `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` can access:\n- `GET /auth/profile`\n- `GET /tehsils` and `GET /tehsils/:id/villages`\n\nAll `/users`, `/offices`, `/audit-logs` routes require `SENIOR_MANAGER_ES`.\n\n---\n\n## Seed credentials\n\n| Account | Email | Password |\n|---------|-------|----------|\n| Senior Manager | `senior.manager@wfm.local` | `SeniorManager@123` |\n| RA E&S (Ahmadpur Sial) | `ra.es.ahmadpur-sial@wfm.local` | `RaEs@123` |\n\n---\n\n## Suggested flow\n\n1. **Health Check** — verify API is up\n2. **Login (Senior Manager)** — saves `token`, `actorId`, `actorRole`\n3. **List All Offices** — saves `headOfficeId`, `worldBankOfficeId`, `tehsilOfficeId`\n4. **Create RA Environment (HO)** — saves `userId`\n5. **Create World Bank User** — saves `worldBankUserId`\n6. **List Users** — saves `raEsUserId` (first seeded tehsil RA)\n7. **List Tehsils** → **List Villages by Tehsil**\n8. **List Audit Logs** — paginated trail of user mutations\n\n> **Note:** Workforce scheduling is not implemented yet. This collection covers auth, RBAC, offices, geography, and audit logging only.",
+    "description": "Work Force Management Backend API — Spec 002 (Clean Architecture / NestJS 11)\n\n**Base URL:** `http://localhost:3001/api`\n\n**Start stack:** `npm run docker:dev`\n**Seed data:** `npm run db:seed`\n\n---\n\n## Architecture\n\n```\nHTTP → Controller → Use Case → Domain Policy → Repository (Prisma)\n```\n\nBusiness rules live in **use cases** and **domain policies** (`user-management.policy.ts`). Controllers only handle HTTP; repositories only handle persistence.\n\n---\n\n## User roles\n\n| Role | Code | Office | Created via API |\n|------|------|--------|-----------------|\n| Senior Manager E&S | `SENIOR_MANAGER_ES` | — | Seed only |\n| RA Environment (HO) | `RA_ENVIRONMENT_HO` | `HEAD_OFFICE` | Yes |\n| RA E&S (Tehsil) | `RA_ES_TEHSIL` | `TEHSIL_OFFICE` | Seed only (1 per tehsil) |\n| World Bank User | `WORLD_BANK_USER` | `WORLD_BANK_OFFICE` | Yes |\n\n## Senior Manager permissions\n\n- **Create:** `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` (must assign matching office)\n- **Activate / deactivate:** all roles including seeded tehsil RAs\n- **Edit / delete / reset credentials:** `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` only\n- **Cannot:** create or delete `RA_ES_TEHSIL`, change user roles, delete self\n- **View:** audit logs, offices, users\n\n## Authenticated (non-admin) access\n\n`RA_ES_TEHSIL`, `RA_ENVIRONMENT_HO`, `WORLD_BANK_USER` can access:\n- `GET /auth/profile`\n- `GET /tehsils` and `GET /tehsils/:id/villages`\n\nAll `/users`, `/offices`, `/audit-logs` routes require `SENIOR_MANAGER_ES`.\n\n---\n\n## Seed credentials\n\n| Account | Email | Password |\n|---------|-------|----------|\n| Senior Manager | `senior.manager@ens.com` | `SeniorManager@123` |\n| RA E&S (Ahmadpur Sial) | `ra.es.ahmadpur-sial@ens.com` | `RaEs@123` |\n\n---\n\n## Suggested flow\n\n1. **Health Check** — verify API is up\n2. **Login (Senior Manager)** — saves `token`, `actorId`, `actorRole`\n3. **List All Offices** — saves `headOfficeId`, `worldBankOfficeId`, `tehsilOfficeId`\n4. **Create RA Environment (HO)** — saves `userId`\n5. **Create World Bank User** — saves `worldBankUserId`\n6. **List Users** — saves `raEsUserId` (first seeded tehsil RA)\n7. **List Tehsils** → **List Villages by Tehsil**\n8. **List Audit Logs** — paginated trail of user mutations\n\n> **Note:** Workforce scheduling is not implemented yet. This collection covers auth, RBAC, offices, geography, and audit logging only.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -100,7 +100,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"senior.manager@wfm.local\",\n  \"password\": \"SeniorManager@123\"\n}"
+              "raw": "{\n  \"email\": \"senior.manager@ens.com\",\n  \"password\": \"SeniorManager@123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
@@ -141,14 +141,14 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"ra.es.ahmadpur-sial@wfm.local\",\n  \"password\": \"RaEs@123\"\n}"
+              "raw": "{\n  \"email\": \"ra.es.ahmadpur-sial@ens.com\",\n  \"password\": \"RaEs@123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
               "host": ["{{baseUrl}}"],
               "path": ["auth", "login"]
             },
-            "description": "Seeded tehsil RA — can access profile and tehsil geography only. Cannot manage users, offices, or audit logs.\n\nEmail pattern: `ra.es.<tehsil-slug>@wfm.local`"
+            "description": "Seeded tehsil RA — can access profile and tehsil geography only. Cannot manage users, offices, or audit logs.\n\nEmail pattern: `ra.es.<tehsil-slug>@ens.com`"
           }
         },
         {
@@ -417,7 +417,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"ra.env@wfm.local\",\n  \"username\": \"ra_env_ho\",\n  \"password\": \"Research@123\",\n  \"role\": \"RA_ENVIRONMENT_HO\",\n  \"officeId\": \"{{headOfficeId}}\"\n}"
+              "raw": "{\n  \"email\": \"ra.env@ens.com\",\n  \"username\": \"ra_env_ho\",\n  \"password\": \"Research@123\",\n  \"role\": \"RA_ENVIRONMENT_HO\",\n  \"officeId\": \"{{headOfficeId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/users",
@@ -454,7 +454,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"worldbank@wfm.local\",\n  \"username\": \"wb_user\",\n  \"password\": \"WorldBank@123\",\n  \"role\": \"WORLD_BANK_USER\",\n  \"officeId\": \"{{worldBankOfficeId}}\"\n}"
+              "raw": "{\n  \"email\": \"worldbank@ens.com\",\n  \"username\": \"wb_user\",\n  \"password\": \"WorldBank@123\",\n  \"role\": \"WORLD_BANK_USER\",\n  \"officeId\": \"{{worldBankOfficeId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/users",
@@ -631,7 +631,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"ra.es.fake@wfm.local\",\n  \"username\": \"ra_es_fake\",\n  \"password\": \"Research@123\",\n  \"role\": \"RA_ES_TEHSIL\",\n  \"officeId\": \"{{tehsilOfficeId}}\"\n}"
+              "raw": "{\n  \"email\": \"ra.es.fake@ens.com\",\n  \"username\": \"ra_es_fake\",\n  \"password\": \"Research@123\",\n  \"role\": \"RA_ES_TEHSIL\",\n  \"officeId\": \"{{tehsilOfficeId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/users",
