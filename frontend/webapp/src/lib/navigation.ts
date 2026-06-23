@@ -11,6 +11,7 @@ import {
   UserCircle,
   Users,
   UserSquare2,
+  BarChart3,
 } from "lucide-react"
 
 import { Role, type Role as RoleType } from "@/modules/auth/roles"
@@ -278,6 +279,44 @@ export const NAV_GROUPS: NavGroup[] = [
           title: "My surveys",
           description:
             "ESMP baseline and village monitoring submissions for your tehsil",
+        },
+      },
+    ],
+  },
+  {
+    label: "Form dashboards",
+    items: [
+      {
+        label: "Form dashboards",
+        path: "/dashboard/senior-manager/form-dashboards",
+        icon: BarChart3,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Form dashboards",
+          description:
+            "Per-form analytics — demographics, procurement linkage, and question insights",
+        },
+      },
+      {
+        label: "Form dashboards",
+        path: "/dashboard/ra-environment/form-dashboards",
+        icon: BarChart3,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Form dashboards",
+          description:
+            "Per-form analytics — demographics, procurement linkage, and question insights",
+        },
+      },
+      {
+        label: "Form dashboards",
+        path: "/dashboard/world-bank/form-dashboards",
+        icon: BarChart3,
+        roles: [Role.WORLD_BANK_USER],
+        meta: {
+          title: "Form dashboards",
+          description:
+            "Per-form analytics — demographics, procurement linkage, and question insights",
         },
       },
     ],

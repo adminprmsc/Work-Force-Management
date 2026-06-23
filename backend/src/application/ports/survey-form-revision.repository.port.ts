@@ -1,4 +1,7 @@
-import { SurveyForm, SurveyFormRevision } from '../../domain/entities/survey.entity';
+import {
+  SurveyForm,
+  SurveyFormRevision,
+} from '../../domain/entities/survey.entity';
 
 export abstract class SurveyFormRevisionRepositoryPort {
   abstract findById(id: string): Promise<SurveyFormRevision | null>;

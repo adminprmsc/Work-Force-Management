@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { SurveyFieldConfig } from '../../domain/entities/survey.entity';
@@ -26,6 +27,7 @@ import {
   PublishSurveyFormUseCase,
   UpdateSurveyFormUseCase,
 } from '../../application/use-cases/survey/manage-survey-forms.use-case';
+import { GetSurveyFormAnalyticsUseCase } from '../../application/use-cases/survey/get-survey-form-analytics.use-case';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -55,6 +57,12 @@ const SURVEY_MANAGERS = [
   UserRole.RA_ENVIRONMENT_HO,
 ] as const;
 
+const SURVEY_ANALYTICS_VIEWERS = [
+  UserRole.SENIOR_MANAGER_ES,
+  UserRole.RA_ENVIRONMENT_HO,
+  UserRole.WORLD_BANK_USER,
+] as const;
+
 function toFieldInputs(fields: SurveyFieldDto[]): SurveyFieldInput[] {
   return fields.map((field) => ({
     type: field.type,
@@ -69,16 +77,21 @@ function toFieldInputs(fields: SurveyFieldDto[]): SurveyFieldInput[] {
 function toBaselineFieldInputs(
   fields: SurveyFormBaselineFieldDto[],
 ): SurveyFormBaselineFieldInput[] {
-  return fields.map((field) => ({
-    ...(field.id ? { id: field.id } : {}),
-    type: field.type,
-    label: field.label,
-    helpText: field.helpText ?? null,
-    required: field.required ?? false,
-    writeOnce: field.writeOnce ?? false,
-    order: field.order,
-    config: (field.config as SurveyFieldConfig | null | undefined) ?? null,
-  }));
+  return fields.map((field) => {
+    const input: SurveyFormBaselineFieldInput = {
+      type: field.type,
+      label: field.label,
+      helpText: field.helpText ?? null,
+      required: field.required ?? false,
+      writeOnce: field.writeOnce ?? false,
+      order: field.order,
+      config: field.config ?? null,
+    };
+    if (typeof field.id === 'string') {
+      input.id = field.id;
+    }
+    return input;
+  });
 }
 
 @Controller('survey-forms')
@@ -94,6 +107,7 @@ export class SurveyFormsController {
     private readonly deleteForm: DeleteSurveyFormUseCase,
     private readonly listAssignments: ListSurveyAssignmentsUseCase,
     private readonly createAssignments: CreateSurveyAssignmentsUseCase,
+    private readonly getAnalytics: GetSurveyFormAnalyticsUseCase,
   ) {}
 
   @Get()
@@ -168,6 +182,23 @@ export class SurveyFormsController {
   ) {
     const form = await this.archiveForm.execute(user, id);
     return toSurveyFormResponse(form);
+  }
+
+  @Get(':id/analytics')
+  @Roles(...SURVEY_ANALYTICS_VIEWERS)
+  async analytics(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('procurementPackageId', new ParseUUIDPipe({ optional: true }))
+    procurementPackageId?: string,
+    @Query('submittedFrom') submittedFrom?: string,
+    @Query('submittedTo') submittedTo?: string,
+  ) {
+    return this.getAnalytics.execute(user, id, {
+      procurementPackageId: procurementPackageId ?? null,
+      submittedFrom: submittedFrom ?? null,
+      submittedTo: submittedTo ?? null,
+    });
   }
 
   @Get(':id')

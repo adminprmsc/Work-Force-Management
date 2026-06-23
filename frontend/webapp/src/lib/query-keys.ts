@@ -46,6 +46,24 @@ export const queryKeys = {
     list: () => ["survey-forms", "list"] as const,
     detail: (id: string) => ["survey-forms", id] as const,
     assignments: (id: string) => ["survey-forms", id, "assignments"] as const,
+    analytics: (
+      id: string,
+      filter: {
+        procurementPackageId?: string | null
+        submittedFrom?: string | null
+        submittedTo?: string | null
+      } = {},
+    ) =>
+      [
+        "survey-forms",
+        id,
+        "analytics",
+        {
+          procurementPackageId: filter.procurementPackageId ?? null,
+          submittedFrom: filter.submittedFrom ?? null,
+          submittedTo: filter.submittedTo ?? null,
+        },
+      ] as const,
   },
   surveyAssignments: {
     all: ["survey-assignments"] as const,

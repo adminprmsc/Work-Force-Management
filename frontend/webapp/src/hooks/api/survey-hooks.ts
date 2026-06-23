@@ -14,6 +14,7 @@ import {
   deleteSurveyAssignment,
   deleteSurveyForm,
   getSurveyForm,
+  getSurveyFormAnalytics,
   listMySurveyAssignments,
   listSurveyFormAssignments,
   listSurveyForms,
@@ -29,6 +30,7 @@ import type {
   CreateSurveyFormInput,
   SaveSurveyResponseInput,
   StartSurveyResponseInput,
+  SurveyFormAnalyticsFilter,
   SurveyResponsesFilter,
   UpdateSurveyFormInput,
 } from "@/modules/api/survey-types"
@@ -51,6 +53,21 @@ export function useSurveyFormQuery(id: string | null, enabled = true) {
     queryKey: queryKeys.surveyForms.detail(id ?? ""),
     queryFn: () => getSurveyForm(token!, id!),
     enabled: Boolean(token && id) && enabled,
+  })
+}
+
+export function useSurveyFormAnalyticsQuery(
+  formId: string | null,
+  filter: SurveyFormAnalyticsFilter = {},
+  enabled = true,
+) {
+  const token = useAuthToken()
+
+  return useQuery({
+    queryKey: queryKeys.surveyForms.analytics(formId ?? "", filter),
+    queryFn: () => getSurveyFormAnalytics(token!, formId!, filter),
+    enabled: Boolean(token && formId) && enabled,
+    placeholderData: keepPreviousData,
   })
 }
 

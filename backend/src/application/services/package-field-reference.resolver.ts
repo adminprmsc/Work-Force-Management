@@ -72,7 +72,10 @@ export class PackageFieldReferenceResolver {
       const expectedType = PACKAGE_FIELD_REFERENCE_FIELD_TYPES[reference];
       if (field.type !== expectedType) continue;
 
-      answerByField.set(field.id, this.resolve(reference, pkg, fields, answers));
+      answerByField.set(
+        field.id,
+        this.resolve(reference, pkg, fields, answers),
+      );
     }
 
     for (const field of fields) {

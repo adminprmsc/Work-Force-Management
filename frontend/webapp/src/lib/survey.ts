@@ -33,12 +33,14 @@ export function canFillSurveys(role: RoleType): boolean {
   return role === Role.RA_ES_TEHSIL
 }
 
-export function canReadSurveyResponses(role: RoleType): boolean {
-  return (
-    canManageSurveys(role) ||
-    canFillSurveys(role) ||
-    role === Role.WORLD_BANK_USER
-  )
+const SURVEY_ANALYTICS_VIEWERS: RoleType[] = [
+  Role.SENIOR_MANAGER_ES,
+  Role.RA_ENVIRONMENT_HO,
+  Role.WORLD_BANK_USER,
+]
+
+export function canViewSurveyAnalytics(role: RoleType): boolean {
+  return SURVEY_ANALYTICS_VIEWERS.includes(role)
 }
 
 export function surveyFormsPath(role: RoleType): string {
@@ -47,6 +49,22 @@ export function surveyFormsPath(role: RoleType): string {
 
 export function surveyResponsesPath(role: RoleType): string {
   return `${roleToDashboardPath(role)}/surveys/responses`
+}
+
+export function canReadSurveyResponses(role: RoleType): boolean {
+  return (
+    canManageSurveys(role) ||
+    canFillSurveys(role) ||
+    role === Role.WORLD_BANK_USER
+  )
+}
+
+export function surveyFormDashboardsPath(role: RoleType): string {
+  return `${roleToDashboardPath(role)}/form-dashboards`
+}
+
+export function surveyFormDashboardPath(role: RoleType, formId: string): string {
+  return `${surveyFormDashboardsPath(role)}/${formId}`
 }
 
 export type SurveyFieldMeta = {

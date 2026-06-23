@@ -136,7 +136,7 @@ export class PrismaSurveyResponseRepository implements SurveyResponseRepositoryP
       where: { id },
       include: this.include,
     });
-    return record ? mapResponse(record as ResponseRecord) : null;
+    return record ? mapResponse(record) : null;
   }
 
   async create(data: CreateSurveyResponseData): Promise<SurveyResponse> {
@@ -153,7 +153,7 @@ export class PrismaSurveyResponseRepository implements SurveyResponseRepositoryP
       },
       include: this.include,
     });
-    return mapResponse(record as ResponseRecord);
+    return mapResponse(record);
   }
 
   async saveDraftAnswers(
@@ -172,7 +172,7 @@ export class PrismaSurveyResponseRepository implements SurveyResponseRepositoryP
         include: this.include,
       });
     });
-    return mapResponse(record as ResponseRecord);
+    return mapResponse(record);
   }
 
   async submit(
@@ -192,7 +192,7 @@ export class PrismaSurveyResponseRepository implements SurveyResponseRepositoryP
         include: this.include,
       });
     });
-    return mapResponse(record as ResponseRecord);
+    return mapResponse(record);
   }
 
   async countByFormId(formId: string): Promise<number> {

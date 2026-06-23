@@ -10,6 +10,7 @@ import { TEHSIL_REPOSITORY } from '../../application/ports/tehsil.repository.por
 import { USER_REPOSITORY } from '../../application/ports/user.repository.port';
 import { AssignmentBaselineEnricher } from '../../application/services/assignment-baseline.enricher';
 import { PackageSurveyBudgetService } from '../../application/services/package-survey-budget.service';
+import { CesmpAnalyticsService } from '../../application/services/cesmp-analytics.service';
 import { ProcurementPackageBudgetEnricher } from '../../application/services/procurement-package-budget.enricher';
 import { PackageFieldReferenceResolver } from '../../application/services/package-field-reference.resolver';
 import { SurveyAnswerValidator } from '../../application/services/survey-answer.validator';
@@ -31,6 +32,7 @@ import {
   PublishSurveyFormUseCase,
   UpdateSurveyFormUseCase,
 } from '../../application/use-cases/survey/manage-survey-forms.use-case';
+import { GetSurveyFormAnalyticsUseCase } from '../../application/use-cases/survey/get-survey-form-analytics.use-case';
 import {
   GetSurveyResponseUseCase,
   ListSurveyResponsesUseCase,
@@ -67,6 +69,7 @@ import { SurveyResponsesController } from './survey-responses.controller';
     SurveyAnswerValidator,
     AssignmentBaselineEnricher,
     PackageSurveyBudgetService,
+    CesmpAnalyticsService,
     ProcurementPackageBudgetEnricher,
     ListSurveyFormsUseCase,
     GetSurveyFormUseCase,
@@ -75,6 +78,7 @@ import { SurveyResponsesController } from './survey-responses.controller';
     PublishSurveyFormUseCase,
     ArchiveSurveyFormUseCase,
     DeleteSurveyFormUseCase,
+    GetSurveyFormAnalyticsUseCase,
     ListSurveyAssignmentsUseCase,
     CreateSurveyAssignmentsUseCase,
     DeleteSurveyAssignmentUseCase,

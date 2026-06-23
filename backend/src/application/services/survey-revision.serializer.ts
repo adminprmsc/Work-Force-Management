@@ -82,22 +82,20 @@ export function parseRevisionBaselineFields(
   });
 }
 
-export function revisionFromForm(
-  record: {
-    id: string;
-    formId: string;
-    version: number;
-    title: string;
-    description: string | null;
-    requiresPackageBaseline: boolean;
-    baselineTitle: string | null;
-    baselineDescription: string | null;
-    fields: unknown;
-    baselineFields: unknown;
-    publishedAt: Date;
-    createdAt: Date;
-  },
-): SurveyFormRevision {
+export function revisionFromForm(record: {
+  id: string;
+  formId: string;
+  version: number;
+  title: string;
+  description: string | null;
+  requiresPackageBaseline: boolean;
+  baselineTitle: string | null;
+  baselineDescription: string | null;
+  fields: unknown;
+  baselineFields: unknown;
+  publishedAt: Date;
+  createdAt: Date;
+}): SurveyFormRevision {
   return new SurveyFormRevision(
     record.id,
     record.formId,

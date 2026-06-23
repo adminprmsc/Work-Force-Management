@@ -13,6 +13,8 @@ import { ProcurementPackagesPage } from "@/pages/procurement/packages-page"
 import { ProfilePage } from "@/pages/profile/profile-page"
 import { SeniorManagerOverviewPage } from "@/pages/senior-manager/overview-page"
 import { MySurveysPage } from "@/pages/survey/my-surveys-page"
+import { FormDashboardPage } from "@/pages/survey/form-dashboard-page"
+import { FormDashboardsIndexPage } from "@/pages/survey/form-dashboards-index-page"
 import { SurveyFormsPage } from "@/pages/survey/survey-forms-page"
 import { SurveyResponsesPage } from "@/pages/survey/survey-responses-page"
 import { UsersPage } from "@/pages/users/users-page"
@@ -38,6 +40,8 @@ export function DashboardRoutes() {
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
         <Route path="surveys" element={<SurveyFormsPage />} />
         <Route path="surveys/responses" element={<SurveyResponsesPage />} />
+        <Route path="form-dashboards" element={<FormDashboardsIndexPage />} />
+        <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
       </Route>
 
       <Route
@@ -54,6 +58,8 @@ export function DashboardRoutes() {
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
         <Route path="surveys" element={<SurveyFormsPage />} />
         <Route path="surveys/responses" element={<SurveyResponsesPage />} />
+        <Route path="form-dashboards" element={<FormDashboardsIndexPage />} />
+        <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
         <Route path="geography" element={<GeographyPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
@@ -69,6 +75,8 @@ export function DashboardRoutes() {
         <Route index element={<RoleOverviewPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
         <Route path="surveys/responses" element={<SurveyResponsesPage />} />
+        <Route path="form-dashboards" element={<FormDashboardsIndexPage />} />
+        <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
         <Route path="geography" element={<GeographyPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>

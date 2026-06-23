@@ -6,6 +6,8 @@ import type {
   StartSurveyResponseInput,
   SurveyAssignment,
   SurveyForm,
+  SurveyFormAnalytics,
+  SurveyFormAnalyticsFilter,
   SurveyResponse,
   SurveyResponsesFilter,
   UpdateSurveyFormInput,
@@ -17,6 +19,31 @@ export function listSurveyForms(token: string): Promise<SurveyForm[]> {
 
 export function getSurveyForm(token: string, id: string): Promise<SurveyForm> {
   return apiRequest<SurveyForm>(`/survey-forms/${id}`, { method: "GET", token })
+}
+
+export function getSurveyFormAnalytics(
+  token: string,
+  formId: string,
+  filter: SurveyFormAnalyticsFilter = {},
+): Promise<SurveyFormAnalytics> {
+  const params = new URLSearchParams()
+  if (filter.procurementPackageId) {
+    params.set("procurementPackageId", filter.procurementPackageId)
+  }
+  if (filter.submittedFrom) {
+    params.set("submittedFrom", filter.submittedFrom)
+  }
+  if (filter.submittedTo) {
+    params.set("submittedTo", filter.submittedTo)
+  }
+  const qs = params.toString()
+  return apiRequest<SurveyFormAnalytics>(
+    `/survey-forms/${formId}/analytics${qs ? `?${qs}` : ""}`,
+    {
+      method: "GET",
+      token,
+    },
+  )
 }
 
 export function createSurveyForm(

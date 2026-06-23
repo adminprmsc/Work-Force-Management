@@ -211,3 +211,169 @@ export type SurveyResponsesFilter = {
   tehsilId?: string
   assignmentId?: string
 }
+
+export type SurveyFormAnalyticsSummary = {
+  totalResponses: number
+  submitted: number
+  draft: number
+  assignmentCount: number
+  packageCount: number
+}
+
+export type SurveyFormAnalyticsTehsilRow = {
+  tehsilId: string
+  tehsilName: string
+  submitted: number
+  draft: number
+  total: number
+}
+
+export type SurveyFormAnalyticsVillageRow = {
+  villageId: string
+  villageName: string
+  tehsilId: string
+  tehsilName: string
+  submitted: number
+  draft: number
+  total: number
+}
+
+export type SurveyFormAnalyticsPackageRow = {
+  packageId: string
+  packageName: string
+  tehsilId: string
+  tehsilName: string
+  submitted: number
+  draft: number
+  total: number
+}
+
+export type SurveyFormAnalyticsTimePoint = {
+  date: string
+  count: number
+}
+
+export type SurveyFormAnalyticsFieldBreakdown = {
+  fieldId: string
+  label: string
+  type: SurveyFieldType
+  answeredCount: number
+  choiceCounts?: Record<string, number>
+  numeric?: {
+    count: number
+    sum: number
+    avg: number
+    min: number
+    max: number
+  }
+}
+
+export type SurveyFormAnalyticsFieldMeta = {
+  id: string
+  label: string
+  type: SurveyFieldType
+  order: number
+  required: boolean
+}
+
+export type SurveyFormAnalytics = {
+  form: {
+    id: string
+    title: string
+    description: string | null
+    status: SurveyStatus
+  }
+  filter: {
+    procurementPackageId: string | null
+    procurementPackageName: string | null
+    submittedFrom: string | null
+    submittedTo: string | null
+  }
+  fields: SurveyFormAnalyticsFieldMeta[]
+  summary: SurveyFormAnalyticsSummary
+  byTehsil: SurveyFormAnalyticsTehsilRow[]
+  byVillage: SurveyFormAnalyticsVillageRow[]
+  byProcurementPackage: SurveyFormAnalyticsPackageRow[]
+  submissionsOverTime: SurveyFormAnalyticsTimePoint[]
+  fieldBreakdown: SurveyFormAnalyticsFieldBreakdown[]
+  cesmpInsights?: CesmpFormInsights | null
+}
+
+export type SurveyFormAnalyticsFilter = {
+  procurementPackageId?: string | null
+  submittedFrom?: string | null
+  submittedTo?: string | null
+}
+
+export type CesmpPatternInsight = {
+  label: string
+  counts: Record<string, number>
+  total: number
+}
+
+export type CesmpPackageInsight = {
+  packageId: string
+  packageName: string
+  tehsilName: string
+  contractorName: string
+  consultantName: string
+  budgetAllocated: number
+  budgetUtilized: number
+  budgetRemaining: number
+  utilizationRate: number
+  villagesCovered: number
+  siteVisitsSubmitted: number
+  hseStaffHired: boolean | null
+  cesmpPlanSubmitted: boolean | null
+  budgetByHead: {
+    ppe: number
+    hse: number
+    environmentalMonitoring: number
+  }
+}
+
+export type CesmpBudgetUtilizationInsight = {
+  totalAllocated: number
+  totalUtilized: number
+  totalRemaining: number
+  overallUtilizationRate: number
+  byHead: {
+    ppe: number
+    hse: number
+    environmentalMonitoring: number
+  }
+}
+
+export type CesmpTrainingInsight = {
+  responsesWithTraining: number
+  totalParticipants: number
+  topTrainings: Array<{ title: string; count: number; participants: number }>
+  venues: Record<string, number>
+}
+
+export type CesmpFormInsights = {
+  summary: {
+    totalContractors: number
+    totalProcurementPackages: number
+    totalVillageCoverage: number
+    totalSiteVisitsSubmitted: number
+    hseStaffHiredPackages: number
+    hseStaffHiredRate: number
+    cesmpPlanSubmittedPackages: number
+  }
+  packages: CesmpPackageInsight[]
+  ppeCompliance: {
+    wearingRate: CesmpPatternInsight
+    goodCondition: CesmpPatternInsight
+  }
+  noise: {
+    level: CesmpPatternInsight
+    reductionMeasures: CesmpPatternInsight
+  }
+  dust: {
+    level: CesmpPatternInsight
+    reductionMeasures: CesmpPatternInsight
+  }
+  budget: CesmpBudgetUtilizationInsight
+  training: CesmpTrainingInsight
+}

@@ -46,3 +46,14 @@ export function canReadResponseForTehsil(
   }
   return true;
 }
+
+/** Head-office analytics dashboards (not tehsil RAs). */
+const SURVEY_ANALYTICS_VIEWERS: UserRole[] = [
+  UserRole.SENIOR_MANAGER_ES,
+  UserRole.RA_ENVIRONMENT_HO,
+  UserRole.WORLD_BANK_USER,
+];
+
+export function canViewSurveyAnalytics(role: UserRole): boolean {
+  return SURVEY_ANALYTICS_VIEWERS.includes(role);
+}
