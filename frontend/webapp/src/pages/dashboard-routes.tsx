@@ -72,13 +72,16 @@ export function DashboardRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<RoleOverviewPage />} />
+        <Route index element={<Navigate to="procurement/packages" replace />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
-        <Route path="surveys/responses" element={<SurveyResponsesPage />} />
         <Route path="form-dashboards" element={<FormDashboardsIndexPage />} />
         <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
-        <Route path="geography" element={<GeographyPage />} />
-        <Route path="profile" element={<ProfilePage />} />
+        <Route
+          path="*"
+          element={
+            <Navigate to="/dashboard/world-bank/procurement/packages" replace />
+          }
+        />
       </Route>
 
       <Route

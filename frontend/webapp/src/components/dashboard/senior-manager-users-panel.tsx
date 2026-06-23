@@ -1,7 +1,27 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { Eye, EyeOff, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Trash2, Copy } from "lucide-react"
+import { memo, useCallback, useMemo, useState } from "react"
+import type { ReactNode } from "react"
+import {
+  Building2,
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Mail,
+  Pencil,
+  Plus,
+  Power,
+  RefreshCw,
+  ScrollText,
+  Search,
+  Trash2,
+  UserCheck,
+  UserMinus,
+  Users,
+} from "lucide-react"
+import { Link } from "react-router-dom"
 import { toast } from "sonner"
 
+import { DataPanel } from "@/components/common/data-panel"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,9 +37,9 @@ import {
   UserCredentialsDialog,
   type UserCredentials,
 } from "@/components/dashboard/user-credentials-dialog"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -52,6 +72,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   useCreateUserMutation,
   useDeleteUserMutation,
@@ -70,7 +91,10 @@ import {
   officesForRole,
   roleRequiresOffice,
 } from "@/lib/user-management"
+import { roleBadgeClass, roleLabel, userInitials } from "@/lib/user-display"
 import { getQueryViewState, mergeQueryViewStates } from "@/lib/query-view-state"
+import { cn } from "@/lib/utils"
+import type { UserStatus } from "@/modules/api/types"
 
 const EMAIL_DOMAIN = "ens.com"
 const DEFAULT_PASSWORD = "Root123!"
@@ -107,6 +131,47 @@ function generatePassword(length = 14): string {
   return chars.join("")
 }
 
+type UserSummaryCardProps = {
+  label: string
+  value: number
+  hint?: string
+  icon: ReactNode
+  accentClassName?: string
+}
+
+function UserSummaryCard({
+  label,
+  value,
+  hint,
+  icon,
+  accentClassName = "border-l-primary/70",
+}: UserSummaryCardProps) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-border/80 bg-card px-4 py-3 shadow-sm",
+        "border-l-4",
+        accentClassName,
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+          {hint ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+          ) : null}
+        </div>
+        <div className="flex size-8 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+          {icon}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type UserTableRowProps = {
   user: User
   onEditEmail: (user: User) => void
@@ -128,31 +193,89 @@ const UserTableRow = memo(function UserTableRow({
   isTogglingStatus,
   isDeleting,
 }: UserTableRowProps) {
+  const auditLink = `/dashboard/senior-manager/audit-logs?userId=${encodeURIComponent(user.id)}&userName=${encodeURIComponent(user.username)}`
+
   return (
-    <TableRow>
-      <TableCell className="font-medium">{user.username}</TableCell>
+    <TableRow className="group">
       <TableCell>
-        <div className="flex items-center gap-1">
-          <span>{user.email}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="Copy email"
-            onClick={() => onCopyEmail(user.email)}
-          >
-            <Copy className="size-3.5" />
-          </Button>
+        <div className="flex items-center gap-3">
+          <Avatar size="sm">
+            <AvatarFallback
+              className={cn(
+                "text-[10px] font-semibold",
+                roleBadgeClass(user.role),
+              )}
+            >
+              {userInitials(user.username)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="truncate font-medium">{user.username}</p>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span className="truncate">{user.email}</span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-6 opacity-0 group-hover:opacity-100"
+                title="Copy email"
+                onClick={() => onCopyEmail(user.email)}
+              >
+                <Copy className="size-3" />
+              </Button>
+            </div>
+          </div>
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant="secondary">{ROLE_LABELS[user.role] ?? user.role}</Badge>
+        <Badge variant="outline" className={cn("font-normal", roleBadgeClass(user.role))}>
+          {roleLabel(user.role)}
+        </Badge>
       </TableCell>
       <TableCell>
-        <Badge variant={user.status === "ACTIVE" ? "default" : "outline"}>{user.status}</Badge>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "size-2 rounded-full",
+              user.status === "ACTIVE" ? "bg-emerald-500" : "bg-muted-foreground/40",
+            )}
+          />
+          <span
+            className={cn(
+              "text-sm",
+              user.status === "ACTIVE"
+                ? "font-medium text-foreground"
+                : "text-muted-foreground",
+            )}
+          >
+            {user.status === "ACTIVE" ? "Active" : "Inactive"}
+          </span>
+        </div>
       </TableCell>
-      <TableCell className="text-muted-foreground">{user.officeName ?? "—"}</TableCell>
+      <TableCell>
+        {user.officeName ? (
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Building2 className="size-3.5 shrink-0" />
+            <span className="truncate">
+              {user.tehsilName ? `${user.tehsilName} — ` : ""}
+              {user.officeName}
+            </span>
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="View audit activity"
+            asChild
+          >
+            <Link to={auditLink}>
+              <ScrollText className="size-4" />
+            </Link>
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -211,6 +334,10 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
 
   const users = usersView.data
 
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"ALL" | UserStatus>("ALL")
+  const [roleTab, setRoleTab] = useState<"ALL" | RoleType>("ALL")
+
   const [createOpen, setCreateOpen] = useState(false)
   const [createRole, setCreateRole] = useState<RoleType>(Role.RA_ENVIRONMENT_HO)
   const [createOfficeId, setCreateOfficeId] = useState("")
@@ -236,29 +363,66 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
 
   const needsOffice = roleRequiresOffice(createRole)
 
-  useEffect(() => {
-    if (!needsOffice) {
-      setCreateOfficeId("")
-      return
+  const userStats = useMemo(() => {
+    const list = users ?? []
+    return {
+      total: list.length,
+      active: list.filter((u) => u.status === "ACTIVE").length,
+      inactive: list.filter((u) => u.status === "INACTIVE").length,
+      withOffice: list.filter((u) => u.officeId).length,
     }
-    if (availableOffices.length === 1) {
-      setCreateOfficeId(availableOffices[0].id)
-      return
+  }, [users])
+
+  const roleCounts = useMemo(() => {
+    const counts = new Map<RoleType, number>()
+    for (const role of CREATABLE_ROLES) counts.set(role, 0)
+    for (const user of users ?? []) {
+      counts.set(user.role, (counts.get(user.role) ?? 0) + 1)
     }
-    if (!availableOffices.some((office) => office.id === createOfficeId)) {
-      setCreateOfficeId("")
+    return counts
+  }, [users])
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return (users ?? []).filter((user) => {
+      if (roleTab !== "ALL" && user.role !== roleTab) return false
+      if (statusFilter !== "ALL" && user.status !== statusFilter) return false
+      if (!q) return true
+      const haystack = [
+        user.username,
+        user.email,
+        roleLabel(user.role),
+        user.officeName,
+        user.tehsilName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [roleTab, search, statusFilter, users])
+
+  const resolvedCreateOfficeId = useMemo(() => {
+    if (!needsOffice) return ""
+    if (availableOffices.length === 1) return availableOffices[0]!.id
+    if (
+      createOfficeId &&
+      availableOffices.some((office) => office.id === createOfficeId)
+    ) {
+      return createOfficeId
     }
-  }, [availableOffices, createOfficeId, createRole, needsOffice])
+    return ""
+  }, [availableOffices, createOfficeId, needsOffice])
 
   const canCreate = useMemo(() => {
     if (!createEmail.trim() || !createUsername.trim() || createPassword.length < 8) {
       return false
     }
-    if (needsOffice && !createOfficeId) {
+    if (needsOffice && !resolvedCreateOfficeId) {
       return false
     }
     return true
-  }, [createEmail, createOfficeId, createPassword, createUsername, needsOffice])
+  }, [createEmail, createPassword, createUsername, needsOffice, resolvedCreateOfficeId])
 
   const handleEditEmail = useCallback((user: User) => {
     setEditUser(user)
@@ -286,7 +450,7 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
         username,
         password: createPassword,
         role: createRole,
-        officeId: needsOffice ? createOfficeId : undefined,
+        officeId: needsOffice ? resolvedCreateOfficeId : undefined,
       })
       toast.success(`${ROLE_LABELS[createRole]} user created`)
       setCreateOpen(false)
@@ -301,13 +465,13 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
   }, [
     canCreate,
     createEmail,
-    createOfficeId,
     createPassword,
     createRole,
     createUserMutation,
     createUsername,
     needsOffice,
     resetCreateForm,
+    resolvedCreateOfficeId,
   ])
 
   const handleSaveEmail = useCallback(async () => {
@@ -391,60 +555,143 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
   }, [credentialsUserId, resetCredentialsMutation])
 
   return (
-    <>
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-          <div>
-            <CardTitle>User accounts</CardTitle>
-            <CardDescription>
-              Create users for any role, assign offices dynamically, and manage account status
-            </CardDescription>
-          </div>
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <UserSummaryCard
+          label="Total users"
+          value={userStats.total}
+          hint="All registered accounts"
+          icon={<Users className="size-4" />}
+          accentClassName="border-l-blue-500/70"
+        />
+        <UserSummaryCard
+          label="Active"
+          value={userStats.active}
+          hint="Can sign in now"
+          icon={<UserCheck className="size-4" />}
+          accentClassName="border-l-emerald-500/70"
+        />
+        <UserSummaryCard
+          label="Inactive"
+          value={userStats.inactive}
+          hint="Deactivated accounts"
+          icon={<UserMinus className="size-4" />}
+          accentClassName="border-l-amber-500/70"
+        />
+        <UserSummaryCard
+          label="Office-linked"
+          value={userStats.withOffice}
+          hint="HO, World Bank & tehsil"
+          icon={<Building2 className="size-4" />}
+          accentClassName="border-l-violet-500/70"
+        />
+      </div>
+
+      <DataPanel
+        title="User accounts"
+        description="Manage accounts by role — create users, assign offices, and review activity"
+        action={
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 size-4" />
             Create user
           </Button>
-        </CardHeader>
-        <CardContent>
-          {viewState.error ? (
-            <p className="text-sm text-destructive">{viewState.error}</p>
-          ) : (
-            <ShimmerContainer
-              isInitialLoading={viewState.isInitialLoading}
-              isRefreshing={viewState.isRefreshing}
-              shimmer={<TableRowsShimmer rows={6} columns={6} />}
-            >
-              <Table className="enterprise-table">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Office</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users?.map((user) => (
-                    <UserTableRow
-                      key={user.id}
-                      user={user}
-                      onEditEmail={handleEditEmail}
-                      onViewCredentials={handleViewCredentials}
-                      onCopyEmail={(email) => void handleCopyEmail(email)}
-                      onToggleStatus={(selected) => void handleToggleStatus(selected)}
-                      onDelete={setDeleteUser}
-                      isTogglingStatus={updateUserStatusMutation.isPending}
-                      isDeleting={deleteUserMutation.isPending}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </ShimmerContainer>
-          )}
-        </CardContent>
-      </Card>
+        }
+        contentClassName="space-y-4"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, email, role, or office…"
+              className="pl-9"
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as "ALL" | UserStatus)}
+          >
+            <SelectTrigger className="w-full lg:w-[160px]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              <SelectItem value="ACTIVE">Active only</SelectItem>
+              <SelectItem value="INACTIVE">Inactive only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Tabs
+          value={roleTab}
+          onValueChange={(value) => setRoleTab(value as "ALL" | RoleType)}
+        >
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
+            <TabsTrigger value="ALL" className="px-3">
+              All ({users?.length ?? 0})
+            </TabsTrigger>
+            {CREATABLE_ROLES.map((role) => (
+              <TabsTrigger key={role} value={role} className="px-3">
+                {ROLE_LABELS[role]} ({roleCounts.get(role) ?? 0})
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        {viewState.error ? (
+          <p className="text-sm text-destructive">{viewState.error}</p>
+        ) : (
+          <ShimmerContainer
+            isInitialLoading={viewState.isInitialLoading}
+            isRefreshing={viewState.isRefreshing}
+            shimmer={<TableRowsShimmer rows={6} columns={5} />}
+          >
+            {filteredUsers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
+                <Users className="mb-3 size-10 text-muted-foreground/50" />
+                <p className="text-sm font-medium">No users match your filters</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Try a different role tab or clear your search.
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Showing {filteredUsers.length} of {users?.length ?? 0} users
+                  {roleTab !== "ALL" ? ` in ${ROLE_LABELS[roleTab]}` : ""}
+                </p>
+                <Table className="enterprise-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Office</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <UserTableRow
+                        key={user.id}
+                        user={user}
+                        onEditEmail={handleEditEmail}
+                        onViewCredentials={handleViewCredentials}
+                        onCopyEmail={(email) => void handleCopyEmail(email)}
+                        onToggleStatus={(selected) => void handleToggleStatus(selected)}
+                        onDelete={setDeleteUser}
+                        isTogglingStatus={updateUserStatusMutation.isPending}
+                        isDeleting={deleteUserMutation.isPending}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            )}
+          </ShimmerContainer>
+        )}
+      </DataPanel>
 
       <Dialog
         open={createOpen}
@@ -465,7 +712,10 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
               <Label htmlFor="create-role">Role</Label>
               <Select
                 value={createRole}
-                onValueChange={(value) => setCreateRole(value as RoleType)}
+                onValueChange={(value) => {
+                  setCreateRole(value as RoleType)
+                  setCreateOfficeId("")
+                }}
               >
                 <SelectTrigger id="create-role" className="w-full">
                   <SelectValue placeholder="Select role" />
@@ -484,7 +734,10 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
               <div className="grid gap-2">
                 <Label htmlFor="create-office">Office</Label>
                 {availableOffices.length > 0 ? (
-                  <Select value={createOfficeId} onValueChange={setCreateOfficeId}>
+                  <Select
+                    value={resolvedCreateOfficeId}
+                    onValueChange={setCreateOfficeId}
+                  >
                     <SelectTrigger id="create-office" className="w-full">
                       <SelectValue placeholder="Select office" />
                     </SelectTrigger>
@@ -662,6 +915,6 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
         isResetting={resetCredentialsMutation.isPending}
         onResetPassword={() => void handleResetPassword()}
       />
-    </>
+    </div>
   )
 })

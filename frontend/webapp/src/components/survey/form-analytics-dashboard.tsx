@@ -1,4 +1,5 @@
 // import { useMemo } from "react";
+import type { ReactNode } from "react";
 import {
   CalendarRange,
   // ClipboardList,
@@ -23,17 +24,14 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   formatAnalyticsDateLabel,
   type AnalyticsDatePreset,
 } from "@/lib/survey-analytics-dates";
+import {
+  DEMOGRAPHIC_ACCENTS,
+  chartSeriesColor,
+} from "@/lib/chart-colors";
+import { cn } from "@/lib/utils";
 import type {
   SurveyFormAnalytics,
   // SurveyFormAnalyticsFieldBreakdown,
@@ -257,6 +255,101 @@ function ScopeStat({
   );
 }
 
+function DemographicBarRow({
+  label,
+  sublabel,
+  value,
+  max,
+  colorIndex,
+  sharePct,
+}: {
+  label: string;
+  sublabel?: string;
+  value: number;
+  max: number;
+  colorIndex: number;
+  sharePct: number;
+}) {
+  const widthPct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const color = chartSeriesColor(colorIndex);
+
+  return (
+    <div className="group rounded-lg border border-border/60 bg-card px-3 py-2.5 transition-colors hover:border-border hover:bg-muted/20">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="size-2.5 shrink-0 rounded-full ring-2 ring-background"
+              style={{ backgroundColor: color }}
+            />
+            <p className="truncate text-sm font-medium">{label}</p>
+          </div>
+          {sublabel ? (
+            <p className="mt-0.5 truncate pl-4.5 text-xs text-muted-foreground">
+              {sublabel}
+            </p>
+          ) : null}
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-semibold tabular-nums">{value}</p>
+          <p className="text-[11px] tabular-nums text-muted-foreground">
+            {sharePct}%
+          </p>
+        </div>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted/70">
+        <div
+          className="h-full rounded-full transition-[width] duration-500 ease-out"
+          style={{
+            width: `${widthPct}%`,
+            background: `linear-gradient(90deg, ${color}, color-mix(in oklch, ${color} 72%, white))`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DemographicSection({
+  title,
+  subtitle,
+  total,
+  accent,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  total: number;
+  accent: (typeof DEMOGRAPHIC_ACCENTS)[keyof typeof DEMOGRAPHIC_ACCENTS];
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-border/80 bg-muted/10 p-4 shadow-sm",
+        "border-l-4",
+        accent.border,
+      )}
+    >
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+        <span
+          className={cn(
+            "rounded-md px-2.5 py-1 text-xs font-semibold tabular-nums",
+            accent.chip,
+          )}
+        >
+          {total} total
+        </span>
+      </div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
 function GeographicDemographics({
   analytics,
 }: {
@@ -264,6 +357,18 @@ function GeographicDemographics({
 }) {
   const hasVillages = analytics.byVillage.length > 0;
   const hasTehsils = analytics.byTehsil.length > 0;
+
+  const tehsilTotal = analytics.byTehsil.reduce(
+    (sum, row) => sum + row.submitted,
+    0,
+  );
+  const villageTotal = analytics.byVillage.reduce(
+    (sum, row) => sum + row.submitted,
+    0,
+  );
+  const maxTehsil = Math.max(...analytics.byTehsil.map((r) => r.submitted), 1);
+  const villageRows = analytics.byVillage.slice(0, 12);
+  const maxVillage = Math.max(...villageRows.map((r) => r.submitted), 1);
 
   if (!hasVillages && !hasTehsils) {
     return (
@@ -283,72 +388,69 @@ function GeographicDemographics({
 
   return (
     <Card className="border-border/80 shadow-sm">
-      <CardHeader>
+      <CardHeader className="border-b bg-muted/20">
         <CardTitle className="flex items-center gap-2 text-base">
-          <MapPinned className="size-4" />
-          Geographic coverage
+          <MapPinned className={cn("size-4", DEMOGRAPHIC_ACCENTS.tehsil.icon)} />
+          Geographic demographics
         </CardTitle>
         <CardDescription>
-          Where submitted responses in the current filter were recorded — useful
-          for spotting uneven village or tehsil coverage.
+          Submission distribution by tehsil and village in the current filter —
+          bar length shows relative volume within each group.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-6 lg:grid-cols-2">
+      <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
         {hasTehsils ? (
-          <div>
-            <p className="mb-3 text-sm font-medium">By tehsil</p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tehsil</TableHead>
-                  <TableHead className="text-right">Submitted</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {analytics.byTehsil.map((row) => (
-                  <TableRow key={row.tehsilId}>
-                    <TableCell>{row.tehsilName}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {row.submitted}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DemographicSection
+            title="By tehsil"
+            subtitle="Administrative coverage of submitted site visits"
+            total={tehsilTotal}
+            accent={DEMOGRAPHIC_ACCENTS.tehsil}
+          >
+            {analytics.byTehsil.map((row, index) => (
+              <DemographicBarRow
+                key={row.tehsilId}
+                label={row.tehsilName}
+                value={row.submitted}
+                max={maxTehsil}
+                colorIndex={index}
+                sharePct={
+                  tehsilTotal > 0
+                    ? Math.round((row.submitted / tehsilTotal) * 100)
+                    : 0
+                }
+              />
+            ))}
+          </DemographicSection>
         ) : null}
 
         {hasVillages ? (
-          <div>
-            <p className="mb-3 text-sm font-medium">By village</p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Village</TableHead>
-                  <TableHead>Tehsil</TableHead>
-                  <TableHead className="text-right">Submitted</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {analytics.byVillage.slice(0, 12).map((row) => (
-                  <TableRow key={row.villageId}>
-                    <TableCell>{row.villageName}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {row.tehsilName}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {row.submitted}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <DemographicSection
+            title="By village"
+            subtitle="Top villages by submission count"
+            total={villageTotal}
+            accent={DEMOGRAPHIC_ACCENTS.village}
+          >
+            {villageRows.map((row, index) => (
+              <DemographicBarRow
+                key={row.villageId}
+                label={row.villageName}
+                sublabel={row.tehsilName}
+                value={row.submitted}
+                max={maxVillage}
+                colorIndex={index + 1}
+                sharePct={
+                  villageTotal > 0
+                    ? Math.round((row.submitted / villageTotal) * 100)
+                    : 0
+                }
+              />
+            ))}
             {analytics.byVillage.length > 12 ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Showing top 12 villages by submission count.
+              <p className="pt-1 text-center text-xs text-muted-foreground">
+                Showing top 12 of {analytics.byVillage.length} villages.
               </p>
             ) : null}
-          </div>
+          </DemographicSection>
         ) : null}
       </CardContent>
     </Card>

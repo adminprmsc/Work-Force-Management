@@ -76,16 +76,6 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         label: "Dashboard",
-        path: "/dashboard/world-bank",
-        icon: LayoutDashboard,
-        roles: [Role.WORLD_BANK_USER],
-        meta: {
-          title: "Dashboard",
-          description: "World Bank overview — procurement and geography",
-        },
-      },
-      {
-        label: "Dashboard",
         path: "/dashboard/ra-tehsil",
         icon: LayoutDashboard,
         roles: [Role.RA_ES_TEHSIL],
@@ -106,7 +96,7 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: [Role.SENIOR_MANAGER_ES],
         meta: {
           title: "Users",
-          description: "Create and manage user accounts across all roles",
+          description: "Accounts by role — create, manage status, and jump to per-user audit activity",
         },
       },
       {
@@ -126,7 +116,7 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: [Role.SENIOR_MANAGER_ES],
         meta: {
           title: "Audit logs",
-          description: "Track user management and system activity",
+          description: "Who did what — user actions with performer and affected account details",
         },
       },
     ],
@@ -261,16 +251,6 @@ export const NAV_GROUPS: NavGroup[] = [
         },
       },
       {
-        label: "Survey responses",
-        path: "/dashboard/world-bank/surveys/responses",
-        icon: Inbox,
-        roles: [Role.WORLD_BANK_USER],
-        meta: {
-          title: "Survey responses",
-          description: "Site-visit submissions collected by tehsil RAs",
-        },
-      },
-      {
         label: "My surveys",
         path: "/dashboard/ra-tehsil/surveys",
         icon: ClipboardList,
@@ -346,16 +326,6 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         label: "Geography",
-        path: "/dashboard/world-bank/geography",
-        icon: MapPinned,
-        roles: [Role.WORLD_BANK_USER],
-        meta: {
-          title: "Geography",
-          description: "Tehsils, villages, and settlements reference",
-        },
-      },
-      {
-        label: "Geography",
         path: "/dashboard/ra-tehsil/geography",
         icon: MapPinned,
         roles: [Role.RA_ES_TEHSIL],
@@ -369,16 +339,6 @@ export const NAV_GROUPS: NavGroup[] = [
         path: "/dashboard/ra-environment/profile",
         icon: UserCircle,
         roles: [Role.RA_ENVIRONMENT_HO],
-        meta: {
-          title: "Profile",
-          description: "Your account details",
-        },
-      },
-      {
-        label: "Profile",
-        path: "/dashboard/world-bank/profile",
-        icon: UserCircle,
-        roles: [Role.WORLD_BANK_USER],
         meta: {
           title: "Profile",
           description: "Your account details",

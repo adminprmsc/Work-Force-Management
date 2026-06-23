@@ -52,11 +52,7 @@ export function surveyResponsesPath(role: RoleType): string {
 }
 
 export function canReadSurveyResponses(role: RoleType): boolean {
-  return (
-    canManageSurveys(role) ||
-    canFillSurveys(role) ||
-    role === Role.WORLD_BANK_USER
-  )
+  return canManageSurveys(role) || canFillSurveys(role)
 }
 
 export function surveyFormDashboardsPath(role: RoleType): string {

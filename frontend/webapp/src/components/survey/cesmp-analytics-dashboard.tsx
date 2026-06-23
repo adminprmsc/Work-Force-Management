@@ -48,14 +48,9 @@ import type {
   CesmpFormInsights,
   CesmpPatternInsight,
 } from "@/modules/api/survey-types"
+import { CHART_SERIES_COLORS, chartSeriesColor } from "@/lib/chart-colors"
 
-const CHART_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-]
+const CHART_COLORS = [...CHART_SERIES_COLORS]
 
 function formatCurrency(value: number): string {
   return value.toLocaleString(undefined, {
@@ -93,7 +88,7 @@ function PatternAnalysisCard({
       Object.fromEntries(
         rows.map((row, index) => [
           row.name,
-          { label: row.name, color: CHART_COLORS[index % CHART_COLORS.length] },
+          { label: row.name, color: chartSeriesColor(index) },
         ]),
       ) satisfies ChartConfig,
     [rows],
@@ -247,7 +242,7 @@ export function CesmpAnalyticsDashboard({
   ]
 
   const budgetChartConfig = {
-    amount: { label: "Spend (PKR)", color: "hsl(var(--chart-1))" },
+    amount: { label: "Spend (PKR)", color: "var(--chart-1)" },
   } satisfies ChartConfig
 
   const visiblePackages = selectedPackageId

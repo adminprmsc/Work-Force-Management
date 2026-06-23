@@ -51,7 +51,6 @@ import { useAuth } from "@/modules/auth/use-auth";
 function getProfilePath(role: string): string | null {
   switch (role) {
     case Role.RA_ENVIRONMENT_HO:
-    case Role.WORLD_BANK_USER:
     case Role.RA_ES_TEHSIL:
       return `${roleToDashboardPath(role as Role)}/profile`;
     default:
