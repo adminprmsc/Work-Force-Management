@@ -1,0 +1,30 @@
+import { apiRequest } from '@/lib/api-client';
+import type { AuthResult, AuthenticatedUser } from '@/modules/auth/auth-types';
+
+export async function login(input: {
+  email: string;
+  password: string;
+}): Promise<AuthResult> {
+  return apiRequest<AuthResult>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getProfile(token: string): Promise<AuthenticatedUser> {
+  return apiRequest<AuthenticatedUser>('/auth/profile', {
+    method: 'GET',
+    token,
+  });
+}
+
+export async function changePassword(
+  token: string,
+  input: { currentPassword: string; newPassword: string },
+): Promise<{ success: true }> {
+  return apiRequest<{ success: true }>('/auth/change-password', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(input),
+  });
+}
