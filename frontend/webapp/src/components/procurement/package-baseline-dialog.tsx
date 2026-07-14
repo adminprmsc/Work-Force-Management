@@ -159,6 +159,7 @@ function BaselineForm({
                   field={fieldAsSurveyField(field)}
                   value={values[field.id]}
                   disabled={!canEdit || locked}
+                  uploadContext={{ formId }}
                   onChange={(value) =>
                     setDraftOverrides((current) => ({
                       ...current,

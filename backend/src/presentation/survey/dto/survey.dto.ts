@@ -8,10 +8,12 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -171,7 +173,26 @@ export class StartSurveyResponseDto {
   visitDate?: string | null;
 }
 
-export class SurveyAnswerDto {
+export type SurveyAnswerBody = {
+  fieldId: string;
+  value: unknown;
+};
+
+export type SaveSurveyResponseBody = {
+  answers: SurveyAnswerBody[];
+};
+
+export type SubmitSurveyResponseBody = SaveSurveyResponseBody & {
+  latitude: number;
+  longitude: number;
+  locationAccuracyMeters?: number | null;
+};
+
+export type ReviewSurveyResponseBody = {
+  remarks?: string | null;
+};
+
+export class SurveyAnswerDto implements SurveyAnswerBody {
   @IsUUID()
   fieldId!: string;
 
@@ -179,9 +200,41 @@ export class SurveyAnswerDto {
   value!: unknown;
 }
 
-export class SaveSurveyResponseDto {
+export class SaveSurveyResponseDto implements SaveSurveyResponseBody {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SurveyAnswerDto)
   answers!: SurveyAnswerDto[];
+}
+
+export class SubmitSurveyResponseDto implements SubmitSurveyResponseBody {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SurveyAnswerDto)
+  answers!: SurveyAnswerDto[];
+
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  @Type(() => Number)
+  latitude!: number;
+
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  @Type(() => Number)
+  longitude!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  locationAccuracyMeters?: number | null;
+}
+
+export class ReviewSurveyResponseDto implements ReviewSurveyResponseBody {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  remarks?: string | null;
 }

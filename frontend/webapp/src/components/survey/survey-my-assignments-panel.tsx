@@ -24,7 +24,7 @@ import {
   useSurveyResponsesQuery,
 } from "@/hooks/api/survey-hooks"
 import { getQueryViewState } from "@/lib/query-view-state"
-import { frequencyLabel } from "@/lib/survey"
+import { frequencyLabel, responseIsEditable, responseStatusBadgeVariant, responseStatusLabel } from "@/lib/survey"
 import { cn } from "@/lib/utils"
 import type {
   SurveyAssignment,
@@ -237,10 +237,8 @@ function SubmissionCard({
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        <Badge
-          variant={response.status === "SUBMITTED" ? "default" : "secondary"}
-        >
-          {response.status === "SUBMITTED" ? "Submitted" : "Draft"}
+        <Badge variant={responseStatusBadgeVariant(response.status)}>
+          {responseStatusLabel(response.status)}
         </Badge>
         <Button
           size="sm"
@@ -248,7 +246,11 @@ function SubmissionCard({
           className="w-full sm:w-auto"
           onClick={() => onOpen(response)}
         >
-          {response.status === "SUBMITTED" ? "View" : "Continue"}
+          {responseIsEditable(response.status)
+            ? response.status === "REVERTED"
+              ? "Edit & resubmit"
+              : "Continue"
+            : "View"}
           <ArrowRight className="size-4" />
         </Button>
       </div>
@@ -363,7 +365,7 @@ export function SurveyMyAssignmentsPanel() {
 
       <DataPanel
         title="My submissions"
-        description="Drafts you can continue and surveys you have submitted."
+        description="Saved drafts and surveys you have submitted."
       >
         {responsesView.error ? (
           <p className="text-sm text-destructive">{responsesView.error}</p>

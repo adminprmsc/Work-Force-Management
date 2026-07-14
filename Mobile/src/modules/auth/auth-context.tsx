@@ -26,6 +26,7 @@ type AuthContextValue = {
   refreshProfile: () => Promise<void>;
   changeUserPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   runSync: () => Promise<void>;
+  refreshPendingCount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,7 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const online = Boolean(state.isConnected && state.isInternetReachable !== false);
+      // isInternetReachable is often false on iOS simulator while fetch still works;
+      // treat null/undefined as unknown (online when connected).
+      const online = Boolean(
+        state.isConnected &&
+          state.isInternetReachable !== false,
+      );
       setIsOnline(online);
     });
     return unsubscribe;
@@ -133,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile,
       changeUserPassword,
       runSync,
+      refreshPendingCount,
     }),
     [
       user,
@@ -145,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile,
       changeUserPassword,
       runSync,
+      refreshPendingCount,
     ],
   );
 

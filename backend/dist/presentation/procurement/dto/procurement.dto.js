@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PackageBaselineAnswerDto = exports.SavePackageBaselineDto = exports.UpdateProcurementPackageExpenseDto = exports.CreateProcurementPackageExpenseDto = exports.UpdateProcurementPackageDto = exports.CreateProcurementPackageDto = exports.UpdateMasterNameDto = exports.CreateMasterNameDto = void 0;
+exports.PackageBaselineAnswerDto = exports.SavePackageBaselineDto = exports.UpdateProcurementPackageExpenseDto = exports.CreateProcurementPackageExpenseDto = exports.UpdateProcurementPackageDto = exports.CreateProcurementPackageDto = exports.VillageAllocationDto = exports.UpdateMasterNameDto = exports.CreateMasterNameDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CreateMasterNameDto {
@@ -32,21 +32,43 @@ __decorate([
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], UpdateMasterNameDto.prototype, "name", void 0);
+class VillageAllocationDto {
+    villageId;
+    allocatedBudget;
+}
+exports.VillageAllocationDto = VillageAllocationDto;
+__decorate([
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], VillageAllocationDto.prototype, "villageId", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], VillageAllocationDto.prototype, "allocatedBudget", void 0);
 class CreateProcurementPackageDto {
-    name;
+    cluster;
+    code;
     budgetAmount;
     contractorId;
     consultantId;
     tehsilId;
     villageIds;
+    villageAllocations;
 }
 exports.CreateProcurementPackageDto = CreateProcurementPackageDto;
 __decorate([
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
-    (0, class_validator_1.MaxLength)(500),
+    (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
-], CreateProcurementPackageDto.prototype, "name", void 0);
+], CreateProcurementPackageDto.prototype, "cluster", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.MaxLength)(300),
+    __metadata("design:type", String)
+], CreateProcurementPackageDto.prototype, "code", void 0);
 __decorate([
     (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
     (0, class_validator_1.Min)(0),
@@ -70,9 +92,17 @@ __decorate([
     (0, class_validator_1.IsUUID)('4', { each: true }),
     __metadata("design:type", Array)
 ], CreateProcurementPackageDto.prototype, "villageIds", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => VillageAllocationDto),
+    __metadata("design:type", Array)
+], CreateProcurementPackageDto.prototype, "villageAllocations", void 0);
 class UpdateProcurementPackageDto {
     budgetAmount;
     villageIds;
+    villageAllocations;
 }
 exports.UpdateProcurementPackageDto = UpdateProcurementPackageDto;
 __decorate([
@@ -88,6 +118,13 @@ __decorate([
     (0, class_validator_1.IsUUID)('4', { each: true }),
     __metadata("design:type", Array)
 ], UpdateProcurementPackageDto.prototype, "villageIds", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => VillageAllocationDto),
+    __metadata("design:type", Array)
+], UpdateProcurementPackageDto.prototype, "villageAllocations", void 0);
 class CreateProcurementPackageExpenseDto {
     amount;
     description;

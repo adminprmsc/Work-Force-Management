@@ -4,15 +4,17 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { SurveyAttachmentField } from "@/components/survey/survey-attachment-field"
+import { SurveyAttachmentDisplay } from "@/components/survey/survey-attachment-display"
+import type { SurveyAttachmentUploadContext } from "@/lib/survey-attachment"
 import type { SurveyField } from "@/modules/api/survey-types"
-
-type FileValue = { url?: string; name?: string }
 
 type SurveyFieldControlProps = {
   field: SurveyField
   value: unknown
   onChange: (value: unknown) => void
   disabled?: boolean
+  uploadContext?: SurveyAttachmentUploadContext
 }
 
 export function SurveyFieldControl({
@@ -20,6 +22,7 @@ export function SurveyFieldControl({
   value,
   onChange,
   disabled,
+  uploadContext,
 }: SurveyFieldControlProps) {
   const options = field.config?.options ?? []
 
@@ -161,25 +164,19 @@ export function SurveyFieldControl({
     }
 
     case "FILE":
-    case "IMAGE": {
-      const file = (value as FileValue) ?? {}
+    case "IMAGE":
+      if (disabled) {
+        return <SurveyAttachmentDisplay field={field} value={value} />
+      }
       return (
-        <div className="grid gap-2">
-          <Input
-            placeholder="File URL"
-            disabled={disabled}
-            value={file.url ?? ""}
-            onChange={(e) => onChange({ ...file, url: e.target.value })}
-          />
-          <Input
-            placeholder="File name (optional)"
-            disabled={disabled}
-            value={file.name ?? ""}
-            onChange={(e) => onChange({ ...file, name: e.target.value })}
-          />
-        </div>
+        <SurveyAttachmentField
+          field={field}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          uploadContext={uploadContext}
+        />
       )
-    }
 
     case "TEXT":
     default:

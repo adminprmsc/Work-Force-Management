@@ -91,8 +91,8 @@ function DashboardFilters({
       <CardHeader className="pb-4">
         <CardTitle className="text-base">Dashboard filters</CardTitle>
         <CardDescription>
-          All charts and tables below reflect only submitted responses that
-          match the procurement package and submission date window you choose.
+          All charts and tables below reflect only accepted responses that
+          match the procurement package and acceptance date window you choose.
           Package counts in the dropdown are all-time totals to help you pick a
           package.
         </CardDescription>
@@ -147,7 +147,7 @@ function DashboardFilters({
               </NativeSelectOption>
             </NativeSelect>
             <p className="text-xs text-muted-foreground">
-              Counts responses by when they were submitted, not when the site
+              Counts responses by when they were accepted, not when the site
               visit occurred.
             </p>
           </div>
@@ -228,32 +228,32 @@ function ActiveScopeSummary({
       <CardContent className="p-6">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <ScopeStat
-            label="Submitted"
-            value={summary.submitted}
+            label="Accepted"
+            value={summary.accepted}
             hint="In selected window"
             tone="positive"
             icon={<ClipboardCheck className="size-4" />}
           />
           <ScopeStat
+            label="Pending review"
+            value={summary.pendingReview}
+            hint="Awaiting HO decision"
+            tone="warning"
+            icon={<ClipboardCheck className="size-4" />}
+          />
+          <ScopeStat
             label="Villages"
             value={villageCount}
-            hint="With responses"
+            hint="With accepted responses"
             tone="neutral"
             icon={<MapPin className="size-4" />}
           />
           <ScopeStat
             label="Tehsils"
             value={tehsilCount}
-            hint="With responses"
+            hint="With accepted responses"
             tone="neutral"
             icon={<MapPinned className="size-4" />}
-          />
-          <ScopeStat
-            label="Drafts"
-            value={summary.draft}
-            hint={summary.draft > 0 ? "Outside date filter" : "In progress"}
-            tone={summary.draft > 0 ? "warning" : "neutral"}
-            icon={<Package className="size-4" />}
           />
         </div>
       </CardContent>
@@ -412,16 +412,16 @@ function GeographicDemographics({
   const hasTehsils = analytics.byTehsil.length > 0;
 
   const tehsilTotal = analytics.byTehsil.reduce(
-    (sum, row) => sum + row.submitted,
+    (sum, row) => sum + row.accepted,
     0,
   );
   const villageTotal = analytics.byVillage.reduce(
-    (sum, row) => sum + row.submitted,
+    (sum, row) => sum + row.accepted,
     0,
   );
-  const maxTehsil = Math.max(...analytics.byTehsil.map((r) => r.submitted), 1);
+  const maxTehsil = Math.max(...analytics.byTehsil.map((r) => r.accepted), 1);
   const villageRows = analytics.byVillage.slice(0, 12);
-  const maxVillage = Math.max(...villageRows.map((r) => r.submitted), 1);
+  const maxVillage = Math.max(...villageRows.map((r) => r.accepted), 1);
 
   if (!hasVillages && !hasTehsils) {
     return (
@@ -432,7 +432,7 @@ function GeographicDemographics({
             Geographic coverage
           </CardTitle>
           <CardDescription>
-            No submitted responses match the current package and date filters.
+            No accepted responses match the current package and date filters.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -447,7 +447,7 @@ function GeographicDemographics({
           Geographic demographics
         </CardTitle>
         <CardDescription>
-          Submission distribution by tehsil and village — colour reflects
+          Submission distribution by tehsil and village (accepted only) —
           coverage strength (green = well represented, red = monitoring gap).
         </CardDescription>
       </CardHeader>
@@ -455,7 +455,7 @@ function GeographicDemographics({
         {hasTehsils ? (
           <DemographicSection
             title="By tehsil"
-            subtitle="Administrative coverage of submitted site visits"
+            subtitle="Administrative coverage of accepted site visits"
             total={tehsilTotal}
             accent={DEMOGRAPHIC_ACCENTS.tehsil}
           >
@@ -463,11 +463,11 @@ function GeographicDemographics({
               <DemographicBarRow
                 key={row.tehsilId}
                 label={row.tehsilName}
-                value={row.submitted}
+                value={row.accepted}
                 max={maxTehsil}
                 sharePct={
                   tehsilTotal > 0
-                    ? Math.round((row.submitted / tehsilTotal) * 100)
+                    ? Math.round((row.accepted / tehsilTotal) * 100)
                     : 0
                 }
               />
@@ -478,7 +478,7 @@ function GeographicDemographics({
         {hasVillages ? (
           <DemographicSection
             title="By village"
-            subtitle="Top villages by submission count"
+            subtitle="Top villages by accepted response count"
             total={villageTotal}
             accent={DEMOGRAPHIC_ACCENTS.village}
           >
@@ -487,11 +487,11 @@ function GeographicDemographics({
                 key={row.villageId}
                 label={row.villageName}
                 sublabel={row.tehsilName}
-                value={row.submitted}
+                value={row.accepted}
                 max={maxVillage}
                 sharePct={
                   villageTotal > 0
-                    ? Math.round((row.submitted / villageTotal) * 100)
+                    ? Math.round((row.accepted / villageTotal) * 100)
                     : 0
                 }
               />
@@ -624,7 +624,7 @@ export function FormAnalyticsDashboard({
     (pkg) => pkg.packageId === selectedPackageId,
   );
   const dateLabel = formatAnalyticsDateLabel(submittedFrom, submittedTo);
-  const hasResponses = (analytics?.summary.submitted ?? 0) > 0;
+  const hasResponses = (analytics?.summary.accepted ?? 0) > 0;
 
   return (
     <div className="space-y-6">

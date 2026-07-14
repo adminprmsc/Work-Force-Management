@@ -15,4 +15,16 @@ export default () => ({
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
   },
+  supabase: {
+    url: process.env.SUPABASE_URL ?? '',
+    secretKey: process.env.SUPABASE_SECRET_KEY ?? '',
+    storageBucket:
+      process.env.SUPABASE_STORAGE_BUCKET ??
+      (process.env.NODE_ENV === 'production' ? 'PROD' : 'LOCAL'),
+    signedUrlTtlSeconds: parseInt(
+      process.env.SUPABASE_SIGNED_URL_TTL_SECONDS ?? '3600',
+      10,
+    ),
+    uploadMaxMb: parseInt(process.env.SUPABASE_UPLOAD_MAX_MB ?? '10', 10),
+  },
 });

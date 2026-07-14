@@ -24,7 +24,31 @@ export enum SurveyFieldType {
 export enum SurveyResponseStatus {
   DRAFT = 'DRAFT',
   SUBMITTED = 'SUBMITTED',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED',
+  REVERTED = 'REVERTED',
 }
+
+export enum SurveyResponseReviewAction {
+  SUBMITTED = 'SUBMITTED',
+  RESUBMITTED = 'RESUBMITTED',
+  SAVED = 'SAVED',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED',
+  REVERTED = 'REVERTED',
+}
+
+/** Statuses where the tehsil RA may edit answers. */
+export const EDITABLE_RESPONSE_STATUSES: SurveyResponseStatus[] = [
+  SurveyResponseStatus.DRAFT,
+  SurveyResponseStatus.REVERTED,
+];
+
+/** Terminal statuses — no further edits or review actions. */
+export const TERMINAL_RESPONSE_STATUSES: SurveyResponseStatus[] = [
+  SurveyResponseStatus.ACCEPTED,
+  SurveyResponseStatus.REJECTED,
+];
 
 export enum SurveyFrequency {
   ONE_TIME = 'ONE_TIME',
@@ -56,6 +80,8 @@ export type PackageFieldReference =
   | 'budgetAmount'
   | 'totalExpenses'
   | 'remainingBudget'
+  | 'villageAllocatedBudget'
+  | 'villageRemainingBudget'
   | 'contractorName'
   | 'consultantName'
   | 'tehsilName';
@@ -84,6 +110,8 @@ export interface SurveyFieldConfig {
   budgetEffect?: SurveyFieldBudgetEffect;
   /** Read-only field: allocated budget minus committed and in-form deductions. */
   computedRemainingBudget?: boolean;
+  /** Read-only field: village allocation minus committed and in-form deductions. */
+  computedVillageRemainingBudget?: boolean;
   /** Read-only field: sum of in-form DEDUCT budget fields. */
   computedVisitDeductions?: boolean;
 }
@@ -228,6 +256,16 @@ export class SurveyLocationRef {
   ) {}
 }
 
+export class SurveyResponseReviewEvent {
+  constructor(
+    public readonly id: string,
+    public readonly action: SurveyResponseReviewAction,
+    public readonly actor: SurveyResponseRespondentRef,
+    public readonly remarks: string | null,
+    public readonly createdAt: Date,
+  ) {}
+}
+
 export class SurveyResponse {
   constructor(
     public readonly id: string,
@@ -243,6 +281,20 @@ export class SurveyResponse {
     public readonly answers: SurveyAnswer[],
     public readonly visitDate: Date | null,
     public readonly submittedAt: Date | null,
+    public readonly lastEditedAt: Date | null,
+    public readonly reviewedAt: Date | null,
+    public readonly acceptedAt: Date | null,
+    public readonly acceptedBy: SurveyResponseRespondentRef | null,
+    public readonly rejectedAt: Date | null,
+    public readonly rejectedBy: SurveyResponseRespondentRef | null,
+    public readonly revertedAt: Date | null,
+    public readonly revertedBy: SurveyResponseRespondentRef | null,
+    public readonly reviewRemarks: string | null,
+    public readonly submittedLatitude: number | null,
+    public readonly submittedLongitude: number | null,
+    public readonly submittedLocationAccuracy: number | null,
+    public readonly submittedLocationCapturedAt: Date | null,
+    public readonly reviewEvents: SurveyResponseReviewEvent[],
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
   ) {}

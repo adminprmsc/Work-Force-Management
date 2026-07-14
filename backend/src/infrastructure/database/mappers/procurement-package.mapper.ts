@@ -62,6 +62,7 @@ export type ProcurementPackageRecord = {
     name: string;
   };
   villages: Array<{
+    allocatedBudget: { toString(): string };
     village: {
       id: string;
       name: string;
@@ -122,7 +123,11 @@ export function mapPackageRecord(
     ),
     record.villages.map(
       (entry) =>
-        new ProcurementPackageVillageRef(entry.village.id, entry.village.name),
+        new ProcurementPackageVillageRef(
+          entry.village.id,
+          entry.village.name,
+          decimalToMoneyString(entry.allocatedBudget),
+        ),
     ),
     record.expenses.map(mapExpenseRow),
     record.createdAt,

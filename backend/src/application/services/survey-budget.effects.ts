@@ -17,7 +17,6 @@ export function sumBudgetEffectsFromAnswers(
   answers: Array<{ fieldId: string; value: unknown }>,
   options?: { effect?: SurveyFieldBudgetEffect },
 ): number {
-  const fieldById = new Map(fields.map((field) => [field.id, field]));
   const answerByField = new Map(
     answers.map((answer) => [answer.fieldId, answer.value]),
   );

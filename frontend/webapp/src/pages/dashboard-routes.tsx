@@ -16,6 +16,7 @@ import { MySurveysPage } from "@/pages/survey/my-surveys-page"
 import { FormDashboardPage } from "@/pages/survey/form-dashboard-page"
 import { FormDashboardsIndexPage } from "@/pages/survey/form-dashboards-index-page"
 import { SurveyFormsPage } from "@/pages/survey/survey-forms-page"
+import { SurveyResponseDetailPage } from "@/pages/survey/survey-response-detail-page"
 import { SurveyResponsesPage } from "@/pages/survey/survey-responses-page"
 import { UsersPage } from "@/pages/users/users-page"
 
@@ -40,6 +41,10 @@ export function DashboardRoutes() {
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
         <Route path="surveys" element={<SurveyFormsPage />} />
         <Route path="surveys/responses" element={<SurveyResponsesPage />} />
+        <Route
+          path="surveys/responses/:responseId"
+          element={<SurveyResponseDetailPage />}
+        />
         <Route path="form-dashboards" element={<FormDashboardsIndexPage />} />
         <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
       </Route>
@@ -58,6 +63,10 @@ export function DashboardRoutes() {
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
         <Route path="surveys" element={<SurveyFormsPage />} />
         <Route path="surveys/responses" element={<SurveyResponsesPage />} />
+        <Route
+          path="surveys/responses/:responseId"
+          element={<SurveyResponseDetailPage />}
+        />
         <Route path="form-dashboards" element={<FormDashboardsIndexPage />} />
         <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
         <Route path="geography" element={<GeographyPage />} />

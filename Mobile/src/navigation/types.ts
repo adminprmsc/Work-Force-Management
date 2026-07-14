@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 export type DrawerParamList = {
   Assignments: undefined;
+  Submissions: undefined;
   Drafts: undefined;
   Profile: undefined;
 };
@@ -17,7 +18,7 @@ export type RootStackParamList = {
   ChangePassword: undefined;
   MainDrawer: NavigatorScreenParams<DrawerParamList>;
   AssignmentDetail: { id: string };
-  Response: { localId?: string; assignmentId?: string };
+  Response: { localId?: string; assignmentId?: string; responseId?: string };
   Baseline: { packageId: string; formId: string };
 };
 

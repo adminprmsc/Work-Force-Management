@@ -1,4 +1,8 @@
 import { apiRequest } from '@/lib/api-client';
+import {
+  cacheProcurementPackage,
+  getCachedProcurementPackage,
+} from '@/modules/offline/offline-store';
 import type {
   PackageFormBaseline,
   ProcurementPackage,
@@ -34,6 +38,24 @@ export function getProcurementPackage(
     method: 'GET',
     token,
   });
+}
+
+/** Fetch a package from the API and cache it; fall back to cache when offline. */
+export async function fetchProcurementPackageWithCache(
+  token: string,
+  packageId: string,
+): Promise<ProcurementPackage> {
+  try {
+    const pkg = await getProcurementPackage(token, packageId);
+    await cacheProcurementPackage(pkg);
+    return pkg;
+  } catch {
+    const cached = await getCachedProcurementPackage(packageId);
+    if (cached) return cached;
+    throw new Error(
+      'Could not load package villages. Connect to the internet once, then open your assignments.',
+    );
+  }
 }
 
 export function getPackageFormBaseline(

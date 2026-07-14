@@ -5,17 +5,24 @@ import { ProcurementPackageValidator } from '../../services/procurement-package.
 import { ProcurementPackageNamingService } from '../../services/procurement-package-naming.service';
 import { ProcurementPackageBudgetEnricher } from '../../services/procurement-package-budget.enricher';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
+export interface VillageAllocationCommand {
+    villageId: string;
+    allocatedBudget: number;
+}
 export interface CreateProcurementPackageCommand {
-    name: string;
+    cluster: string;
+    code: string;
     budgetAmount: number;
     contractorId: string;
     consultantId: string;
     tehsilId: string;
     villageIds: string[];
+    villageAllocations?: VillageAllocationCommand[];
 }
 export interface UpdateProcurementPackageCommand {
     budgetAmount?: number;
     villageIds?: string[];
+    villageAllocations?: VillageAllocationCommand[];
 }
 export declare class ListProcurementPackagesUseCase {
     private readonly packageRepository;

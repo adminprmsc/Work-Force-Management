@@ -47,6 +47,9 @@ export type ProcurementPackageRecord = {
         name: string;
     };
     villages: Array<{
+        allocatedBudget: {
+            toString(): string;
+        };
         village: {
             id: string;
             name: string;

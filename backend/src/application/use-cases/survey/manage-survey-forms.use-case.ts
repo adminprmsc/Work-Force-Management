@@ -31,6 +31,10 @@ import {
   SURVEY_FORM_REVISION_REPOSITORY,
   SurveyFormRevisionRepositoryPort,
 } from '../../ports/survey-form-revision.repository.port';
+import {
+  SURVEY_RESPONSE_REPOSITORY,
+  SurveyResponseRepositoryPort,
+} from '../../ports/survey-response.repository.port';
 import { SurveyBaselineFieldValidator } from '../../services/survey-baseline-field.validator';
 import { SurveyFormValidator } from '../../services/survey-form.validator';
 import { SurveyScopeResolver } from '../../services/survey-scope.resolver';
@@ -328,6 +332,10 @@ export class PublishSurveyFormUseCase {
     private readonly formRepository: SurveyFormRepositoryPort,
     @Inject(SURVEY_FORM_REVISION_REPOSITORY)
     private readonly revisionRepository: SurveyFormRevisionRepositoryPort,
+    @Inject(SURVEY_RESPONSE_REPOSITORY)
+    private readonly responseRepository: SurveyResponseRepositoryPort,
+    @Inject(SURVEY_ASSIGNMENT_REPOSITORY)
+    private readonly assignmentRepository: SurveyAssignmentRepositoryPort,
     private readonly scopeResolver: SurveyScopeResolver,
     private readonly formValidator: SurveyFormValidator,
     private readonly baselineValidator: SurveyBaselineFieldValidator,
@@ -363,7 +371,19 @@ export class PublishSurveyFormUseCase {
     );
 
     const publishedAt = new Date();
-    await this.revisionRepository.createFromForm(existing, publishedAt);
+    // In-progress drafts are pinned to the outgoing revision; drop them so RAs
+    // restart on the new version.
+    await this.responseRepository.deleteDraftsByFormId(existing.id);
+    const revision = await this.revisionRepository.createFromForm(
+      existing,
+      publishedAt,
+    );
+    // Repoint existing assignments so tehsil RAs immediately fill the latest
+    // version. Submitted/reviewed responses keep their own frozen revision.
+    await this.assignmentRepository.updateFormRevisionForForm(
+      existing.id,
+      revision.id,
+    );
 
     return this.formRepository.updateStatus(
       id,

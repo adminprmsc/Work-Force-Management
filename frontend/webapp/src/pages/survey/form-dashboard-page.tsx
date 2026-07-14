@@ -119,7 +119,7 @@ export function FormDashboardPage() {
                 </div>
                 <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
                   {analytics?.form.description ??
-                    "Stakeholder dashboard for submitted site-visit responses. Choose a procurement package and submission date window to see demographics and compliance patterns for that scope."}
+                    "Stakeholder dashboard for accepted site-visit responses. Choose a procurement package and acceptance date window to see demographics and compliance patterns for that scope."}
                 </p>
               </div>
             </div>

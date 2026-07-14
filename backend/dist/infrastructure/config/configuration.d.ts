@@ -10,5 +10,12 @@ declare const _default: () => {
         secret: string | undefined;
         expiresIn: string;
     };
+    supabase: {
+        url: string;
+        secretKey: string;
+        storageBucket: string;
+        signedUrlTtlSeconds: number;
+        uploadMaxMb: number;
+    };
 };
 export default _default;

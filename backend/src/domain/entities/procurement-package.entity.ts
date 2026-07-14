@@ -5,6 +5,10 @@ export class ProcurementPackageVillageRef {
   constructor(
     public readonly id: string,
     public readonly name: string,
+    public readonly allocatedBudget: string,
+    // Populated by the budget enricher from accepted survey responses.
+    public readonly spent: string = '0.00',
+    public readonly remaining: string = allocatedBudget,
   ) {}
 }
 

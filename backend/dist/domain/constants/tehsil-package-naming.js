@@ -4,6 +4,8 @@ exports.TEHSIL_PACKAGE_NAMING = void 0;
 exports.getTehsilPackageNaming = getTehsilPackageNaming;
 exports.getTehsilDisplayName = getTehsilDisplayName;
 exports.composeProcurementPackageName = composeProcurementPackageName;
+exports.composePackageNameFromParts = composePackageNameFromParts;
+exports.parsePackageNameParts = parsePackageNameParts;
 exports.composePackageNameWithTehsil = composePackageNameWithTehsil;
 exports.stripTehsilFromPackageName = stripTehsilFromPackageName;
 exports.getTehsilNamesForGroup = getTehsilNamesForGroup;
@@ -125,6 +127,27 @@ function composeProcurementPackageName(zoneLabel, tehsilDisplayName, packageCode
         .filter(Boolean)
         .join(' ')
         .replace(/\s+/g, ' ');
+}
+function composePackageNameFromParts(cluster, tehsilDisplayName, code) {
+    const parts = [cluster, tehsilDisplayName, code]
+        .map((part) => part.trim().replace(/\s+/g, ' '))
+        .filter(Boolean);
+    return parts.join('-');
+}
+function parsePackageNameParts(fullName, tehsilDisplayName) {
+    const tehsil = tehsilDisplayName.trim();
+    if (!tehsil) {
+        return { cluster: fullName.trim(), code: '' };
+    }
+    const marker = `-${tehsil}-`;
+    const idx = fullName.indexOf(marker);
+    if (idx === -1) {
+        return { cluster: fullName.trim(), code: '' };
+    }
+    return {
+        cluster: fullName.slice(0, idx).trim(),
+        code: fullName.slice(idx + marker.length).trim(),
+    };
 }
 function composePackageNameWithTehsil(namePart, tehsilDisplayName) {
     const part = namePart.trim().replace(/\s+/g, ' ');

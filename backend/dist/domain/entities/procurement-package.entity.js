@@ -4,9 +4,15 @@ exports.ProcurementPackage = exports.ProcurementPackageExpense = exports.Procure
 class ProcurementPackageVillageRef {
     id;
     name;
-    constructor(id, name) {
+    allocatedBudget;
+    spent;
+    remaining;
+    constructor(id, name, allocatedBudget, spent = '0.00', remaining = allocatedBudget) {
         this.id = id;
         this.name = name;
+        this.allocatedBudget = allocatedBudget;
+        this.spent = spent;
+        this.remaining = remaining;
     }
 }
 exports.ProcurementPackageVillageRef = ProcurementPackageVillageRef;

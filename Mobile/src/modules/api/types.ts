@@ -1,5 +1,10 @@
 export type SurveyStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
-export type SurveyResponseStatus = 'DRAFT' | 'SUBMITTED';
+export type SurveyResponseStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'REVERTED';
 export type SurveyFrequency = 'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
 export type SurveyFieldType =
@@ -39,6 +44,7 @@ export type SurveyFieldConfig = {
   snapshotOnSubmit?: boolean;
   budgetEffect?: 'DEDUCT' | 'ADD';
   computedRemainingBudget?: boolean;
+  computedVillageRemainingBudget?: boolean;
   computedVisitDeductions?: boolean;
 };
 
@@ -90,6 +96,32 @@ export type SurveyAnswer = {
   value: unknown;
 };
 
+export type SurveyAttachmentFileValue = {
+  attachmentId: string;
+  url: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  storagePath?: string;
+};
+
+export type UploadSurveyAttachmentInput = {
+  formId: string;
+  fieldId: string;
+  assignmentId?: string;
+  responseId?: string;
+};
+
+export type UploadSurveyAttachmentResult = SurveyAttachmentFileValue & {
+  id: string;
+};
+
+export type SurveyAttachmentUrlResult = {
+  id: string;
+  url: string;
+  expiresInSeconds: number;
+};
+
 export type SurveyResponse = {
   id: string;
   assignmentId: string;
@@ -104,6 +136,13 @@ export type SurveyResponse = {
   answers: SurveyAnswer[];
   visitDate: string | null;
   submittedAt: string | null;
+  lastEditedAt: string | null;
+  reviewedAt: string | null;
+  acceptedAt: string | null;
+  rejectedAt: string | null;
+  revertedAt: string | null;
+  reviewRemarks: string | null;
+  submittedLocation: SurveySubmissionLocation | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -119,10 +158,24 @@ export type SaveSurveyResponseInput = {
   answers: SurveyAnswer[];
 };
 
+export type SubmitSurveyResponseInput = SaveSurveyResponseInput & {
+  latitude: number;
+  longitude: number;
+  locationAccuracyMeters?: number | null;
+};
+
+export type SurveySubmissionLocation = {
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number | null;
+  capturedAt: string;
+};
+
 export type SurveyResponsesFilter = {
   formId?: string;
   tehsilId?: string;
   assignmentId?: string;
+  status?: SurveyResponseStatus;
 };
 
 export type Tehsil = {
@@ -153,6 +206,12 @@ export type ProcurementPackageRef = {
   displayName?: string;
 };
 
+export type ProcurementPackageVillage = ProcurementPackageRef & {
+  allocatedBudget: string;
+  spent: string;
+  remaining: string;
+};
+
 export type ProcurementPackage = {
   id: string;
   name: string;
@@ -162,7 +221,7 @@ export type ProcurementPackage = {
   contractor: ProcurementPackageRef;
   consultant: ProcurementPackageRef;
   tehsil: ProcurementPackageRef & { displayName: string };
-  villages: ProcurementPackageRef[];
+  villages: ProcurementPackageVillage[];
   createdAt: string;
   updatedAt: string;
 };

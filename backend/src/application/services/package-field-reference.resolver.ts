@@ -14,11 +14,35 @@ import {
 
 @Injectable()
 export class PackageFieldReferenceResolver {
+  private villageRemaining(
+    pkg: ProcurementPackage,
+    villageId: string | undefined,
+    fields?: SurveyField[],
+    answers?: SurveyAnswerInput[],
+  ): number {
+    const village = villageId
+      ? pkg.villages.find((v) => v.id === villageId)
+      : undefined;
+    if (!village) return 0;
+    const allocated = Number(village.allocatedBudget);
+    const spent = Number(village.spent);
+    const inFormDeduct =
+      fields && answers
+        ? sumBudgetEffectsFromAnswers(fields, answers, { effect: 'DEDUCT' })
+        : 0;
+    const inFormCredits =
+      fields && answers
+        ? sumBudgetEffectsFromAnswers(fields, answers, { effect: 'ADD' })
+        : 0;
+    return allocated - spent - inFormDeduct + inFormCredits;
+  }
+
   resolve(
     reference: PackageFieldReference,
     pkg: ProcurementPackage,
     fields?: SurveyField[],
     answers?: SurveyAnswerInput[],
+    villageId?: string,
   ): unknown {
     switch (reference) {
       case 'packageName':
@@ -41,6 +65,14 @@ export class PackageFieldReferenceResolver {
           );
         }
         return Number(pkg.remainingBudget);
+      case 'villageAllocatedBudget': {
+        const village = villageId
+          ? pkg.villages.find((v) => v.id === villageId)
+          : undefined;
+        return village ? Number(village.allocatedBudget) : 0;
+      }
+      case 'villageRemainingBudget':
+        return this.villageRemaining(pkg, villageId, fields, answers);
       case 'contractorName':
         return pkg.contractor.name;
       case 'consultantName':
@@ -60,6 +92,7 @@ export class PackageFieldReferenceResolver {
     fields: SurveyField[],
     answers: SurveyAnswerInput[],
     pkg: ProcurementPackage,
+    villageId?: string,
   ): SurveyAnswerInput[] {
     const answerByField = new Map(
       answers.map((answer) => [answer.fieldId, answer.value]),
@@ -74,7 +107,7 @@ export class PackageFieldReferenceResolver {
 
       answerByField.set(
         field.id,
-        this.resolve(reference, pkg, fields, answers),
+        this.resolve(reference, pkg, fields, answers, villageId),
       );
     }
 
@@ -88,6 +121,12 @@ export class PackageFieldReferenceResolver {
             fields,
             answers,
           ),
+        );
+      }
+      if (field.config?.computedVillageRemainingBudget) {
+        answerByField.set(
+          field.id,
+          this.villageRemaining(pkg, villageId, fields, answers),
         );
       }
       if (field.config?.computedVisitDeductions) {

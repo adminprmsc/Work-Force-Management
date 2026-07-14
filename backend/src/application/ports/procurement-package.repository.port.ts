@@ -1,12 +1,17 @@
 import { ProcurementPackage } from '../../domain/entities/procurement-package.entity';
 
+export interface VillageAllocationInput {
+  villageId: string;
+  allocatedBudget: string;
+}
+
 export interface CreateProcurementPackageData {
   name: string;
   budgetAmount: string;
   contractorId: string;
   consultantId: string;
   tehsilId: string;
-  villageIds: string[];
+  villageAllocations: VillageAllocationInput[];
 }
 
 export interface UpdateProcurementPackageData {
@@ -15,7 +20,7 @@ export interface UpdateProcurementPackageData {
   contractorId?: string;
   consultantId?: string;
   tehsilId?: string;
-  villageIds?: string[];
+  villageAllocations?: VillageAllocationInput[];
 }
 
 export interface ListProcurementPackagesFilter {

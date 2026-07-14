@@ -29,7 +29,7 @@ export function ProfileScreen() {
   };
 
   return (
-    <ScreenLayout subtitle="Account details, sync status, and session controls.">
+    <ScreenLayout>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <Card style={styles.heroCard}>
           <UserAvatar

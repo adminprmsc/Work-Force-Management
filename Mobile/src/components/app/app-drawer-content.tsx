@@ -1,5 +1,5 @@
 import type { DrawerContentComponentProps } from '@react-navigation/drawer';
-import { ClipboardList, FileStack, LogOut, UserRound } from 'lucide-react-native';
+import { ClipboardList, FileStack, Inbox, LogOut, UserRound } from 'lucide-react-native';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,9 +21,10 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { route: 'Assignments', label: 'Survey assignments', icon: ClipboardList },
-  { route: 'Drafts', label: 'Offline drafts', icon: FileStack },
-  { route: 'Profile', label: 'My profile', icon: UserRound },
+  { route: 'Assignments', label: 'Assignments', icon: ClipboardList },
+  { route: 'Submissions', label: 'Submissions', icon: Inbox },
+  { route: 'Drafts', label: 'Drafts', icon: FileStack },
+  { route: 'Profile', label: 'Profile', icon: UserRound },
 ];
 
 export function AppDrawerContent({ navigation, state }: DrawerContentComponentProps) {
@@ -70,11 +71,19 @@ export function AppDrawerContent({ navigation, state }: DrawerContentComponentPr
           <Text style={styles.syncTitle}>
             {pendingSync} item{pendingSync === 1 ? '' : 's'} waiting to upload
           </Text>
+          <Text style={styles.syncHint}>
+            Open Drafts to withdraw a queued submit or discard local copies.
+          </Text>
           <Button
             variant="outline"
             label={isOnline ? 'Sync now' : 'Offline'}
             onPress={() => void runSync()}
             disabled={!isOnline}
+          />
+          <Button
+            variant="ghost"
+            label="View drafts"
+            onPress={() => navigation.navigate('Drafts')}
           />
         </View>
       ) : null}
@@ -155,6 +164,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.amber900,
+  },
+  syncHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.slate700,
   },
   nav: {
     flex: 1,

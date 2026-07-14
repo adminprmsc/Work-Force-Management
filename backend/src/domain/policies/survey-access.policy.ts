@@ -33,7 +33,7 @@ export function canFillSurveyResponses(role: UserRole): boolean {
   return role === UserRole.RA_ES_TEHSIL;
 }
 
-/** Managers and World Bank see all responses; a tehsil RA only its own tehsil. */
+/** Managers and World Bank see all responses; a tehsil RA only its own submissions. */
 export function canReadResponseForTehsil(
   actor: SurveyActorContext,
   tehsilId: string,
@@ -47,6 +47,19 @@ export function canReadResponseForTehsil(
   return true;
 }
 
+export function canReadSurveyResponse(
+  actor: SurveyActorContext,
+  response: { tehsil: { id: string }; respondent: { id: string } },
+): boolean {
+  if (!canReadResponseForTehsil(actor, response.tehsil.id)) {
+    return false;
+  }
+  if (actor.role === UserRole.RA_ES_TEHSIL) {
+    return response.respondent.id === actor.id;
+  }
+  return true;
+}
+
 /** Head-office analytics dashboards (not tehsil RAs). */
 const SURVEY_ANALYTICS_VIEWERS: UserRole[] = [
   UserRole.SENIOR_MANAGER_ES,
@@ -56,4 +69,9 @@ const SURVEY_ANALYTICS_VIEWERS: UserRole[] = [
 
 export function canViewSurveyAnalytics(role: UserRole): boolean {
   return SURVEY_ANALYTICS_VIEWERS.includes(role);
+}
+
+/** Head-office staff who review submitted survey responses. */
+export function canReviewSurveyResponses(role: UserRole): boolean {
+  return SURVEY_MANAGERS.includes(role);
 }

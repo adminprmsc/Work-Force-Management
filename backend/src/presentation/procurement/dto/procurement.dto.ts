@@ -28,11 +28,25 @@ export class UpdateMasterNameDto {
   name!: string;
 }
 
+export class VillageAllocationDto {
+  @IsUUID()
+  villageId!: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  allocatedBudget!: number;
+}
+
 export class CreateProcurementPackageDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(500)
-  name!: string;
+  @MaxLength(200)
+  cluster!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  code!: string;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -51,6 +65,12 @@ export class CreateProcurementPackageDto {
   @ArrayMinSize(1)
   @IsUUID('4', { each: true })
   villageIds!: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VillageAllocationDto)
+  villageAllocations?: VillageAllocationDto[];
 }
 
 export class UpdateProcurementPackageDto {
@@ -64,6 +84,12 @@ export class UpdateProcurementPackageDto {
   @ArrayMinSize(1)
   @IsUUID('4', { each: true })
   villageIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VillageAllocationDto)
+  villageAllocations?: VillageAllocationDto[];
 }
 
 export class CreateProcurementPackageExpenseDto {

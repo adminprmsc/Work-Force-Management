@@ -71,13 +71,26 @@ export const queryKeys = {
   },
   surveyResponses: {
     all: ["survey-responses"] as const,
-    list: (filter: { formId?: string; assignmentId?: string }) =>
+    list: (filter: {
+      formId?: string
+      tehsilId?: string
+      assignmentId?: string
+      status?: string
+    } = {}) =>
       [
         "survey-responses",
         "list",
-        { formId: filter.formId ?? null, assignmentId: filter.assignmentId ?? null },
+        {
+          formId: filter.formId ?? null,
+          tehsilId: filter.tehsilId ?? null,
+          assignmentId: filter.assignmentId ?? null,
+          status: filter.status ?? null,
+        },
       ] as const,
     detail: (id: string) => ["survey-responses", id] as const,
+  },
+  storage: {
+    attachmentUrl: (id: string) => ["storage", "attachment-url", id] as const,
   },
 }
 

@@ -161,6 +161,17 @@ export class PrismaSurveyAssignmentRepository implements SurveyAssignmentReposit
     return mapAssignment(record as AssignmentRecord);
   }
 
+  async updateFormRevisionForForm(
+    formId: string,
+    formRevisionId: string,
+  ): Promise<number> {
+    const result = await this.prisma.surveyAssignment.updateMany({
+      where: { formId },
+      data: { formRevisionId },
+    });
+    return result.count;
+  }
+
   async delete(id: string): Promise<void> {
     await this.prisma.surveyAssignment.delete({ where: { id } });
   }

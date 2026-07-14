@@ -6,6 +6,7 @@ import type { DrawerParamList } from '@/navigation/types';
 import { AssignmentsScreen } from '@/screens/AssignmentsScreen';
 import { DraftsScreen } from '@/screens/DraftsScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
+import { SubmissionsScreen } from '@/screens/SubmissionsScreen';
 import { colors } from '@/lib/theme';
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
@@ -13,9 +14,9 @@ const Drawer = createDrawerNavigator<DrawerParamList>();
 export function AppDrawer() {
   return (
     <Drawer.Navigator
-      drawerContent={(props) => <AppDrawerContent {...props} />}
+      drawerContent={props => <AppDrawerContent {...props} />}
       screenOptions={{
-        header: (props) => <AppHeader {...props} />,
+        header: props => <AppHeader {...props} />,
         drawerType: 'front',
         drawerStyle: {
           width: 300,
@@ -27,10 +28,23 @@ export function AppDrawer() {
       <Drawer.Screen
         name="Assignments"
         component={AssignmentsScreen}
-        options={{ title: 'Survey assignments' }}
+        options={{ title: 'Assignments' }}
       />
-      <Drawer.Screen name="Drafts" component={DraftsScreen} options={{ title: 'Offline drafts' }} />
-      <Drawer.Screen name="Profile" component={ProfileScreen} options={{ title: 'My profile' }} />
+      <Drawer.Screen
+        name="Submissions"
+        component={SubmissionsScreen}
+        options={{ title: 'Submissions' }}
+      />
+      <Drawer.Screen
+        name="Drafts"
+        component={DraftsScreen}
+        options={{ title: 'Drafts' }}
+      />
+      <Drawer.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ title: 'Profile' }}
+      />
     </Drawer.Navigator>
   );
 }

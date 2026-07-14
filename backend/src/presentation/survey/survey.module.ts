@@ -6,6 +6,7 @@ import { SURVEY_ASSIGNMENT_REPOSITORY } from '../../application/ports/survey-ass
 import { SURVEY_FORM_REPOSITORY } from '../../application/ports/survey-form.repository.port';
 import { SURVEY_FORM_REVISION_REPOSITORY } from '../../application/ports/survey-form-revision.repository.port';
 import { SURVEY_RESPONSE_REPOSITORY } from '../../application/ports/survey-response.repository.port';
+import { SURVEY_ATTACHMENT_REPOSITORY } from '../../application/ports/survey-attachment.repository.port';
 import { TEHSIL_REPOSITORY } from '../../application/ports/tehsil.repository.port';
 import { USER_REPOSITORY } from '../../application/ports/user.repository.port';
 import { AssignmentBaselineEnricher } from '../../application/services/assignment-baseline.enricher';
@@ -34,8 +35,11 @@ import {
 } from '../../application/use-cases/survey/manage-survey-forms.use-case';
 import { GetSurveyFormAnalyticsUseCase } from '../../application/use-cases/survey/get-survey-form-analytics.use-case';
 import {
+  AcceptSurveyResponseUseCase,
   GetSurveyResponseUseCase,
   ListSurveyResponsesUseCase,
+  RejectSurveyResponseUseCase,
+  RevertSurveyResponseUseCase,
   SaveSurveyResponseUseCase,
   StartSurveyResponseUseCase,
   SubmitSurveyResponseUseCase,
@@ -47,6 +51,7 @@ import { PrismaSurveyAssignmentRepository } from '../../infrastructure/database/
 import { PrismaSurveyFormRepository } from '../../infrastructure/database/repositories/prisma-survey-form.repository';
 import { PrismaSurveyFormRevisionRepository } from '../../infrastructure/database/repositories/prisma-survey-form-revision.repository';
 import { PrismaSurveyResponseRepository } from '../../infrastructure/database/repositories/prisma-survey-response.repository';
+import { PrismaSurveyAttachmentRepository } from '../../infrastructure/database/repositories/prisma-survey-attachment.repository';
 import { PrismaTehsilRepository } from '../../infrastructure/database/repositories/prisma-tehsil.repository';
 import { PrismaUserRepository } from '../../infrastructure/database/repositories/prisma-user.repository';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -88,6 +93,9 @@ import { SurveyResponsesController } from './survey-responses.controller';
     StartSurveyResponseUseCase,
     SaveSurveyResponseUseCase,
     SubmitSurveyResponseUseCase,
+    AcceptSurveyResponseUseCase,
+    RejectSurveyResponseUseCase,
+    RevertSurveyResponseUseCase,
     { provide: SURVEY_FORM_REPOSITORY, useClass: PrismaSurveyFormRepository },
     {
       provide: SURVEY_FORM_REVISION_REPOSITORY,
@@ -100,6 +108,10 @@ import { SurveyResponsesController } from './survey-responses.controller';
     {
       provide: SURVEY_RESPONSE_REPOSITORY,
       useClass: PrismaSurveyResponseRepository,
+    },
+    {
+      provide: SURVEY_ATTACHMENT_REPOSITORY,
+      useClass: PrismaSurveyAttachmentRepository,
     },
     { provide: TEHSIL_REPOSITORY, useClass: PrismaTehsilRepository },
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },

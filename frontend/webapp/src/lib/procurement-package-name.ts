@@ -1,3 +1,34 @@
+export function composePackageNameFromParts(
+  cluster: string,
+  tehsilDisplayName: string,
+  code: string,
+): string {
+  const parts = [cluster, tehsilDisplayName, code]
+    .map((part) => part.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+  return parts.join("-")
+}
+
+export function parsePackageNameParts(
+  fullName: string,
+  tehsilDisplayName: string,
+): { cluster: string; code: string } {
+  const tehsil = tehsilDisplayName.trim()
+  if (!tehsil) {
+    return { cluster: fullName.trim(), code: "" }
+  }
+  const marker = `-${tehsil}-`
+  const idx = fullName.indexOf(marker)
+  if (idx === -1) {
+    return { cluster: fullName.trim(), code: "" }
+  }
+  return {
+    cluster: fullName.slice(0, idx).trim(),
+    code: fullName.slice(idx + marker.length).trim(),
+  }
+}
+
+/** @deprecated Legacy space-separated naming — use composePackageNameFromParts. */
 export function composePackageNameWithTehsil(
   namePart: string,
   tehsilDisplayName: string,

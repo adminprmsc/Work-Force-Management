@@ -57,6 +57,9 @@ function toProcurementPackageResponse(pkg) {
         villages: pkg.villages.map((village) => ({
             id: village.id,
             name: village.name,
+            allocatedBudget: village.allocatedBudget,
+            spent: village.spent,
+            remaining: village.remaining,
         })),
         expenses: pkg.expenses.map(toProcurementPackageExpenseResponse),
         createdAt: pkg.createdAt,

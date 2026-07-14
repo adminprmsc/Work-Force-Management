@@ -3,6 +3,11 @@ set -e
 
 cd /app
 
+# The named node_modules volume can lag behind package.json after new deps
+# (e.g. @supabase/supabase-js, multer). Reconcile on every container start.
+echo "Installing/updating dependencies..."
+npm install --no-audit --no-fund
+
 echo "Generating Prisma client..."
 npx prisma generate
 

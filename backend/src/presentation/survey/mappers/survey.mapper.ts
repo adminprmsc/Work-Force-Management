@@ -95,6 +95,9 @@ export function toSurveyAssignmentResponse(assignment: SurveyAssignment) {
 }
 
 export function toSurveyResponseResponse(response: SurveyResponse) {
+  const mapUser = (user: SurveyResponse['acceptedBy']) =>
+    user ? { id: user.id, username: user.username, email: user.email } : null;
+
   return {
     id: response.id,
     assignmentId: response.assignmentId,
@@ -121,6 +124,35 @@ export function toSurveyResponseResponse(response: SurveyResponse) {
     })),
     visitDate: response.visitDate,
     submittedAt: response.submittedAt,
+    lastEditedAt: response.lastEditedAt,
+    reviewedAt: response.reviewedAt,
+    acceptedAt: response.acceptedAt,
+    acceptedBy: mapUser(response.acceptedBy),
+    rejectedAt: response.rejectedAt,
+    rejectedBy: mapUser(response.rejectedBy),
+    revertedAt: response.revertedAt,
+    revertedBy: mapUser(response.revertedBy),
+    reviewRemarks: response.reviewRemarks,
+    submittedLocation:
+      response.submittedLatitude != null && response.submittedLongitude != null
+        ? {
+            latitude: response.submittedLatitude,
+            longitude: response.submittedLongitude,
+            accuracyMeters: response.submittedLocationAccuracy,
+            capturedAt: response.submittedLocationCapturedAt,
+          }
+        : null,
+    reviewEvents: response.reviewEvents.map((event) => ({
+      id: event.id,
+      action: event.action,
+      remarks: event.remarks,
+      createdAt: event.createdAt,
+      actor: {
+        id: event.actor.id,
+        username: event.actor.username,
+        email: event.actor.email,
+      },
+    })),
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
   };

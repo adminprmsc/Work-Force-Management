@@ -59,6 +59,18 @@ enum SurveyFieldType {
 enum SurveyResponseStatus {
   DRAFT
   SUBMITTED
+  ACCEPTED
+  REJECTED
+  REVERTED
+}
+
+enum SurveyResponseReviewAction {
+  SUBMITTED
+  RESUBMITTED
+  SAVED
+  ACCEPTED
+  REJECTED
+  REVERTED
 }
 
 enum SurveyFrequency {
@@ -89,7 +101,12 @@ model User {
   surveyFormsCreated  SurveyForm[]       @relation("SurveyFormCreatedBy")
   surveyAssignments   SurveyAssignment[] @relation("SurveyAssignmentAssignedBy")
   surveyResponses     SurveyResponse[]   @relation("SurveyResponseRespondent")
+  surveyResponsesAccepted SurveyResponse[] @relation("SurveyResponseAcceptedBy")
+  surveyResponsesRejected SurveyResponse[] @relation("SurveyResponseRejectedBy")
+  surveyResponsesReverted SurveyResponse[] @relation("SurveyResponseRevertedBy")
+  surveyResponseReviewEvents SurveyResponseReviewEvent[] @relation("SurveyResponseReviewActor")
   baselineAnswers     ProcurementPackageBaselineAnswer[] @relation("BaselineAnswerSubmittedBy")
+  surveyAttachmentsUploaded SurveyAttachment[] @relation("SurveyAttachmentUploadedBy")
 
   @@map("users")
 }
@@ -266,8 +283,9 @@ model ProcurementPackageExpense {
 }
 
 model ProcurementPackageVillage {
-  packageId String @map("package_id")
-  villageId String @map("village_id")
+  packageId       String  @map("package_id")
+  villageId       String  @map("village_id")
+  allocatedBudget Decimal @default(0) @map("allocated_budget") @db.Decimal(18, 2)
 
   package ProcurementPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
   village Village            @relation(fields: [villageId], references: [id], onDelete: Restrict)
@@ -298,6 +316,7 @@ model SurveyForm {
   assignments     SurveyAssignment[]
   responses       SurveyResponse[]
   baselineAnswers ProcurementPackageBaselineAnswer[]
+  attachments     SurveyAttachment[]
 
   @@index([status])
   @@map("survey_forms")
@@ -383,6 +402,19 @@ model SurveyResponse {
   visitDate    DateTime?            @map("visit_date") @db.Date
   status       SurveyResponseStatus @default(DRAFT)
   submittedAt  DateTime?            @map("submitted_at")
+  lastEditedAt DateTime?            @map("last_edited_at")
+  reviewedAt   DateTime?            @map("reviewed_at")
+  acceptedAt   DateTime?            @map("accepted_at")
+  acceptedById String?              @map("accepted_by_id")
+  rejectedAt   DateTime?            @map("rejected_at")
+  rejectedById String?              @map("rejected_by_id")
+  revertedAt   DateTime?            @map("reverted_at")
+  revertedById String?              @map("reverted_by_id")
+  reviewRemarks String?             @map("review_remarks")
+  submittedLatitude          Float?    @map("submitted_latitude")
+  submittedLongitude         Float?    @map("submitted_longitude")
+  submittedLocationAccuracy  Float?    @map("submitted_location_accuracy")
+  submittedLocationCapturedAt DateTime? @map("submitted_location_captured_at")
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
 
@@ -390,16 +422,38 @@ model SurveyResponse {
   form         SurveyForm         @relation(fields: [formId], references: [id], onDelete: Cascade)
   formRevision SurveyFormRevision @relation(fields: [formRevisionId], references: [id], onDelete: Restrict)
   respondent   User               @relation("SurveyResponseRespondent", fields: [respondentId], references: [id], onDelete: Restrict)
+  acceptedBy   User?              @relation("SurveyResponseAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  rejectedBy   User?              @relation("SurveyResponseRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+  revertedBy   User?              @relation("SurveyResponseRevertedBy", fields: [revertedById], references: [id], onDelete: SetNull)
   tehsil     Tehsil           @relation(fields: [tehsilId], references: [id], onDelete: Restrict)
   village    Village          @relation(fields: [villageId], references: [id], onDelete: Restrict)
   settlement Settlement?      @relation(fields: [settlementId], references: [id], onDelete: SetNull)
   answers    SurveyAnswer[]
+  reviewEvents SurveyResponseReviewEvent[]
+  attachments SurveyAttachment[]
 
   @@index([assignmentId])
   @@index([respondentId])
   @@index([formId])
   @@index([formRevisionId])
+  @@index([status])
   @@map("survey_responses")
+}
+
+model SurveyResponseReviewEvent {
+  id         String                     @id @default(uuid())
+  responseId String                     @map("response_id")
+  action     SurveyResponseReviewAction
+  actorId    String                     @map("actor_id")
+  remarks    String?
+  createdAt  DateTime                   @default(now()) @map("created_at")
+
+  response SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  actor    User           @relation("SurveyResponseReviewActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([responseId])
+  @@index([actorId])
+  @@map("survey_response_review_events")
 }
 
 model SurveyAnswer {
@@ -416,4 +470,31 @@ model SurveyAnswer {
   @@index([responseId])
   @@index([fieldId])
   @@map("survey_answers")
+}
+
+// Metadata for files stored in Supabase Storage (survey evidence photos, etc.).
+// The survey answer JSON references attachmentId + signed URL at submit time.
+model SurveyAttachment {
+  id           String   @id @default(uuid())
+  bucket       String
+  storagePath  String   @map("storage_path")
+  fileName     String   @map("file_name")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  formId       String   @map("form_id")
+  assignmentId String?  @map("assignment_id")
+  responseId   String?  @map("response_id")
+  fieldId      String   @map("field_id")
+  uploadedById String   @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  form       SurveyForm      @relation(fields: [formId], references: [id], onDelete: Cascade)
+  response   SurveyResponse? @relation(fields: [responseId], references: [id], onDelete: SetNull)
+  uploadedBy User            @relation("SurveyAttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([formId])
+  @@index([responseId])
+  @@index([uploadedById])
+  @@index([assignmentId])
+  @@map("survey_attachments")
 }

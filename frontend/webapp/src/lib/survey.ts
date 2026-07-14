@@ -20,6 +20,7 @@ import { Role, type Role as RoleType, roleToDashboardPath } from "@/modules/auth
 import type {
   SurveyFieldType,
   SurveyFrequency,
+  SurveyResponseStatus,
   SurveyStatus,
 } from "@/modules/api/survey-types"
 
@@ -51,8 +52,57 @@ export function surveyResponsesPath(role: RoleType): string {
   return `${roleToDashboardPath(role)}/surveys/responses`
 }
 
+export function surveyResponsePath(role: RoleType, responseId: string): string {
+  return `${surveyResponsesPath(role)}/${responseId}`
+}
+
 export function canReadSurveyResponses(role: RoleType): boolean {
   return canManageSurveys(role) || canFillSurveys(role)
+}
+
+export function canReviewSurveyResponses(role: RoleType): boolean {
+  return canManageSurveys(role)
+}
+
+const EDITABLE_RESPONSE_STATUSES: SurveyResponseStatus[] = ["DRAFT", "REVERTED"]
+
+export function responseIsEditable(status: SurveyResponseStatus): boolean {
+  return EDITABLE_RESPONSE_STATUSES.includes(status)
+}
+
+export function responseStatusLabel(status: SurveyResponseStatus): string {
+  switch (status) {
+    case "DRAFT":
+      return "Draft"
+    case "SUBMITTED":
+      return "Pending review"
+    case "ACCEPTED":
+      return "Accepted"
+    case "REJECTED":
+      return "Rejected"
+    case "REVERTED":
+      return "Reverted — action required"
+    default:
+      return status
+  }
+}
+
+export function responseStatusBadgeVariant(
+  status: SurveyResponseStatus,
+): "default" | "secondary" | "outline" | "destructive" {
+  switch (status) {
+    case "ACCEPTED":
+      return "default"
+    case "SUBMITTED":
+      return "secondary"
+    case "REVERTED":
+      return "outline"
+    case "REJECTED":
+      return "destructive"
+    case "DRAFT":
+    default:
+      return "secondary"
+  }
 }
 
 export function surveyFormDashboardsPath(role: RoleType): string {

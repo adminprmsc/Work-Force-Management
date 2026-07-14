@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DataPanel } from "@/components/common/data-panel"
 import { ShimmerContainer, TableRowsShimmer } from "@/components/common/query-shimmer"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -61,7 +60,7 @@ import {
   useVillagesQuery,
 } from "@/hooks/api"
 import { getQueryViewState, mergeQueryViewStates } from "@/lib/query-view-state"
-import { formatCurrency, composePackageNameWithTehsil, stripTehsilFromPackageName } from "@/lib/procurement-package-name"
+import { formatCurrency, composePackageNameFromParts } from "@/lib/procurement-package-name"
 import type {
   Consultant,
   Contractor,
@@ -72,32 +71,66 @@ import type {
 } from "@/modules/api/types"
 
 type PackageFormState = {
-  name: string
+  cluster: string
+  code: string
   budgetAmount: string
   contractorId: string
   consultantId: string
   tehsilId: string
   villageIds: string[]
+  allocations: Record<string, string>
 }
 
 const emptyForm = (): PackageFormState => ({
-  name: "",
+  cluster: "",
+  code: "",
   budgetAmount: "",
   contractorId: "",
   consultantId: "",
   tehsilId: "",
   villageIds: [],
+  allocations: {},
 })
 
 function packageToForm(pkg: ProcurementPackage): PackageFormState {
   return {
-    name: stripTehsilFromPackageName(pkg.name, pkg.tehsil.displayName),
+    cluster: "",
+    code: "",
     budgetAmount: pkg.budgetAmount,
     contractorId: pkg.contractor.id,
     consultantId: pkg.consultant.id,
     tehsilId: pkg.tehsil.id,
     villageIds: pkg.villages.map((village) => village.id),
+    allocations: Object.fromEntries(
+      pkg.villages.map((village) => [village.id, village.allocatedBudget]),
+    ),
   }
+}
+
+/**
+ * Split a budget equally across villages (in whole cents), distributing the
+ * remainder cents onto the first villages so the parts sum exactly to the total.
+ * Mirrors the backend equal-split logic.
+ */
+function equalSplitAllocations(
+  budget: number,
+  villageIds: string[],
+): Record<string, string> {
+  const result: Record<string, string> = {}
+  const n = villageIds.length
+  if (n === 0) return result
+  if (!Number.isFinite(budget) || budget < 0) {
+    for (const id of villageIds) result[id] = "0.00"
+    return result
+  }
+  const totalCents = Math.round(budget * 100)
+  const base = Math.floor(totalCents / n)
+  const remainder = totalCents - base * n
+  villageIds.forEach((id, index) => {
+    const cents = base + (index < remainder ? 1 : 0)
+    result[id] = (cents / 100).toFixed(2)
+  })
+  return result
 }
 
 type ProcurementPackagesPanelProps = {
@@ -155,6 +188,8 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   const [formOpen, setFormOpen] = useState(false)
   const [editingPackage, setEditingPackage] = useState<ProcurementPackage | null>(null)
   const [form, setForm] = useState<PackageFormState>(emptyForm)
+  // When false, per-village allocations follow an automatic equal split.
+  const [manualAllocations, setManualAllocations] = useState(false)
 
   const [detailPackage, setDetailPackage] = useState<ProcurementPackage | null>(null)
   const [compliancePackage, setCompliancePackage] = useState<ProcurementPackage | null>(null)
@@ -181,9 +216,61 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
     ""
 
   const composedName = useMemo(
-    () => composePackageNameWithTehsil(form.name, tehsilDisplayName),
-    [form.name, tehsilDisplayName],
+    () => composePackageNameFromParts(form.cluster, tehsilDisplayName, form.code),
+    [form.cluster, form.code, tehsilDisplayName],
   )
+
+  const budgetNum = Number.parseFloat(form.budgetAmount)
+
+  const autoAllocations = useMemo(
+    () => equalSplitAllocations(budgetNum, form.villageIds),
+    [budgetNum, form.villageIds],
+  )
+
+  const effectiveAllocations = useMemo(
+    () =>
+      manualAllocations
+        ? Object.fromEntries(
+            form.villageIds.map((id) => [id, form.allocations[id] ?? "0.00"]),
+          )
+        : autoAllocations,
+    [manualAllocations, form.villageIds, form.allocations, autoAllocations],
+  )
+
+  const allocationSum = useMemo(
+    () =>
+      form.villageIds.reduce(
+        (sum, id) => sum + (Number.parseFloat(effectiveAllocations[id]) || 0),
+        0,
+      ),
+    [form.villageIds, effectiveAllocations],
+  )
+
+  const allocationsMatch =
+    !Number.isNaN(budgetNum) && Math.abs(allocationSum - budgetNum) <= 0.01
+
+  const setVillageAllocation = useCallback(
+    (villageId: string, value: string) => {
+      setManualAllocations(true)
+      setForm((current) => ({
+        ...current,
+        allocations: {
+          ...(manualAllocations
+            ? current.allocations
+            : equalSplitAllocations(
+                Number.parseFloat(current.budgetAmount),
+                current.villageIds,
+              )),
+          [villageId]: value,
+        },
+      }))
+    },
+    [manualAllocations],
+  )
+
+  const resetToEqualSplit = useCallback(() => {
+    setManualAllocations(false)
+  }, [])
 
   useEffect(() => {
     if (!form.tehsilId) return
@@ -201,8 +288,8 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   useEffect(() => {
     if (!formOpen || editingPackage || !namePreviewView.data?.suggestedZoneLabel) return
     setForm((current) => {
-      if (current.name.trim()) return current
-      return { ...current, name: namePreviewView.data!.suggestedZoneLabel! }
+      if (current.cluster.trim()) return current
+      return { ...current, cluster: namePreviewView.data!.suggestedZoneLabel! }
     })
   }, [editingPackage, formOpen, namePreviewView.data])
 
@@ -210,22 +297,27 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
     const budget = Number.parseFloat(form.budgetAmount)
     const budgetValid = !Number.isNaN(budget) && budget >= 0
 
+    const allocationsValid = !manualAllocations || allocationsMatch
+
     if (editingPackage) {
-      return budgetValid && form.villageIds.length > 0
+      return budgetValid && form.villageIds.length > 0 && allocationsValid
     }
 
     return (
-      form.name.trim().length > 0 &&
+      form.cluster.trim().length > 0 &&
+      form.code.trim().length > 0 &&
       budgetValid &&
       form.contractorId.length > 0 &&
       form.consultantId.length > 0 &&
       form.tehsilId.length > 0 &&
-      form.villageIds.length > 0
+      form.villageIds.length > 0 &&
+      allocationsValid
     )
-  }, [editingPackage, form])
+  }, [editingPackage, form, manualAllocations, allocationsMatch])
 
   const openCreate = useCallback(() => {
     setEditingPackage(null)
+    setManualAllocations(false)
     setForm({
       ...emptyForm(),
       tehsilId: tehsils?.[0]?.id ?? "",
@@ -235,23 +327,35 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
 
   const openEdit = useCallback((pkg: ProcurementPackage) => {
     setEditingPackage(pkg)
+    // Preserve the package's saved per-village allocations as manual values.
+    setManualAllocations(true)
     setForm(packageToForm(pkg))
     setFormOpen(true)
   }, [])
 
   const toggleVillage = useCallback((villageId: string, checked: boolean) => {
-    setForm((current) => ({
-      ...current,
-      villageIds: checked
+    setForm((current) => {
+      const villageIds = checked
         ? [...current.villageIds, villageId]
-        : current.villageIds.filter((id) => id !== villageId),
-    }))
+        : current.villageIds.filter((id) => id !== villageId)
+      const allocations = { ...current.allocations }
+      if (checked) {
+        allocations[villageId] = allocations[villageId] ?? "0.00"
+      } else {
+        delete allocations[villageId]
+      }
+      return { ...current, villageIds, allocations }
+    })
   }, [])
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return
 
     const budgetAmount = Number.parseFloat(form.budgetAmount)
+    const villageAllocations = form.villageIds.map((villageId) => ({
+      villageId,
+      allocatedBudget: Number.parseFloat(effectiveAllocations[villageId]) || 0,
+    }))
 
     try {
       if (editingPackage) {
@@ -260,17 +364,20 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
           input: {
             budgetAmount,
             villageIds: form.villageIds,
+            villageAllocations,
           },
         })
         toast.success("Procurement package updated")
       } else {
         const payload = {
-          name: form.name.trim(),
+          cluster: form.cluster.trim(),
+          code: form.code.trim(),
           budgetAmount,
           contractorId: form.contractorId,
           consultantId: form.consultantId,
           tehsilId: form.tehsilId,
           villageIds: form.villageIds,
+          villageAllocations,
         }
         await createMutation.mutateAsync(payload)
         toast.success("Procurement package created")
@@ -278,10 +385,11 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
       setFormOpen(false)
       setEditingPackage(null)
       setForm(emptyForm())
+      setManualAllocations(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save package")
     }
-  }, [canSubmit, createMutation, editingPackage, form, updateMutation])
+  }, [canSubmit, createMutation, editingPackage, form, effectiveAllocations, updateMutation])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deletePackage) return
@@ -446,6 +554,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
             if (!open) {
               setEditingPackage(null)
               setForm(emptyForm())
+              setManualAllocations(false)
             }
           }}
         >
@@ -457,7 +566,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
               <DialogDescription>
                 {editingPackage
                   ? "Only the allocated budget and villages can be changed after a package is created."
-                  : "Select a tehsil — its name is added to the package name automatically. Enter the rest below."}
+                  : "Select a tehsil, then enter Cluster and Code — the full name is formed as Cluster-Tehsil-Code."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
@@ -493,6 +602,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                       ...current,
                       tehsilId: value,
                       villageIds: [],
+                      cluster: "",
                     }))
                   }
                 >
@@ -509,33 +619,55 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                 </Select>
                 {tehsilDisplayName ? (
                   <p className="text-xs text-muted-foreground">
-                    Tehsil added automatically:{" "}
+                    Tehsil in package name:{" "}
                     <span className="font-medium text-foreground">{tehsilDisplayName}</span>
                   </p>
                 ) : null}
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="package-name">Package name</Label>
-                <Input
-                  id="package-name"
-                  placeholder="e.g. Central-I (BNA-01) PK-LG& CD-349521-CW-RFB"
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm((current) => ({ ...current, name: e.target.value }))
-                  }
-                  disabled={!form.tehsilId}
-                />
-                <div className="rounded-md border bg-muted/30 px-3 py-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Full package name
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed">
-                    {composedName || "Select a tehsil and enter the package name details."}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="package-cluster">Cluster</Label>
+                  <Input
+                    id="package-cluster"
+                    placeholder="e.g. South-I"
+                    value={form.cluster}
+                    onChange={(e) =>
+                      setForm((current) => ({ ...current, cluster: e.target.value }))
+                    }
+                    disabled={!form.tehsilId}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Zone or cluster prefix (auto-suggested from tehsil).
                   </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Do not type the tehsil — it is inserted after the zone prefix (e.g. Central-I).
+
+                <div className="grid gap-2">
+                  <Label htmlFor="package-code">Code</Label>
+                  <Input
+                    id="package-code"
+                    placeholder="e.g. PK-LG& CD-349521-CW-RFB"
+                    value={form.code}
+                    onChange={(e) =>
+                      setForm((current) => ({ ...current, code: e.target.value }))
+                    }
+                    disabled={!form.tehsilId}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Contract or package reference code.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-md border bg-muted/30 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Full package name
+                </p>
+                <p className="mt-1 font-mono text-sm leading-relaxed">
+                  {composedName || "Select a tehsil and enter Cluster and Code."}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Format: {"{Cluster}-{tehsil}-{Code}"}
                 </p>
               </div>
                 </>
@@ -627,6 +759,83 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                 )}
               </div>
 
+              {form.villageIds.length > 0 ? (
+                <div className="grid gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label>Per-village budget allocation</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={resetToEqualSplit}
+                      disabled={!manualAllocations}
+                    >
+                      Reset to equal split
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Budget is split equally by default. Edit individual village amounts — they
+                    must sum to the allocated package budget.
+                  </p>
+                  <div className="overflow-hidden rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Village</TableHead>
+                          <TableHead className="text-right">Allocated (PKR)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {form.villageIds.map((villageId) => {
+                          const villageName =
+                            villages?.find((village) => village.id === villageId)?.name ??
+                            editingPackage?.villages.find((village) => village.id === villageId)
+                              ?.name ??
+                            villageId
+                          return (
+                            <TableRow key={villageId}>
+                              <TableCell>{villageName}</TableCell>
+                              <TableCell className="text-right">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  className="ml-auto w-36 text-right"
+                                  value={effectiveAllocations[villageId] ?? "0.00"}
+                                  onChange={(e) =>
+                                    setVillageAllocation(villageId, e.target.value)
+                                  }
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      Allocated total:{" "}
+                      <span className="font-medium text-foreground">
+                        {formatCurrency(String(allocationSum))}
+                      </span>
+                      {" / "}
+                      {formatCurrency(form.budgetAmount || "0")}
+                    </span>
+                    {manualAllocations && !allocationsMatch ? (
+                      <span className="font-medium text-destructive">
+                        Village allocations must sum to the package budget
+                        {Number.isFinite(budgetNum)
+                          ? ` (remainder ${formatCurrency(String(budgetNum - allocationSum))})`
+                          : ""}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-700">Allocations match package budget</span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
               {!editingPackage ? (
                 <PackageBaselineRequirements
                   variant="compact"
@@ -710,13 +919,40 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
               </div>
 
               <div>
-                <p className="mb-2 text-muted-foreground">Villages</p>
-                <div className="flex flex-wrap gap-2">
-                  {detailPackage.villages.map((village) => (
-                    <Badge key={village.id} variant="secondary">
-                      {village.name}
-                    </Badge>
-                  ))}
+                <p className="mb-2 text-muted-foreground">Village budget breakdown</p>
+                <div className="overflow-hidden rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Village</TableHead>
+                        <TableHead className="text-right">Allocated</TableHead>
+                        <TableHead className="text-right">Spent</TableHead>
+                        <TableHead className="text-right">Remaining</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detailPackage.villages.map((village) => (
+                        <TableRow key={village.id}>
+                          <TableCell>{village.name}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(village.allocatedBudget)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(village.spent)}
+                          </TableCell>
+                          <TableCell
+                            className={`text-right font-medium ${
+                              Number.parseFloat(village.remaining) < 0
+                                ? "text-destructive"
+                                : ""
+                            }`}
+                          >
+                            {formatCurrency(village.remaining)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
 

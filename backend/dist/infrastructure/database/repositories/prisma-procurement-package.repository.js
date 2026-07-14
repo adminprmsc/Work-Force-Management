@@ -71,7 +71,10 @@ let PrismaProcurementPackageRepository = class PrismaProcurementPackageRepositor
                 consultantId: data.consultantId,
                 tehsilId: data.tehsilId,
                 villages: {
-                    create: data.villageIds.map((villageId) => ({ villageId })),
+                    create: data.villageAllocations.map((allocation) => ({
+                        villageId: allocation.villageId,
+                        allocatedBudget: allocation.allocatedBudget,
+                    })),
                 },
             },
             include: this.include,
@@ -81,15 +84,16 @@ let PrismaProcurementPackageRepository = class PrismaProcurementPackageRepositor
     async update(id, data) {
         const db = (0, procurement_prisma_access_1.asProcurementPrisma)(this.prisma);
         const record = await db.$transaction(async (tx) => {
-            if (data.villageIds) {
+            if (data.villageAllocations) {
                 await tx.procurementPackageVillage.deleteMany({
                     where: { packageId: id },
                 });
-                if (data.villageIds.length > 0) {
+                if (data.villageAllocations.length > 0) {
                     await tx.procurementPackageVillage.createMany({
-                        data: data.villageIds.map((villageId) => ({
+                        data: data.villageAllocations.map((allocation) => ({
                             packageId: id,
-                            villageId,
+                            villageId: allocation.villageId,
+                            allocatedBudget: allocation.allocatedBudget,
                         })),
                     });
                 }

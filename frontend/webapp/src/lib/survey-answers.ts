@@ -1,4 +1,5 @@
 import { fieldIsPresentational } from "@/lib/survey"
+import { attachmentDisplayName, isSurveyAttachmentValue } from "@/lib/survey-attachment"
 import type { SurveyField } from "@/modules/api/survey-types"
 
 /** Render a stored answer value as readable text for a given field. */
@@ -18,10 +19,10 @@ export function formatAnswerValue(field: SurveyField, value: unknown): string {
     case "DROPDOWN":
       return labelFor(String(value))
     case "FILE":
-    case "IMAGE": {
-      const file = value as { url?: string; name?: string }
-      return file.name || file.url || "—"
-    }
+    case "IMAGE":
+      return isSurveyAttachmentValue(value)
+        ? attachmentDisplayName(value)
+        : "—"
     default:
       return String(value)
   }

@@ -34,9 +34,9 @@ let ProcurementPackageNamingService = class ProcurementPackageNamingService {
             naming,
         };
     }
-    async resolvePackageName(namePart, tehsilId) {
+    async resolvePackageName(cluster, code, tehsilId) {
         const preview = await this.previewTehsilNaming(tehsilId);
-        return (0, tehsil_package_naming_1.composePackageNameWithTehsil)(namePart, preview.tehsilDisplayName);
+        return (0, tehsil_package_naming_1.composePackageNameFromParts)(cluster, preview.tehsilDisplayName, code);
     }
 };
 exports.ProcurementPackageNamingService = ProcurementPackageNamingService;

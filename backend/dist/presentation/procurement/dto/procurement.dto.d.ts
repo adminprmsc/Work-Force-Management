@@ -4,17 +4,24 @@ export declare class CreateMasterNameDto {
 export declare class UpdateMasterNameDto {
     name: string;
 }
+export declare class VillageAllocationDto {
+    villageId: string;
+    allocatedBudget: number;
+}
 export declare class CreateProcurementPackageDto {
-    name: string;
+    cluster: string;
+    code: string;
     budgetAmount: number;
     contractorId: string;
     consultantId: string;
     tehsilId: string;
     villageIds: string[];
+    villageAllocations?: VillageAllocationDto[];
 }
 export declare class UpdateProcurementPackageDto {
     budgetAmount?: number;
     villageIds?: string[];
+    villageAllocations?: VillageAllocationDto[];
 }
 export declare class CreateProcurementPackageExpenseDto {
     amount: number;

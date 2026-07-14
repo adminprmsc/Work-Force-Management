@@ -3,7 +3,10 @@ import { Consultant } from './consultant.entity';
 export declare class ProcurementPackageVillageRef {
     readonly id: string;
     readonly name: string;
-    constructor(id: string, name: string);
+    readonly allocatedBudget: string;
+    readonly spent: string;
+    readonly remaining: string;
+    constructor(id: string, name: string, allocatedBudget: string, spent?: string, remaining?: string);
 }
 export declare class ProcurementPackageTehsilRef {
     readonly id: string;

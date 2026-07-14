@@ -50,6 +50,9 @@ export declare function toProcurementPackageResponse(pkg: ProcurementPackage): {
     villages: {
         id: string;
         name: string;
+        allocatedBudget: string;
+        spent: string;
+        remaining: string;
     }[];
     expenses: {
         id: string;

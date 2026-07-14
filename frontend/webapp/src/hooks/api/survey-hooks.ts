@@ -9,17 +9,21 @@ import { useAuthToken } from "@/hooks/use-auth-token"
 import { queryKeys } from "@/lib/query-keys"
 import {
   archiveSurveyForm,
+  acceptSurveyResponse,
   createSurveyAssignments,
   createSurveyForm,
   deleteSurveyAssignment,
   deleteSurveyForm,
   getSurveyForm,
   getSurveyFormAnalytics,
+  getSurveyResponse,
   listMySurveyAssignments,
   listSurveyFormAssignments,
   listSurveyForms,
   listSurveyResponses,
   publishSurveyForm,
+  rejectSurveyResponse,
+  revertSurveyResponse,
   saveSurveyResponse,
   startSurveyResponse,
   submitSurveyResponse,
@@ -28,9 +32,12 @@ import {
 import type {
   CreateSurveyAssignmentsInput,
   CreateSurveyFormInput,
+  ReviewSurveyResponseInput,
   SaveSurveyResponseInput,
+  SubmitSurveyResponseInput,
   StartSurveyResponseInput,
   SurveyFormAnalyticsFilter,
+  SurveyResponse,
   SurveyResponsesFilter,
   UpdateSurveyFormInput,
 } from "@/modules/api/survey-types"
@@ -205,6 +212,16 @@ export function useSurveyResponsesQuery(
   })
 }
 
+export function useSurveyResponseQuery(id: string | null, enabled = true) {
+  const token = useAuthToken()
+
+  return useQuery({
+    queryKey: queryKeys.surveyResponses.detail(id ?? ""),
+    queryFn: () => getSurveyResponse(token!, id!),
+    enabled: Boolean(token && id) && enabled,
+  })
+}
+
 export function useStartSurveyResponseMutation() {
   const token = useAuthToken()
   const qc = useQueryClient()
@@ -237,11 +254,46 @@ export function useSubmitSurveyResponseMutation() {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: (params: { id: string; input: SaveSurveyResponseInput }) =>
+    mutationFn: (params: { id: string; input: SubmitSurveyResponseInput }) =>
       submitSurveyResponse(token!, params.id, params.input),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.surveyResponses.all })
       await qc.invalidateQueries({ queryKey: queryKeys.procurementPackages.all })
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyForms.all })
     },
   })
+}
+
+function useReviewMutation(
+  action: (
+    token: string,
+    id: string,
+    input: ReviewSurveyResponseInput,
+  ) => Promise<SurveyResponse>,
+) {
+  const token = useAuthToken()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (params: { id: string; input: ReviewSurveyResponseInput }) =>
+      action(token!, params.id, params.input),
+    onSuccess: async (response) => {
+      qc.setQueryData(queryKeys.surveyResponses.detail(response.id), response)
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyResponses.all })
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyForms.all })
+      await qc.invalidateQueries({ queryKey: queryKeys.procurementPackages.all })
+    },
+  })
+}
+
+export function useAcceptSurveyResponseMutation() {
+  return useReviewMutation(acceptSurveyResponse)
+}
+
+export function useRejectSurveyResponseMutation() {
+  return useReviewMutation(rejectSurveyResponse)
+}
+
+export function useRevertSurveyResponseMutation() {
+  return useReviewMutation(revertSurveyResponse)
 }

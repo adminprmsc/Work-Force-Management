@@ -1,4 +1,9 @@
-import { PrismaClient, SurveyFieldType, SurveyStatus } from '@prisma/client';
+import {
+  Prisma,
+  PrismaClient,
+  SurveyFieldType,
+  SurveyStatus,
+} from '@prisma/client';
 
 const FORM_TITLE = 'C-ESMP Village Monitoring Checklist';
 
@@ -326,6 +331,82 @@ export function cesmpPackageBaselineFields() {
   ];
 }
 
+type RevisionFieldRecord = {
+  id: string;
+  type: SurveyFieldType;
+  label: string;
+  helpText: string | null;
+  required: boolean;
+  order: number;
+  config: Prisma.JsonValue | null;
+};
+
+type RevisionSourceForm = {
+  id: string;
+  title: string;
+  description: string | null;
+  requiresPackageBaseline: boolean;
+  baselineTitle: string | null;
+  baselineDescription: string | null;
+  publishedAt: Date | null;
+  fields: RevisionFieldRecord[];
+  baselineFields: (RevisionFieldRecord & { writeOnce: boolean })[];
+};
+
+// A published form must always have an immutable revision snapshot; assignments
+// and responses pin to it. Create v1 from the live fields and point the form at it.
+async function ensureInitialRevision(
+  prisma: PrismaClient,
+  form: RevisionSourceForm,
+): Promise<void> {
+  const latest = await prisma.surveyFormRevision.findFirst({
+    where: { formId: form.id },
+    orderBy: { version: 'desc' },
+    select: { version: true },
+  });
+  const version = (latest?.version ?? 0) + 1;
+
+  const fieldsJson = form.fields.map((field) => ({
+    id: field.id,
+    type: field.type,
+    label: field.label,
+    helpText: field.helpText,
+    required: field.required,
+    order: field.order,
+    config: field.config ?? null,
+  }));
+  const baselineFieldsJson = form.baselineFields.map((field) => ({
+    id: field.id,
+    type: field.type,
+    label: field.label,
+    helpText: field.helpText,
+    required: field.required,
+    writeOnce: field.writeOnce,
+    order: field.order,
+    config: field.config ?? null,
+  }));
+
+  const revision = await prisma.surveyFormRevision.create({
+    data: {
+      formId: form.id,
+      version,
+      title: form.title,
+      description: form.description,
+      requiresPackageBaseline: form.requiresPackageBaseline,
+      baselineTitle: form.baselineTitle,
+      baselineDescription: form.baselineDescription,
+      fields: fieldsJson,
+      baselineFields: baselineFieldsJson,
+      publishedAt: form.publishedAt ?? new Date(),
+    },
+  });
+
+  await prisma.surveyForm.update({
+    where: { id: form.id },
+    data: { currentRevisionId: revision.id },
+  });
+}
+
 export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
   const author = await prisma.user.findFirst({
     where: { role: 'SENIOR_MANAGER_ES' },
@@ -338,11 +419,18 @@ export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
 
   const existing = await prisma.surveyForm.findFirst({
     where: { title: FORM_TITLE },
-    include: { fields: true },
+    include: { fields: true, baselineFields: true },
   });
 
   if (existing?.status === SurveyStatus.PUBLISHED) {
-    console.log(`C-ESMP form already published: ${FORM_TITLE}`);
+    if (existing.currentRevisionId) {
+      console.log(`C-ESMP form already published: ${FORM_TITLE}`);
+      return;
+    }
+    // Published but missing its revision snapshot (older seed) — repair it so
+    // the form can be assigned.
+    await ensureInitialRevision(prisma, existing);
+    console.log(`C-ESMP form revision backfilled: ${FORM_TITLE}`);
     return;
   }
 
@@ -385,7 +473,10 @@ export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
         })),
       },
     },
+    include: { fields: true, baselineFields: true },
   });
+
+  await ensureInitialRevision(prisma, form);
 
   console.log(`C-ESMP village monitoring form seeded (published): ${form.id}`);
 }

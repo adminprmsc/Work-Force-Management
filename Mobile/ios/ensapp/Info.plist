@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>ensapp</string>
+	<string>ESMS RA App</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -49,7 +49,11 @@
 		</dict>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>Your live GPS location is required when submitting a site visit so reviewers can verify you were at the village.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is used to capture evidence photos for survey submissions.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is used to attach evidence photos to survey submissions.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

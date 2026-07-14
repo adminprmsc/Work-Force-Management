@@ -63,8 +63,8 @@ export class PrismaSurveyFormRevisionRepository implements SurveyFormRevisionRep
         data: { currentRevisionId: revision.id },
       });
 
-      // Submitted responses and in-progress drafts keep their pinned revision.
-      // New visits pick up the latest revision when the tehsil RA starts a submission.
+      // In-progress server drafts are cleared before the new revision is pinned.
+      // Submitted / reviewed responses keep their frozen revision snapshot.
 
       return revision;
     });

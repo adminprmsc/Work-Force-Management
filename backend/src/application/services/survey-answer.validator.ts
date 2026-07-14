@@ -45,10 +45,16 @@ export class SurveyAnswerValidator {
     fields: SurveyField[],
     answers: SurveyAnswerInput[],
     pkg?: ProcurementPackage | null,
+    villageId?: string,
   ): SurveyAnswerInput[] {
     const prepared =
       pkg !== undefined && pkg !== null
-        ? this.packageFieldResolver.applyToAnswers(fields, answers, pkg)
+        ? this.packageFieldResolver.applyToAnswers(
+            fields,
+            answers,
+            pkg,
+            villageId,
+          )
         : answers;
     const errors: string[] = [];
     const fieldById = new Map(fields.map((field) => [field.id, field]));
@@ -229,17 +235,44 @@ export class SurveyAnswerValidator {
 
       case SurveyFieldType.FILE:
       case SurveyFieldType.IMAGE: {
-        const file = value as { url?: unknown; name?: unknown } | null;
+        const file = value as {
+          attachmentId?: unknown;
+          url?: unknown;
+          name?: unknown;
+          mimeType?: unknown;
+          size?: unknown;
+          storagePath?: unknown;
+        } | null;
         if (
           !file ||
           typeof file !== 'object' ||
+          typeof file.attachmentId !== 'string' ||
+          file.attachmentId.trim().length === 0 ||
           typeof file.url !== 'string' ||
           file.url.trim().length === 0
         ) {
           errors.push(`"${label}" must include an uploaded file reference.`);
           return undefined;
         }
-        return value;
+        const name =
+          typeof file.name === 'string' && file.name.trim().length > 0
+            ? file.name.trim()
+            : 'attachment';
+        const normalized: Record<string, unknown> = {
+          attachmentId: file.attachmentId.trim(),
+          url: file.url.trim(),
+          name,
+        };
+        if (typeof file.mimeType === 'string' && file.mimeType.trim()) {
+          normalized.mimeType = file.mimeType.trim();
+        }
+        if (typeof file.size === 'number' && Number.isFinite(file.size)) {
+          normalized.size = file.size;
+        }
+        if (typeof file.storagePath === 'string' && file.storagePath.trim()) {
+          normalized.storagePath = file.storagePath.trim();
+        }
+        return normalized;
       }
 
       default:

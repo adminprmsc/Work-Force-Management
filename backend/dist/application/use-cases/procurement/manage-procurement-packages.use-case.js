@@ -24,6 +24,49 @@ const procurement_package_budget_enricher_1 = require("../../services/procuremen
 function formatMoney(value) {
     return value.toFixed(2);
 }
+function equalSplitAllocations(budgetAmount, villageIds) {
+    const n = villageIds.length;
+    if (n === 0)
+        return [];
+    const totalCents = Math.round(budgetAmount * 100);
+    const base = Math.floor(totalCents / n);
+    const remainder = totalCents - base * n;
+    return villageIds.map((villageId, index) => {
+        const cents = base + (index < remainder ? 1 : 0);
+        return { villageId, allocatedBudget: (cents / 100).toFixed(2) };
+    });
+}
+function resolveVillageAllocations(budgetAmount, villageIds, provided) {
+    if (!provided || provided.length === 0) {
+        return equalSplitAllocations(budgetAmount, villageIds);
+    }
+    const villageIdSet = new Set(villageIds);
+    const seen = new Set();
+    let sum = 0;
+    for (const allocation of provided) {
+        if (!villageIdSet.has(allocation.villageId)) {
+            throw new common_1.BadRequestException('Village allocations must match the selected villages');
+        }
+        if (seen.has(allocation.villageId)) {
+            throw new common_1.BadRequestException('Duplicate village allocation');
+        }
+        if (allocation.allocatedBudget < 0) {
+            throw new common_1.BadRequestException('Village allocation cannot be negative');
+        }
+        seen.add(allocation.villageId);
+        sum += allocation.allocatedBudget;
+    }
+    if (seen.size !== villageIds.length) {
+        throw new common_1.BadRequestException('Every selected village must have an allocation');
+    }
+    if (Math.abs(sum - budgetAmount) > 0.01) {
+        throw new common_1.BadRequestException('Village allocations must sum to the allocated budget');
+    }
+    return provided.map((allocation) => ({
+        villageId: allocation.villageId,
+        allocatedBudget: formatMoney(allocation.allocatedBudget),
+    }));
+}
 async function assertUniquePackageName(repository, name, excludeId) {
     const existing = await repository.findByName(name);
     if (existing && existing.id !== excludeId) {
@@ -131,23 +174,30 @@ let CreateProcurementPackageUseCase = class CreateProcurementPackageUseCase {
         if (command.budgetAmount < 0) {
             throw new common_1.BadRequestException('Budget amount cannot be negative');
         }
-        const namePart = (0, procurement_actor_resolver_1.normalizeName)(command.name);
-        if (!namePart) {
-            throw new common_1.BadRequestException('Package name is required');
+        const cluster = (0, procurement_actor_resolver_1.normalizeName)(command.cluster);
+        if (!cluster) {
+            throw new common_1.BadRequestException('Cluster is required');
         }
-        const input = {
+        const code = (0, procurement_actor_resolver_1.normalizeName)(command.code);
+        if (!code) {
+            throw new common_1.BadRequestException('Code is required');
+        }
+        await this.packageValidator.validate({
             contractorId: command.contractorId,
             consultantId: command.consultantId,
             tehsilId: command.tehsilId,
             villageIds: command.villageIds,
-        };
-        await this.packageValidator.validate(input);
-        const name = await this.namingService.resolvePackageName(namePart, command.tehsilId);
+        });
+        const villageAllocations = resolveVillageAllocations(command.budgetAmount, command.villageIds, command.villageAllocations);
+        const name = await this.namingService.resolvePackageName(cluster, code, command.tehsilId);
         await assertUniquePackageName(this.packageRepository, name);
         return this.packageRepository.create({
             name,
             budgetAmount: formatMoney(command.budgetAmount),
-            ...input,
+            contractorId: command.contractorId,
+            consultantId: command.consultantId,
+            tehsilId: command.tehsilId,
+            villageAllocations,
         });
     }
 };
@@ -194,11 +244,18 @@ let UpdateProcurementPackageUseCase = class UpdateProcurementPackageUseCase {
                 villageIds,
             });
         }
+        const budgetAmount = command.budgetAmount ?? Number(existing.budgetAmount);
+        let villageAllocations;
+        if (command.villageAllocations !== undefined ||
+            command.villageIds !== undefined ||
+            command.budgetAmount !== undefined) {
+            villageAllocations = resolveVillageAllocations(budgetAmount, villageIds, command.villageAllocations);
+        }
         return this.packageRepository.update(id, {
             budgetAmount: command.budgetAmount !== undefined
                 ? formatMoney(command.budgetAmount)
                 : undefined,
-            villageIds: command.villageIds,
+            villageAllocations,
         });
     }
 };

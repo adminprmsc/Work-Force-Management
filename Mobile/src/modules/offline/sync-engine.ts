@@ -1,8 +1,12 @@
 import NetInfo from '@react-native-community/netinfo';
 
+import { isConflictError } from '@/lib/api-client';
 import {
+  cacheAssignments,
+  getCachedAssignments,
   listOfflineBaselines,
   listOfflineDrafts,
+  purgeStaleOfflineDrafts,
   removeOfflineBaseline,
   removeOfflineDraft,
   upsertOfflineDraft,
@@ -11,6 +15,7 @@ import {
 } from '@/modules/offline/offline-store';
 import { savePackageFormBaseline } from '@/modules/api/procurement-api';
 import {
+  listMySurveyAssignments,
   saveSurveyResponse,
   startSurveyResponse,
   submitSurveyResponse,
@@ -44,7 +49,15 @@ async function syncDraft(token: string, draft: OfflineSurveyDraft): Promise<void
   const answersPayload = { answers: draft.answers as SurveyAnswer[] };
 
   if (draft.pendingSubmit) {
-    await submitSurveyResponse(token, serverId, answersPayload);
+    if (!draft.pendingSubmissionLocation) {
+      throw new Error('Queued submit is missing GPS location. Open the draft and submit again.');
+    }
+    await submitSurveyResponse(token, serverId, {
+      answers: draft.answers as SurveyAnswer[],
+      latitude: draft.pendingSubmissionLocation.latitude,
+      longitude: draft.pendingSubmissionLocation.longitude,
+      locationAccuracyMeters: draft.pendingSubmissionLocation.accuracyMeters,
+    });
     await upsertOfflineDraft({
       ...draft,
       localId: draft.localId,
@@ -85,6 +98,14 @@ export async function syncOfflineQueue(token: string): Promise<SyncResult> {
     return { synced: 0, failed: 0, errors: [] };
   }
 
+  try {
+    const assignments = await listMySurveyAssignments(token);
+    await cacheAssignments(assignments);
+    await purgeStaleOfflineDrafts(assignments);
+  } catch {
+    await purgeStaleOfflineDrafts(await getCachedAssignments());
+  }
+
   const [drafts, baselines] = await Promise.all([
     listOfflineDrafts(),
     listOfflineBaselines(),
@@ -110,8 +131,15 @@ export async function syncOfflineQueue(token: string): Promise<SyncResult> {
       await syncDraft(token, draft);
       synced += 1;
     } catch (err) {
-      failed += 1;
       const message = err instanceof Error ? err.message : 'Sync failed';
+      // A conflict (e.g. a survey for this village/settlement already exists for
+      // the period) can never sync — drop the redundant draft and report why.
+      if (isConflictError(err)) {
+        await removeOfflineDraft(draft.localId);
+        errors.push(message);
+        continue;
+      }
+      failed += 1;
       errors.push(message);
       await upsertOfflineDraft({
         ...draft,

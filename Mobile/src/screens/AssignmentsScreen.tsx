@@ -20,7 +20,8 @@ import { colors, layoutPadding, spacing } from '@/lib/theme';
 import { useAuth } from '@/modules/auth/auth-context';
 import { listMySurveyAssignments } from '@/modules/api/survey-api';
 import type { SurveyAssignment } from '@/modules/api/types';
-import { cacheAssignments, getCachedAssignments } from '@/modules/offline/offline-store';
+import { fetchProcurementPackageWithCache } from '@/modules/api/procurement-api';
+import { cacheAssignments, getCachedAssignments, purgeStaleOfflineDrafts } from '@/modules/offline/offline-store';
 
 function frequencyLabel(frequency: SurveyAssignment['frequency']): string {
   switch (frequency) {
@@ -50,7 +51,15 @@ export function AssignmentsScreen() {
       if (isOnline) {
         const data = await listMySurveyAssignments(token);
         await cacheAssignments(data);
+        await purgeStaleOfflineDrafts(data);
         setAssignments(data);
+        // Cache package villages so site visits work offline after one online load.
+        const packageIds = [...new Set(data.map((item) => item.procurementPackage.id))];
+        await Promise.all(
+          packageIds.map((packageId) =>
+            fetchProcurementPackageWithCache(token, packageId).catch(() => undefined),
+          ),
+        );
       } else {
         setAssignments(await getCachedAssignments());
       }
@@ -77,7 +86,7 @@ export function AssignmentsScreen() {
   };
 
   return (
-    <ScreenLayout subtitle="Package baselines and village site visits for your tehsil.">
+    <ScreenLayout>
       {loading ? (
         <View style={layout.center}>
           <ActivityIndicator size="large" color={colors.primary} />

@@ -2,6 +2,7 @@ import { apiRequest } from '@/lib/api-client';
 import type {
   SaveSurveyResponseInput,
   StartSurveyResponseInput,
+  SubmitSurveyResponseInput,
   SurveyAssignment,
   SurveyResponse,
   SurveyResponsesFilter,
@@ -22,6 +23,7 @@ export function listSurveyResponses(
   if (filter.formId) params.set('formId', filter.formId);
   if (filter.tehsilId) params.set('tehsilId', filter.tehsilId);
   if (filter.assignmentId) params.set('assignmentId', filter.assignmentId);
+  if (filter.status) params.set('status', filter.status);
   const qs = params.toString();
   return apiRequest<SurveyResponse[]>(`/survey-responses${qs ? `?${qs}` : ''}`, {
     method: 'GET',
@@ -62,7 +64,7 @@ export function saveSurveyResponse(
 export function submitSurveyResponse(
   token: string,
   id: string,
-  input: SaveSurveyResponseInput,
+  input: SubmitSurveyResponseInput,
 ): Promise<SurveyResponse> {
   return apiRequest<SurveyResponse>(`/survey-responses/${id}/submit`, {
     method: 'POST',

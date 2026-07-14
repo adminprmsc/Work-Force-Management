@@ -1,6 +1,19 @@
 export type SurveyStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED"
 
-export type SurveyResponseStatus = "DRAFT" | "SUBMITTED"
+export type SurveyResponseStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "REVERTED"
+
+export type SurveyResponseReviewAction =
+  | "SUBMITTED"
+  | "RESUBMITTED"
+  | "SAVED"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "REVERTED"
 
 export type SurveyFrequency = "ONE_TIME" | "DAILY" | "WEEKLY" | "MONTHLY"
 
@@ -30,6 +43,8 @@ export type PackageFieldReference =
   | "budgetAmount"
   | "totalExpenses"
   | "remainingBudget"
+  | "villageAllocatedBudget"
+  | "villageRemainingBudget"
   | "contractorName"
   | "consultantName"
   | "tehsilName"
@@ -52,6 +67,7 @@ export type SurveyFieldConfig = {
   snapshotOnSubmit?: boolean
   budgetEffect?: "DEDUCT" | "ADD"
   computedRemainingBudget?: boolean
+  computedVillageRemainingBudget?: boolean
   computedVisitDeductions?: boolean
 }
 
@@ -177,6 +193,21 @@ export type SurveyAnswer = {
   value: unknown
 }
 
+export type SurveyResponseReviewEvent = {
+  id: string
+  action: SurveyResponseReviewAction
+  remarks: string | null
+  createdAt: string
+  actor: { id: string; username: string; email: string }
+}
+
+export type SurveySubmissionLocation = {
+  latitude: number
+  longitude: number
+  accuracyMeters: number | null
+  capturedAt: string
+}
+
 export type SurveyResponse = {
   id: string
   assignmentId: string
@@ -191,6 +222,17 @@ export type SurveyResponse = {
   answers: SurveyAnswer[]
   visitDate: string | null
   submittedAt: string | null
+  lastEditedAt: string | null
+  reviewedAt: string | null
+  acceptedAt: string | null
+  acceptedBy: { id: string; username: string; email: string } | null
+  rejectedAt: string | null
+  rejectedBy: { id: string; username: string; email: string } | null
+  revertedAt: string | null
+  revertedBy: { id: string; username: string; email: string } | null
+  reviewRemarks: string | null
+  submittedLocation: SurveySubmissionLocation | null
+  reviewEvents: SurveyResponseReviewEvent[]
   createdAt: string
   updatedAt: string
 }
@@ -206,16 +248,30 @@ export type SaveSurveyResponseInput = {
   answers: SurveyAnswer[]
 }
 
+export type SubmitSurveyResponseInput = SaveSurveyResponseInput & {
+  latitude: number
+  longitude: number
+  locationAccuracyMeters?: number | null
+}
+
+export type ReviewSurveyResponseInput = {
+  remarks?: string | null
+}
+
 export type SurveyResponsesFilter = {
   formId?: string
   tehsilId?: string
   assignmentId?: string
+  status?: SurveyResponseStatus
 }
 
 export type SurveyFormAnalyticsSummary = {
   totalResponses: number
-  submitted: number
+  accepted: number
+  pendingReview: number
   draft: number
+  rejected: number
+  reverted: number
   assignmentCount: number
   packageCount: number
 }
@@ -223,8 +279,7 @@ export type SurveyFormAnalyticsSummary = {
 export type SurveyFormAnalyticsTehsilRow = {
   tehsilId: string
   tehsilName: string
-  submitted: number
-  draft: number
+  accepted: number
   total: number
 }
 
@@ -233,8 +288,7 @@ export type SurveyFormAnalyticsVillageRow = {
   villageName: string
   tehsilId: string
   tehsilName: string
-  submitted: number
-  draft: number
+  accepted: number
   total: number
 }
 
@@ -243,8 +297,11 @@ export type SurveyFormAnalyticsPackageRow = {
   packageName: string
   tehsilId: string
   tehsilName: string
-  submitted: number
+  accepted: number
   draft: number
+  pendingReview: number
+  rejected: number
+  reverted: number
   total: number
 }
 

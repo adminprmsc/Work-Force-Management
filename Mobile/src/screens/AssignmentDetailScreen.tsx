@@ -1,8 +1,8 @@
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { MapPin, PlayCircle } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,10 @@ import { layout } from '@/lib/layout';
 import { colors } from '@/lib/theme';
 import type { RootStackParamList } from '@/navigation/types';
 import { useAuth } from '@/modules/auth/auth-context';
-import { getProcurementPackage } from '@/modules/api/procurement-api';
-import type { ProcurementPackage, SurveyAssignment } from '@/modules/api/types';
-import { getCachedAssignments } from '@/modules/offline/offline-store';
+import { fetchProcurementPackageWithCache } from '@/modules/api/procurement-api';
 import { listMySurveyAssignments } from '@/modules/api/survey-api';
+import type { ProcurementPackage, SurveyAssignment } from '@/modules/api/types';
+import { getCachedAssignments, getCachedProcurementPackage, cacheAssignments } from '@/modules/offline/offline-store';
 
 export function AssignmentDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -30,26 +30,39 @@ export function AssignmentDetailScreen() {
     if (!token || !id) return;
     try {
       let assignments: SurveyAssignment[];
-      if (isOnline) {
+      try {
         assignments = await listMySurveyAssignments(token);
-      } else {
+        await cacheAssignments(assignments);
+      } catch {
         assignments = await getCachedAssignments();
       }
       const found = assignments.find((item) => item.id === id) ?? null;
       setAssignment(found);
-      if (found && isOnline) {
-        setPkg(await getProcurementPackage(token, found.procurementPackage.id));
+      if (found) {
+        try {
+          const packageData = await fetchProcurementPackageWithCache(
+            token,
+            found.procurementPackage.id,
+          );
+          setPkg(packageData);
+        } catch {
+          setPkg(await getCachedProcurementPackage(found.procurementPackage.id));
+        }
       }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load assignment');
     } finally {
       setLoading(false);
     }
-  }, [token, id, isOnline]);
+  }, [token, id]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Reload whenever the screen regains focus (e.g. returning from the Baseline
+  // form) so the latest baseline completion status is reflected.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   if (loading) {
     return (

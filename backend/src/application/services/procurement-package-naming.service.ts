@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  composePackageNameWithTehsil,
+  composePackageNameFromParts,
   getTehsilDisplayName,
   getTehsilPackageNaming,
   type TehsilPackageNaming,
@@ -40,10 +40,15 @@ export class ProcurementPackageNamingService {
   }
 
   async resolvePackageName(
-    namePart: string,
+    cluster: string,
+    code: string,
     tehsilId: string,
   ): Promise<string> {
     const preview = await this.previewTehsilNaming(tehsilId);
-    return composePackageNameWithTehsil(namePart, preview.tehsilDisplayName);
+    return composePackageNameFromParts(
+      cluster,
+      preview.tehsilDisplayName,
+      code,
+    );
   }
 }

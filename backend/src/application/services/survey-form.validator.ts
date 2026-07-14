@@ -162,7 +162,11 @@ export class SurveyFormValidator {
   ): SurveyFieldConfig | null {
     const next: SurveyFieldConfig = { ...config };
 
-    if (next.computedRemainingBudget || next.computedVisitDeductions) {
+    if (
+      next.computedRemainingBudget ||
+      next.computedVillageRemainingBudget ||
+      next.computedVisitDeductions
+    ) {
       delete next.budgetEffect;
       delete next.packageReference;
       next.readOnly = true;
@@ -175,11 +179,13 @@ export class SurveyFormValidator {
       }
       delete next.packageReference;
       delete next.computedRemainingBudget;
+      delete next.computedVillageRemainingBudget;
       delete next.computedVisitDeductions;
       return Object.keys(next).length > 0 ? next : null;
     }
 
     delete next.computedRemainingBudget;
+    delete next.computedVillageRemainingBudget;
     delete next.computedVisitDeductions;
     delete next.budgetEffect;
 

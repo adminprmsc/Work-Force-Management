@@ -31,8 +31,11 @@ import {
 
 export interface SurveyFormAnalyticsSummary {
   totalResponses: number;
-  submitted: number;
+  accepted: number;
+  pendingReview: number;
   draft: number;
+  rejected: number;
+  reverted: number;
   assignmentCount: number;
   packageCount: number;
 }
@@ -40,8 +43,7 @@ export interface SurveyFormAnalyticsSummary {
 export interface SurveyFormAnalyticsTehsilRow {
   tehsilId: string;
   tehsilName: string;
-  submitted: number;
-  draft: number;
+  accepted: number;
   total: number;
 }
 
@@ -50,8 +52,7 @@ export interface SurveyFormAnalyticsVillageRow {
   villageName: string;
   tehsilId: string;
   tehsilName: string;
-  submitted: number;
-  draft: number;
+  accepted: number;
   total: number;
 }
 
@@ -60,8 +61,11 @@ export interface SurveyFormAnalyticsPackageRow {
   packageName: string;
   tehsilId: string;
   tehsilName: string;
-  submitted: number;
+  accepted: number;
   draft: number;
+  pendingReview: number;
+  rejected: number;
+  reverted: number;
   total: number;
 }
 
@@ -186,6 +190,12 @@ function subDays(date: Date, days: number): Date {
   next.setUTCDate(next.getUTCDate() - days);
   return next;
 }
+
+interface AcceptedAtRow {
+  acceptedAt: Date | null;
+}
+
+const acceptedAtSelect = { acceptedAt: true } as const;
 
 function buildSubmissionSeries(
   submittedAtValues: (Date | null)[],
@@ -355,40 +365,52 @@ export class GetSurveyFormAnalyticsUseCase {
       selectedPackageName = assignment.procurementPackage.name;
     }
 
-    const responseWhere: Prisma.SurveyResponseWhereInput = {
+    const baseWhere: Prisma.SurveyResponseWhereInput = {
       formId,
       ...(procurementPackageId ? { assignment: { procurementPackageId } } : {}),
-      ...(hasDateFilter
-        ? {
-            status: SurveyResponseStatus.SUBMITTED,
-            submittedAt: { not: null, ...submittedAtFilter },
-          }
-        : {}),
     };
+
+    const acceptedAtFilter = hasDateFilter
+      ? { not: null, ...submittedAtFilter }
+      : null;
+
+    const acceptedWhere: Prisma.SurveyResponseWhereInput = {
+      ...baseWhere,
+      status: SurveyResponseStatus.ACCEPTED,
+      ...(acceptedAtFilter ? { acceptedAt: acceptedAtFilter } : {}),
+    };
+
+    const acceptedResponsesPromise: Promise<AcceptedAtRow[]> =
+      this.prisma.surveyResponse
+        .findMany({
+          where: acceptedWhere,
+          select: acceptedAtSelect,
+        })
+        .then((rows) => rows as AcceptedAtRow[]);
 
     const [
       statusGroups,
-      tehsilStatusGroups,
-      villageStatusGroups,
+      tehsilAcceptedGroups,
+      villageAcceptedGroups,
       allAssignmentGroups,
-      submittedResponses,
+      acceptedResponses,
       answers,
       assignmentCount,
       allAssignments,
     ] = await Promise.all([
       this.prisma.surveyResponse.groupBy({
         by: ['status'],
-        where: responseWhere,
+        where: baseWhere,
         _count: { _all: true },
       }),
       this.prisma.surveyResponse.groupBy({
-        by: ['tehsilId', 'status'],
-        where: responseWhere,
+        by: ['tehsilId'],
+        where: acceptedWhere,
         _count: { _all: true },
       }),
       this.prisma.surveyResponse.groupBy({
-        by: ['villageId', 'status'],
-        where: responseWhere,
+        by: ['villageId'],
+        where: acceptedWhere,
         _count: { _all: true },
       }),
       this.prisma.surveyResponse.groupBy({
@@ -396,25 +418,9 @@ export class GetSurveyFormAnalyticsUseCase {
         where: { formId },
         _count: { _all: true },
       }),
-      this.prisma.surveyResponse.findMany({
-        where: hasDateFilter
-          ? responseWhere
-          : {
-              ...responseWhere,
-              status: SurveyResponseStatus.SUBMITTED,
-              submittedAt: { not: null },
-            },
-        select: { submittedAt: true },
-      }),
+      acceptedResponsesPromise,
       this.prisma.surveyAnswer.findMany({
-        where: {
-          response: hasDateFilter
-            ? responseWhere
-            : {
-                ...responseWhere,
-                status: SurveyResponseStatus.SUBMITTED,
-              },
-        },
+        where: { response: acceptedWhere },
         select: { fieldId: true, value: true },
       }),
       this.prisma.surveyAssignment.count({
@@ -434,17 +440,19 @@ export class GetSurveyFormAnalyticsUseCase {
       }),
     ]);
 
-    const submitted =
-      statusGroups.find((row) => row.status === 'SUBMITTED')?._count._all ?? 0;
-    const draft =
-      statusGroups.find((row) => row.status === 'DRAFT')?._count._all ?? 0;
+    const countByStatus = (status: string) =>
+      statusGroups.find((row) => row.status === status)?._count._all ?? 0;
 
-    const tehsilIds = [
-      ...new Set(tehsilStatusGroups.map((row) => row.tehsilId)),
-    ];
-    const villageIds = [
-      ...new Set(villageStatusGroups.map((row) => row.villageId)),
-    ];
+    const accepted = countByStatus('ACCEPTED');
+    const pendingReview = countByStatus('SUBMITTED');
+    const draft = countByStatus('DRAFT');
+    const rejected = countByStatus('REJECTED');
+    const reverted = countByStatus('REVERTED');
+    const totalResponses =
+      accepted + pendingReview + draft + rejected + reverted;
+
+    const tehsilIds = tehsilAcceptedGroups.map((row) => row.tehsilId);
+    const villageIds = villageAcceptedGroups.map((row) => row.villageId);
 
     const [tehsils, villages] = await Promise.all([
       tehsilIds.length
@@ -469,65 +477,25 @@ export class GetSurveyFormAnalyticsUseCase {
     const tehsilNameById = new Map(tehsils.map((row) => [row.id, row.name]));
     const villageById = new Map(villages.map((row) => [row.id, row]));
 
-    const tehsilAccumulator = new Map<
-      string,
-      { submitted: number; draft: number }
-    >();
-    for (const row of tehsilStatusGroups) {
-      const current = tehsilAccumulator.get(row.tehsilId) ?? {
-        submitted: 0,
-        draft: 0,
-      };
-      if (row.status === 'SUBMITTED') {
-        current.submitted += row._count._all;
-      } else {
-        current.draft += row._count._all;
-      }
-      tehsilAccumulator.set(row.tehsilId, current);
-    }
-
-    const byTehsil: SurveyFormAnalyticsTehsilRow[] = [
-      ...tehsilAccumulator.entries(),
-    ]
-      .map(([tehsilId, counts]) => ({
-        tehsilId,
-        tehsilName: tehsilNameById.get(tehsilId) ?? 'Unknown tehsil',
-        submitted: counts.submitted,
-        draft: counts.draft,
-        total: counts.submitted + counts.draft,
+    const byTehsil: SurveyFormAnalyticsTehsilRow[] = tehsilAcceptedGroups
+      .map((row) => ({
+        tehsilId: row.tehsilId,
+        tehsilName: tehsilNameById.get(row.tehsilId) ?? 'Unknown tehsil',
+        accepted: row._count._all,
+        total: row._count._all,
       }))
       .sort((a, b) => b.total - a.total);
 
-    const villageAccumulator = new Map<
-      string,
-      { submitted: number; draft: number }
-    >();
-    for (const row of villageStatusGroups) {
-      const current = villageAccumulator.get(row.villageId) ?? {
-        submitted: 0,
-        draft: 0,
-      };
-      if (row.status === 'SUBMITTED') {
-        current.submitted += row._count._all;
-      } else {
-        current.draft += row._count._all;
-      }
-      villageAccumulator.set(row.villageId, current);
-    }
-
-    const byVillage: SurveyFormAnalyticsVillageRow[] = [
-      ...villageAccumulator.entries(),
-    ]
-      .map(([villageId, counts]) => {
-        const village = villageById.get(villageId);
+    const byVillage: SurveyFormAnalyticsVillageRow[] = villageAcceptedGroups
+      .map((row) => {
+        const village = villageById.get(row.villageId);
         return {
-          villageId,
+          villageId: row.villageId,
           villageName: village?.name ?? 'Unknown village',
           tehsilId: village?.tehsilId ?? '',
           tehsilName: village?.tehsil.name ?? 'Unknown tehsil',
-          submitted: counts.submitted,
-          draft: counts.draft,
-          total: counts.submitted + counts.draft,
+          accepted: row._count._all,
+          total: row._count._all,
         };
       })
       .sort((a, b) => b.total - a.total);
@@ -541,8 +509,11 @@ export class GetSurveyFormAnalyticsUseCase {
           packageName: assignment.procurementPackage.name,
           tehsilId: assignment.tehsil.id,
           tehsilName: assignment.tehsil.name,
-          submitted: 0,
+          accepted: 0,
           draft: 0,
+          pendingReview: 0,
+          rejected: 0,
+          reverted: 0,
           total: 0,
         });
       }
@@ -557,12 +528,32 @@ export class GetSurveyFormAnalyticsUseCase {
       const packageId = assignment.procurementPackage.id;
       const current = packageAccumulator.get(packageId);
       if (!current) continue;
-      if (row.status === 'SUBMITTED') {
-        current.submitted += row._count._all;
-      } else {
-        current.draft += row._count._all;
+      const count = row._count._all;
+      switch (row.status) {
+        case 'ACCEPTED':
+          current.accepted += count;
+          break;
+        case 'SUBMITTED':
+          current.pendingReview += count;
+          break;
+        case 'DRAFT':
+          current.draft += count;
+          break;
+        case 'REJECTED':
+          current.rejected += count;
+          break;
+        case 'REVERTED':
+          current.reverted += count;
+          break;
+        default:
+          break;
       }
-      current.total = current.submitted + current.draft;
+      current.total =
+        current.accepted +
+        current.pendingReview +
+        current.draft +
+        current.rejected +
+        current.reverted;
     }
 
     const byProcurementPackage = [...packageAccumulator.values()].sort(
@@ -596,9 +587,12 @@ export class GetSurveyFormAnalyticsUseCase {
       },
       fields: buildFieldMeta(form.fields),
       summary: {
-        totalResponses: submitted + draft,
-        submitted,
+        totalResponses,
+        accepted,
+        pendingReview,
         draft,
+        rejected,
+        reverted,
         assignmentCount,
         packageCount: packageAccumulator.size,
       },
@@ -606,7 +600,7 @@ export class GetSurveyFormAnalyticsUseCase {
       byVillage,
       byProcurementPackage,
       submissionsOverTime: buildSubmissionSeries(
-        submittedResponses.map((row) => row.submittedAt),
+        acceptedResponses.map((row) => row.acceptedAt),
       ),
       fieldBreakdown: buildFieldBreakdown(
         form.fields,

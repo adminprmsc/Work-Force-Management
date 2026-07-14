@@ -20,7 +20,8 @@ import {
   useSubmitSurveyResponseMutation,
 } from "@/hooks/api/survey-hooks"
 import { useSettlementsQuery } from "@/hooks/api/tehsils-hooks"
-import { fieldIsPresentational } from "@/lib/survey"
+import { fieldIsPresentational, responseIsEditable } from "@/lib/survey"
+import { getSubmissionLocation, GeolocationError } from "@/lib/geolocation"
 import {
   buildPackageFieldAnswers,
   fieldIsPackageBound,
@@ -74,6 +75,7 @@ export function SurveyResponseEditor({
   const [activeResponse, setActiveResponse] = useState<SurveyResponse | null>(
     response,
   )
+  const [visitStarted, setVisitStarted] = useState(Boolean(response?.id))
   const [villageId, setVillageId] = useState("")
   const [settlementId, setSettlementId] = useState("")
   const [answers, setAnswers] = useState<AnswerMap>(() => {
@@ -83,6 +85,22 @@ export function SurveyResponseEditor({
     }
     return initial
   })
+
+  const [syncKey, setSyncKey] = useState<string | null>(null)
+  const currentSyncKey = open ? `open:${response?.id ?? "new"}` : "closed"
+  if (open && currentSyncKey !== syncKey) {
+    setSyncKey(currentSyncKey)
+    setResponseId(response?.id ?? null)
+    setActiveResponse(response)
+    setVisitStarted(Boolean(response?.id))
+    setVillageId(response?.village.id ?? "")
+    setSettlementId(response?.settlement?.id ?? "")
+    const initial: AnswerMap = {}
+    for (const answer of response?.answers ?? []) {
+      initial[answer.fieldId] = answer.value
+    }
+    setAnswers(initial)
+  }
 
   const fields = useMemo(
     () =>
@@ -96,9 +114,13 @@ export function SurveyResponseEditor({
     activeResponse?.formRevision.version ??
     response?.formRevision.version ??
     assignment?.formRevision.version
-  const readOnly = (activeResponse ?? response)?.status === "SUBMITTED"
+  const readOnly = !responseIsEditable(
+    (activeResponse ?? response)?.status ?? "DRAFT",
+  )
+  const isResubmit = (activeResponse ?? response)?.status === "REVERTED"
+  const reviewRemarks = (activeResponse ?? response)?.reviewRemarks
 
-  const inStartStep = !responseId
+  const inStartStep = !visitStarted
   const packageId =
     assignment?.procurementPackage.id ??
     activeResponse?.procurementPackage.id ??
@@ -106,8 +128,11 @@ export function SurveyResponseEditor({
   const packageQuery = useProcurementPackageQuery(packageId, open && Boolean(packageId))
   const pkg = packageQuery.data
   const packageAnswers = useMemo(
-    () => (pkg ? buildPackageFieldAnswers(fields, pkg, answers) : {}),
-    [pkg, fields, answers],
+    () =>
+      pkg
+        ? buildPackageFieldAnswers(fields, pkg, answers, villageId || null)
+        : {},
+    [pkg, fields, answers, villageId],
   )
   const villages = pkg?.villages ?? []
   const settlementsQuery = useSettlementsQuery(villageId || null)
@@ -122,40 +147,40 @@ export function SurveyResponseEditor({
     [answers, packageAnswers],
   )
 
-  const handleStart = async () => {
-    if (!assignment) return
+  const ensureServerResponse = async (): Promise<string> => {
+    if (responseId) return responseId
+    if (!assignment) {
+      throw new Error("Assignment is missing")
+    }
+    if (!villageId) {
+      throw new Error("Select the village you visited")
+    }
+    const created = await startMutation.mutateAsync({
+      assignmentId: assignment.id,
+      villageId,
+      settlementId: settlementId || null,
+    })
+    setResponseId(created.id)
+    setActiveResponse(created)
+    return created.id
+  }
+
+  const handleStart = () => {
     if (!villageId) {
       toast.error("Select the village you visited")
       return
     }
-    try {
-      const created = await startMutation.mutateAsync({
-        assignmentId: assignment.id,
-        villageId,
-        settlementId: settlementId || null,
-      })
-      setResponseId(created.id)
-      setActiveResponse(created)
-      toast.success("Response started — fill in the answers below")
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to start response"
-      if (message.toLowerCase().includes("mobilization")) {
-        toast.error(
-          "Record the package ESMP baseline (mobilization date) before starting village visits.",
-        )
-      } else {
-        toast.error(message)
-      }
-    }
+    setVisitStarted(true)
   }
 
   const handleSaveDraft = async () => {
-    if (!responseId) return
     try {
-      await saveMutation.mutateAsync({
-        id: responseId,
+      const id = await ensureServerResponse()
+      const saved = await saveMutation.mutateAsync({
+        id,
         input: { answers: buildAnswers(fields, answersForSave) },
       })
+      setActiveResponse(saved)
       toast.success("Draft saved")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save draft")
@@ -163,20 +188,42 @@ export function SurveyResponseEditor({
   }
 
   const handleSubmit = async () => {
-    if (!responseId) return
     try {
+      const location = await getSubmissionLocation()
+      const id = await ensureServerResponse()
       await submitMutation.mutateAsync({
-        id: responseId,
-        input: { answers: buildAnswers(fields, answersForSave) },
+        id,
+        input: {
+          answers: buildAnswers(fields, answersForSave),
+          latitude: location.latitude,
+          longitude: location.longitude,
+          locationAccuracyMeters: location.accuracyMeters ?? null,
+        },
       })
-      toast.success("Survey submitted")
+      toast.success(isResubmit ? "Survey resubmitted for review" : "Survey submitted")
       onOpenChange(false)
     } catch (err) {
+      if (err instanceof GeolocationError) {
+        toast.error(err.message)
+        return
+      }
       toast.error(err instanceof Error ? err.message : "Failed to submit survey")
     }
   }
 
   const title = response?.form.title ?? assignment?.formTitle ?? "Survey"
+  const uploadContext = useMemo(() => {
+    const formId =
+      assignment?.formId ??
+      activeResponse?.form.id ??
+      response?.form.id
+    if (!formId) return undefined
+    return {
+      formId,
+      assignmentId: assignment?.id ?? activeResponse?.assignmentId ?? response?.assignmentId,
+      responseId: responseId ?? activeResponse?.id ?? response?.id ?? null,
+    }
+  }, [assignment, activeResponse, response, responseId])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -196,6 +243,15 @@ export function SurveyResponseEditor({
             ) : null}
           </DialogDescription>
         </DialogHeader>
+
+        {reviewRemarks && isResubmit ? (
+          <div className="border-b bg-amber-50 px-6 py-3 text-sm dark:bg-amber-950/30">
+            <p className="font-medium text-amber-900 dark:text-amber-200">
+              Reviewer feedback — please address and resubmit
+            </p>
+            <p className="mt-1 text-amber-800 dark:text-amber-100">{reviewRemarks}</p>
+          </div>
+        ) : null}
 
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
           {assignment?.instructions && inStartStep ? (
@@ -284,6 +340,7 @@ export function SurveyResponseEditor({
                       }
                       onChange={(value) => setAnswer(field.id, value)}
                       disabled={readOnly || fieldIsPackageBound(field)}
+                      uploadContext={uploadContext}
                     />
                   </div>
                 ),
@@ -297,11 +354,8 @@ export function SurveyResponseEditor({
             {readOnly ? "Close" : "Cancel"}
           </Button>
           {inStartStep ? (
-            <Button
-              onClick={() => void handleStart()}
-              disabled={startMutation.isPending || !villageId}
-            >
-              {startMutation.isPending ? "Starting…" : "Start submission"}
+            <Button onClick={handleStart} disabled={!villageId}>
+              Continue
             </Button>
           ) : readOnly ? null : (
             <>
@@ -316,7 +370,11 @@ export function SurveyResponseEditor({
                 onClick={() => void handleSubmit()}
                 disabled={submitMutation.isPending || saveMutation.isPending}
               >
-                {submitMutation.isPending ? "Submitting…" : "Submit"}
+                {submitMutation.isPending
+                  ? "Submitting…"
+                  : isResubmit
+                    ? "Resubmit for review"
+                    : "Submit"}
               </Button>
             </>
           )}

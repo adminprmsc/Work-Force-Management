@@ -111,6 +111,17 @@ export type ProcurementPackageExpense = {
   updatedAt: string
 }
 
+export type ProcurementPackageVillage = ProcurementPackageRef & {
+  allocatedBudget: string
+  spent: string
+  remaining: string
+}
+
+export type VillageAllocationInput = {
+  villageId: string
+  allocatedBudget: number
+}
+
 export type ProcurementPackage = {
   id: string
   name: string
@@ -120,19 +131,21 @@ export type ProcurementPackage = {
   contractor: ProcurementPackageRef
   consultant: ProcurementPackageRef
   tehsil: ProcurementPackageRef & { displayName: string }
-  villages: ProcurementPackageRef[]
+  villages: ProcurementPackageVillage[]
   expenses: ProcurementPackageExpense[]
   createdAt: string
   updatedAt: string
 }
 
 export type CreateProcurementPackageInput = {
-  name: string
+  cluster: string
+  code: string
   budgetAmount: number
   contractorId: string
   consultantId: string
   tehsilId: string
   villageIds: string[]
+  villageAllocations?: VillageAllocationInput[]
 }
 
 export type ProcurementPackageNamePreview = {
@@ -144,6 +157,7 @@ export type ProcurementPackageNamePreview = {
 export type UpdateProcurementPackageInput = {
   budgetAmount?: number
   villageIds?: string[]
+  villageAllocations?: VillageAllocationInput[]
 }
 
 export type CreateProcurementPackageExpenseInput = {

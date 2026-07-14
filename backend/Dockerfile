@@ -1,6 +1,7 @@
 FROM node:22-alpine AS base
 WORKDIR /app
-RUN apk add --no-cache libc6-compat
+# wget: Compose healthchecks; libc6-compat: native modules (e.g. bcrypt) on Alpine
+RUN apk add --no-cache libc6-compat wget
 
 # ── Dependencies (cached layer) ──────────────────────────────────────────────
 FROM base AS deps
@@ -34,12 +35,16 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
+FROM deps AS prod-deps
+RUN npm prune --omit=dev
+
+# Evidence files go to Supabase Storage (SUPABASE_* env); no upload volume needed.
 FROM base AS production
 ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client

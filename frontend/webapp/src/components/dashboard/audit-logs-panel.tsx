@@ -187,7 +187,7 @@ export const AuditLogsPanel = memo(function AuditLogsPanel() {
   const [actionFilter, setActionFilter] = useState<AuditAction | "ALL">("ALL")
   const [page, setPage] = useState(1)
 
-  const allItems = auditView.data?.items ?? []
+  const allItems = useMemo(() => auditView.data?.items ?? [], [auditView.data])
   const totalInSystem = auditView.data?.total ?? 0
 
   const filteredItems = useMemo(() => {

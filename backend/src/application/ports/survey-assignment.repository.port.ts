@@ -31,6 +31,14 @@ export abstract class SurveyAssignmentRepositoryPort {
     procurementPackageId: string,
   ): Promise<SurveyAssignment[]>;
   abstract create(data: CreateSurveyAssignmentData): Promise<SurveyAssignment>;
+  /**
+   * Repoint every assignment of a form to a new form revision. Used when a form
+   * is re-published so tehsil RAs always fill the latest version.
+   */
+  abstract updateFormRevisionForForm(
+    formId: string,
+    formRevisionId: string,
+  ): Promise<number>;
   abstract delete(id: string): Promise<void>;
 }
 

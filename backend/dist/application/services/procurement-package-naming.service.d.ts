@@ -10,5 +10,5 @@ export declare class ProcurementPackageNamingService {
     private readonly tehsilRepository;
     constructor(tehsilRepository: TehsilRepositoryPort);
     previewTehsilNaming(tehsilId: string): Promise<TehsilNamingPreview>;
-    resolvePackageName(namePart: string, tehsilId: string): Promise<string>;
+    resolvePackageName(cluster: string, code: string, tehsilId: string): Promise<string>;
 }

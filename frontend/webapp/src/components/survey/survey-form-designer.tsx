@@ -65,6 +65,7 @@ type FieldDraft = {
     | "DEDUCT"
     | "ADD"
     | "computedRemaining"
+    | "computedVillageRemaining"
     | "computedVisitDeductions"
 }
 
@@ -78,6 +79,7 @@ function budgetBehaviorFromField(field: SurveyField): FieldDraft["budgetBehavior
   const config = field.config ?? {}
   if (config.packageReference) return config.packageReference
   if (config.computedRemainingBudget) return "computedRemaining"
+  if (config.computedVillageRemainingBudget) return "computedVillageRemaining"
   if (config.computedVisitDeductions) return "computedVisitDeductions"
   if (config.budgetEffect) return config.budgetEffect
   return ""
@@ -135,6 +137,8 @@ function toFieldInput(draft: FieldDraft, index: number): SurveyFieldInput {
     config = { budgetEffect: behavior as SurveyFieldBudgetEffect }
   } else if (behavior === "computedRemaining") {
     config = { computedRemainingBudget: true, readOnly: true }
+  } else if (behavior === "computedVillageRemaining") {
+    config = { computedVillageRemainingBudget: true, readOnly: true }
   } else if (behavior === "computedVisitDeductions") {
     config = { computedVisitDeductions: true, readOnly: true }
   } else if (behavior) {
@@ -610,6 +614,9 @@ function FieldEditor({
               <NativeSelectOption value="computedRemaining">
                 Show remaining budget (auto-calculated)
               </NativeSelectOption>
+              <NativeSelectOption value="computedVillageRemaining">
+                Show village remaining budget (auto-calculated)
+              </NativeSelectOption>
               <NativeSelectOption value="computedVisitDeductions">
                 Show total deducted on this visit (auto-calculated)
               </NativeSelectOption>
@@ -624,6 +631,12 @@ function FieldEditor({
               <p className="text-xs text-muted-foreground">
                 Read-only. Updates live as deduct fields are filled: allocated
                 budget minus prior submissions minus this visit.
+              </p>
+            ) : null}
+            {field.budgetBehavior === "computedVillageRemaining" ? (
+              <p className="text-xs text-muted-foreground">
+                Read-only. Shows the visited village&apos;s allocation minus its
+                prior submissions minus this visit.
               </p>
             ) : null}
             {field.budgetBehavior &&

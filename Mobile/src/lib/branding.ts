@@ -1,6 +1,6 @@
 export const APP_BRAND = {
-  productName: 'E&S Tehsil RA Operator',
-  shortName: 'E&S RA Operator',
+  productName: 'ESMS RA App',
+  shortName: 'ESMS RA',
   department: 'PRMSC',
   departmentFull: 'Punjab Rural Municipal Services Company',
   government: 'Government of Punjab',

@@ -8,6 +8,11 @@ export declare const TEHSIL_PACKAGE_NAMING: Record<string, TehsilPackageNaming>;
 export declare function getTehsilPackageNaming(tehsilName: string): TehsilPackageNaming | null;
 export declare function getTehsilDisplayName(tehsilName: string): string;
 export declare function composeProcurementPackageName(zoneLabel: string, tehsilDisplayName: string, packageCode: string, contractSuffix: string): string;
+export declare function composePackageNameFromParts(cluster: string, tehsilDisplayName: string, code: string): string;
+export declare function parsePackageNameParts(fullName: string, tehsilDisplayName: string): {
+    cluster: string;
+    code: string;
+};
 export declare function composePackageNameWithTehsil(namePart: string, tehsilDisplayName: string): string;
 export declare function stripTehsilFromPackageName(fullName: string, tehsilDisplayName: string): string;
 export declare function getTehsilNamesForGroup(groupKey: string): string[];

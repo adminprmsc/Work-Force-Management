@@ -16,6 +16,7 @@ import {
 import {
   PROCUREMENT_PACKAGE_REPOSITORY,
   ProcurementPackageRepositoryPort,
+  VillageAllocationInput,
 } from '../../ports/procurement-package.repository.port';
 import {
   normalizeName,
@@ -26,22 +27,100 @@ import { ProcurementPackageNamingService } from '../../services/procurement-pack
 import { ProcurementPackageBudgetEnricher } from '../../services/procurement-package-budget.enricher';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 
+export interface VillageAllocationCommand {
+  villageId: string;
+  allocatedBudget: number;
+}
+
 export interface CreateProcurementPackageCommand {
-  name: string;
+  cluster: string;
+  code: string;
   budgetAmount: number;
   contractorId: string;
   consultantId: string;
   tehsilId: string;
   villageIds: string[];
+  villageAllocations?: VillageAllocationCommand[];
 }
 
 export interface UpdateProcurementPackageCommand {
   budgetAmount?: number;
   villageIds?: string[];
+  villageAllocations?: VillageAllocationCommand[];
 }
 
 function formatMoney(value: number): string {
   return value.toFixed(2);
+}
+
+/**
+ * Split a budget equally across villages (in whole cents), distributing any
+ * remainder cents onto the first villages so the parts sum exactly to the total.
+ */
+function equalSplitAllocations(
+  budgetAmount: number,
+  villageIds: string[],
+): VillageAllocationInput[] {
+  const n = villageIds.length;
+  if (n === 0) return [];
+  const totalCents = Math.round(budgetAmount * 100);
+  const base = Math.floor(totalCents / n);
+  const remainder = totalCents - base * n;
+  return villageIds.map((villageId, index) => {
+    const cents = base + (index < remainder ? 1 : 0);
+    return { villageId, allocatedBudget: (cents / 100).toFixed(2) };
+  });
+}
+
+/**
+ * Resolve the per-village allocations to persist. When explicit allocations are
+ * provided they must cover exactly the selected villages and sum to the budget;
+ * otherwise the budget is split equally.
+ */
+function resolveVillageAllocations(
+  budgetAmount: number,
+  villageIds: string[],
+  provided: VillageAllocationCommand[] | undefined,
+): VillageAllocationInput[] {
+  if (!provided || provided.length === 0) {
+    return equalSplitAllocations(budgetAmount, villageIds);
+  }
+
+  const villageIdSet = new Set(villageIds);
+  const seen = new Set<string>();
+  let sum = 0;
+  for (const allocation of provided) {
+    if (!villageIdSet.has(allocation.villageId)) {
+      throw new BadRequestException(
+        'Village allocations must match the selected villages',
+      );
+    }
+    if (seen.has(allocation.villageId)) {
+      throw new BadRequestException('Duplicate village allocation');
+    }
+    if (allocation.allocatedBudget < 0) {
+      throw new BadRequestException('Village allocation cannot be negative');
+    }
+    seen.add(allocation.villageId);
+    sum += allocation.allocatedBudget;
+  }
+
+  if (seen.size !== villageIds.length) {
+    throw new BadRequestException(
+      'Every selected village must have an allocation',
+    );
+  }
+
+  if (Math.abs(sum - budgetAmount) > 0.01) {
+    throw new BadRequestException(
+      'Village allocations must sum to the allocated budget',
+    );
+  }
+
+  return provided.map((allocation) => ({
+    villageId: allocation.villageId,
+    allocatedBudget: formatMoney(allocation.allocatedBudget),
+  }));
 }
 
 async function assertUniquePackageName(
@@ -153,21 +232,32 @@ export class CreateProcurementPackageUseCase {
       throw new BadRequestException('Budget amount cannot be negative');
     }
 
-    const namePart = normalizeName(command.name);
-    if (!namePart) {
-      throw new BadRequestException('Package name is required');
+    const cluster = normalizeName(command.cluster);
+    if (!cluster) {
+      throw new BadRequestException('Cluster is required');
     }
 
-    const input = {
+    const code = normalizeName(command.code);
+    if (!code) {
+      throw new BadRequestException('Code is required');
+    }
+
+    await this.packageValidator.validate({
       contractorId: command.contractorId,
       consultantId: command.consultantId,
       tehsilId: command.tehsilId,
       villageIds: command.villageIds,
-    };
-    await this.packageValidator.validate(input);
+    });
+
+    const villageAllocations = resolveVillageAllocations(
+      command.budgetAmount,
+      command.villageIds,
+      command.villageAllocations,
+    );
 
     const name = await this.namingService.resolvePackageName(
-      namePart,
+      cluster,
+      code,
       command.tehsilId,
     );
 
@@ -176,7 +266,10 @@ export class CreateProcurementPackageUseCase {
     return this.packageRepository.create({
       name,
       budgetAmount: formatMoney(command.budgetAmount),
-      ...input,
+      contractorId: command.contractorId,
+      consultantId: command.consultantId,
+      tehsilId: command.tehsilId,
+      villageAllocations,
     });
   }
 }
@@ -230,12 +323,28 @@ export class UpdateProcurementPackageUseCase {
       });
     }
 
+    // Re-derive per-village allocations whenever the budget, the village list,
+    // or the allocations themselves change so they always sum to the budget.
+    const budgetAmount = command.budgetAmount ?? Number(existing.budgetAmount);
+    let villageAllocations: VillageAllocationInput[] | undefined;
+    if (
+      command.villageAllocations !== undefined ||
+      command.villageIds !== undefined ||
+      command.budgetAmount !== undefined
+    ) {
+      villageAllocations = resolveVillageAllocations(
+        budgetAmount,
+        villageIds,
+        command.villageAllocations,
+      );
+    }
+
     return this.packageRepository.update(id, {
       budgetAmount:
         command.budgetAmount !== undefined
           ? formatMoney(command.budgetAmount)
           : undefined,
-      villageIds: command.villageIds,
+      villageAllocations,
     });
   }
 }

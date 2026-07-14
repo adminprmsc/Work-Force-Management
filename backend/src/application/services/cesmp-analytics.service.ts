@@ -2,11 +2,26 @@ import { Injectable } from '@nestjs/common';
 import {
   SurveyField,
   SurveyFormBaselineField,
+  SurveyResponseStatus,
 } from '../../domain/entities/survey.entity';
 import { parseRevisionFields } from './survey-revision.serializer';
 import { numericAnswerValue } from './survey-budget.effects';
 import { PackageSurveyBudgetService } from './package-survey-budget.service';
 import { PrismaService } from '../../infrastructure/database/prisma/prisma.service';
+
+interface CesmpAnalyticsRow {
+  villageId: string;
+  answers: Array<{ fieldId: string; value: unknown }>;
+  formRevision: { fields: unknown };
+  assignment: { procurementPackageId: string };
+}
+
+const cesmpResponseSelect = {
+  villageId: true,
+  answers: { select: { fieldId: true, value: true } },
+  formRevision: { select: { fields: true } },
+  assignment: { select: { procurementPackageId: true } },
+} as const;
 
 export const CESMP_FORM_TITLE_MARKER = 'C-ESMP Village Monitoring Checklist';
 
@@ -259,15 +274,15 @@ export class CesmpAnalyticsService {
       return this.emptyInsights();
     }
 
-    const [responses, baselineAnswers, surveyExpenseTotals] = await Promise.all(
-      [
-        this.prisma.surveyResponse.findMany({
+    const responsesPromise: Promise<CesmpAnalyticsRow[]> =
+      this.prisma.surveyResponse
+        .findMany({
           where: {
             formId,
-            status: 'SUBMITTED',
+            status: SurveyResponseStatus.ACCEPTED,
             ...(hasDateFilter
               ? {
-                  submittedAt: {
+                  acceptedAt: {
                     not: null,
                     ...(submittedFrom
                       ? { gte: startOfUtcDay(submittedFrom) }
@@ -280,13 +295,13 @@ export class CesmpAnalyticsService {
               procurementPackageId: { in: packageIds },
             },
           },
-          select: {
-            villageId: true,
-            answers: { select: { fieldId: true, value: true } },
-            formRevision: { select: { fields: true } },
-            assignment: { select: { procurementPackageId: true } },
-          },
-        }),
+          select: cesmpResponseSelect,
+        })
+        .then((rows) => rows as CesmpAnalyticsRow[]);
+
+    const [responses, baselineAnswers, surveyExpenseTotals] = await Promise.all(
+      [
+        responsesPromise,
         this.prisma.procurementPackageBaselineAnswer.findMany({
           where: { formId, packageId: { in: packageIds } },
           select: { packageId: true, fieldId: true, value: true },

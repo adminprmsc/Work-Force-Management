@@ -41,6 +41,9 @@ export declare class ProcurementPackagesController {
         villages: {
             id: string;
             name: string;
+            allocatedBudget: string;
+            spent: string;
+            remaining: string;
         }[];
         expenses: {
             id: string;
@@ -193,6 +196,9 @@ export declare class ProcurementPackagesController {
         villages: {
             id: string;
             name: string;
+            allocatedBudget: string;
+            spent: string;
+            remaining: string;
         }[];
         expenses: {
             id: string;
@@ -233,6 +239,9 @@ export declare class ProcurementPackagesController {
         villages: {
             id: string;
             name: string;
+            allocatedBudget: string;
+            spent: string;
+            remaining: string;
         }[];
         expenses: {
             id: string;
@@ -273,6 +282,9 @@ export declare class ProcurementPackagesController {
         villages: {
             id: string;
             name: string;
+            allocatedBudget: string;
+            spent: string;
+            remaining: string;
         }[];
         expenses: {
             id: string;
