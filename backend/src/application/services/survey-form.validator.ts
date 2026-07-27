@@ -131,15 +131,20 @@ export class SurveyFormValidator {
       } else {
         delete config.visibleWhen;
       }
-      // Sections only carry visibility rules in config for now.
+
+      // Sections only carry visibility rules in config.
+      // Prefer explicit optional toggle over conditional when both are sent.
       const sectionConfig: SurveyFieldConfig = {};
-      if (config.visibleWhen) {
+      if (config.optional === true) {
+        sectionConfig.optional = true;
+      } else if (config.visibleWhen) {
         sectionConfig.visibleWhen = config.visibleWhen;
       }
       return Object.keys(sectionConfig).length > 0 ? sectionConfig : null;
     }
 
     delete config.visibleWhen;
+    delete config.optional;
 
     if (field.type === SurveyFieldType.NUMBER) {
       return this.normalizeNumberConfig(config, position, errors);

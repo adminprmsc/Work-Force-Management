@@ -322,16 +322,21 @@ export function SurveyFormRenderer({
           return (
             <View key={field.id} style={styles.section}>
               <View style={styles.optionalHeader}>
-                <Text style={styles.sectionTitle}>{field.label}</Text>
+                <View style={styles.sectionTitleWrap}>
+                  <Text style={styles.sectionTitle}>{field.label}</Text>
+                  <Muted style={layout.mtSm}>Fill this section?</Muted>
+                </View>
                 {!readOnly ? (
                   <Pressable
                     onPress={() => onChange(toggleKey, toggled ? 'no' : 'yes')}
                     style={styles.toggleButton}
                   >
-                    <Text style={styles.toggleText}>{toggled ? 'Yes' : 'No'}</Text>
+                    <Text style={styles.toggleText}>
+                      {toggled ? 'Yes — fill' : 'No — skip'}
+                    </Text>
                   </Pressable>
                 ) : (
-                  <Muted>{toggled ? 'Yes' : 'No'}</Muted>
+                  <Muted>{toggled ? 'Filled' : 'Skipped'}</Muted>
                 )}
               </View>
             </View>
@@ -367,7 +372,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: '600',
     color: colors.foreground,
+  },
+  sectionTitleWrap: {
     flex: 1,
+    paddingRight: 8,
   },
   optionalHeader: {
     flexDirection: 'row',

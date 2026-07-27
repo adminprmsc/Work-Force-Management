@@ -138,8 +138,8 @@ export function stripVisibleWhenFromConfig(
 ): SurveyFieldConfig | null {
   if (!config) return null;
   if (type === SurveyFieldType.SECTION_BREAK) return config;
-  if (!config.visibleWhen) return config;
   const next = { ...config };
   delete next.visibleWhen;
+  delete next.optional;
   return Object.keys(next).length > 0 ? next : null;
 }

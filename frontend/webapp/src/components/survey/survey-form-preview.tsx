@@ -65,19 +65,24 @@ export function SurveyFormPreview({
               const toggled = answers[toggleKey] === "yes"
               return (
                 <div key={field.id} className="pt-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-semibold">{field.label}</p>
                     {isOptional ? (
-                      <NativeSelect
-                        className="w-32"
-                        value={toggled ? "yes" : "no"}
-                        onChange={(e) =>
-                          setAnswers((prev) => ({ ...prev, [toggleKey]: e.target.value }))
-                        }
-                      >
-                        <NativeSelectOption value="no">No</NativeSelectOption>
-                        <NativeSelectOption value="yes">Yes</NativeSelectOption>
-                      </NativeSelect>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                          Fill this section?
+                        </Label>
+                        <NativeSelect
+                          className="w-36"
+                          value={toggled ? "yes" : "no"}
+                          onChange={(e) =>
+                            setAnswers((prev) => ({ ...prev, [toggleKey]: e.target.value }))
+                          }
+                        >
+                          <NativeSelectOption value="no">No — skip</NativeSelectOption>
+                          <NativeSelectOption value="yes">Yes — fill</NativeSelectOption>
+                        </NativeSelect>
+                      </div>
                     ) : null}
                   </div>
                   {field.config?.visibleWhen ? (
