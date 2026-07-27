@@ -17,8 +17,15 @@ function opts(...labels: string[]) {
   }));
 }
 
-function mc(label: string, options: string[], order: number, required = true) {
+function mc(
+  label: string,
+  options: string[],
+  order: number,
+  required = true,
+  id?: string,
+) {
   return {
+    ...(id ? { id } : {}),
     type: SurveyFieldType.MULTIPLE_CHOICE,
     label,
     required,
@@ -27,17 +34,23 @@ function mc(label: string, options: string[], order: number, required = true) {
   };
 }
 
-function yn(label: string, order: number, required = true) {
-  return mc(label, ['Yes', 'No'], order, required);
+function yn(label: string, order: number, required = true, id?: string) {
+  return mc(label, ['Yes', 'No'], order, required, id);
 }
 
-function section(label: string, order: number) {
+function section(
+  label: string,
+  order: number,
+  config: Prisma.InputJsonValue | null = null,
+  id?: string,
+) {
   return {
+    ...(id ? { id } : {}),
     type: SurveyFieldType.SECTION_BREAK,
     label,
     required: false,
     order,
-    config: null,
+    config,
   };
 }
 
@@ -196,7 +209,7 @@ export function cesmpVillageMonitoringFields() {
       config: { integer: true, min: 0 },
     },
 
-    section('TRAININGS CONDUCTED', next()),
+    section('TRAININGS CONDUCTED', next(), { optional: true }),
     {
       type: SurveyFieldType.TEXT,
       label: 'Title of Training',
@@ -454,6 +467,7 @@ export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
       createdById: author.id,
       fields: {
         create: fields.map((field) => ({
+          ...('id' in field && field.id ? { id: field.id } : {}),
           type: field.type,
           label: field.label,
           required: field.required,

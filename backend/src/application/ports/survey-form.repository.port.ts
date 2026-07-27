@@ -6,6 +6,7 @@ import {
 } from '../../domain/entities/survey.entity';
 
 export interface SurveyFieldInput {
+  id?: string;
   type: SurveyFieldType;
   label: string;
   helpText?: string | null;

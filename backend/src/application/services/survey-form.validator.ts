@@ -8,8 +8,15 @@ import {
 import { isPackageFieldReference } from '../constants/package-field-references';
 import { SurveyFieldInput } from '../ports/survey-form.repository.port';
 import { PackageFieldReferenceResolver } from './package-field-reference.resolver';
+import {
+  isChoiceControllerType,
+  normalizeVisibleWhen,
+  stripVisibleWhenFromConfig,
+} from './survey-field-visibility';
 
 const VALID_FIELD_TYPES = new Set<string>(Object.values(SurveyFieldType));
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class SurveyFormValidator {
@@ -42,6 +49,8 @@ export class SurveyFormValidator {
         this.normalizeField(field, index, options, errors),
       );
 
+    this.validateVisibleWhenRules(normalized, options, errors);
+
     if (errors.length > 0) {
       throw new BadRequestException(errors);
     }
@@ -66,6 +75,12 @@ export class SurveyFormValidator {
       errors.push(`Field ${position}: label is required.`);
     }
 
+    if (field.id !== undefined && field.id !== null && field.id !== '') {
+      if (!UUID_REGEX.test(field.id)) {
+        errors.push(`Field ${position}: id must be a valid UUID.`);
+      }
+    }
+
     if (
       field.config?.packageReference &&
       !isPackageFieldReference(field.config.packageReference)
@@ -75,7 +90,7 @@ export class SurveyFormValidator {
 
     const config = this.normalizeConfig(field, position, options, errors);
 
-    return {
+    const input: SurveyFieldInput = {
       type: field.type,
       label,
       helpText: field.helpText ? field.helpText.trim() : null,
@@ -85,6 +100,10 @@ export class SurveyFormValidator {
       order: index,
       config,
     };
+    if (typeof field.id === 'string' && field.id.length > 0) {
+      input.id = field.id;
+    }
+    return input;
   }
 
   private normalizeConfig(
@@ -100,10 +119,27 @@ export class SurveyFormValidator {
       position,
     );
     if (withPackage?.packageReference) {
-      return withPackage;
+      return stripVisibleWhenFromConfig(field.type, withPackage);
     }
 
     const config: SurveyFieldConfig = { ...(field.config ?? {}) };
+
+    if (field.type === SurveyFieldType.SECTION_BREAK) {
+      const visibleWhen = normalizeVisibleWhen(config.visibleWhen);
+      if (visibleWhen) {
+        config.visibleWhen = visibleWhen;
+      } else {
+        delete config.visibleWhen;
+      }
+      // Sections only carry visibility rules in config for now.
+      const sectionConfig: SurveyFieldConfig = {};
+      if (config.visibleWhen) {
+        sectionConfig.visibleWhen = config.visibleWhen;
+      }
+      return Object.keys(sectionConfig).length > 0 ? sectionConfig : null;
+    }
+
+    delete config.visibleWhen;
 
     if (field.type === SurveyFieldType.NUMBER) {
       return this.normalizeNumberConfig(config, position, errors);
@@ -153,6 +189,77 @@ export class SurveyFormValidator {
     }
 
     return Object.keys(config).length > 0 ? config : null;
+  }
+
+  private validateVisibleWhenRules(
+    fields: SurveyFieldInput[],
+    options: { forPublish: boolean },
+    errors: string[],
+  ): void {
+    const byId = new Map(
+      fields
+        .filter((field) => typeof field.id === 'string')
+        .map((field) => [field.id as string, field]),
+    );
+
+    for (let index = 0; index < fields.length; index++) {
+      const field = fields[index];
+      const rule = field.config?.visibleWhen;
+      if (!rule) continue;
+
+      const position = index + 1;
+      if (field.type !== SurveyFieldType.SECTION_BREAK) {
+        errors.push(
+          `Field ${position}: visibleWhen is only allowed on section breaks.`,
+        );
+        continue;
+      }
+
+      if (!field.id) {
+        errors.push(
+          `Field ${position}: section with visibleWhen must include a stable field id.`,
+        );
+      }
+
+      const controller = byId.get(rule.fieldId);
+      if (!controller) {
+        errors.push(
+          `Field ${position}: visibleWhen references an unknown field.`,
+        );
+        continue;
+      }
+
+      if ((controller.order ?? 0) >= index) {
+        errors.push(
+          `Field ${position}: visibleWhen must reference a question that appears before this section.`,
+        );
+      }
+
+      if (!isChoiceControllerType(controller.type)) {
+        errors.push(
+          `Field ${position}: visibleWhen controller must be a choice question (Yes/No, multiple choice, or dropdown).`,
+        );
+        continue;
+      }
+
+      const allowed = new Set(
+        (controller.config?.options ?? []).map((option) => option.value),
+      );
+      const expected = Array.isArray(rule.equals) ? rule.equals : [rule.equals];
+      for (const value of expected) {
+        if (allowed.size > 0 && !allowed.has(value)) {
+          errors.push(
+            `Field ${position}: visibleWhen value "${value}" is not an option on the controlling question.`,
+          );
+        }
+      }
+
+      if (options.forPublish && allowed.size === 0) {
+        errors.push(
+          `Field ${position}: controlling question for visibleWhen needs options before publish.`,
+        );
+      }
+    }
   }
 
   private normalizeNumberConfig(

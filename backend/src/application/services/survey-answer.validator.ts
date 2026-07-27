@@ -7,6 +7,7 @@ import {
 } from '../../domain/entities/survey.entity';
 import { SurveyAnswerInput } from '../ports/survey-response.repository.port';
 import { PackageFieldReferenceResolver } from './package-field-reference.resolver';
+import { resolveVisibleFieldIds } from './survey-field-visibility';
 
 const CNIC_REGEX = /^\d{5}-\d{7}-\d$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,7 +40,7 @@ export class SurveyAnswerValidator {
   /**
    * Validates submitted answers against the form's field definitions.
    * Throws BadRequestException with all field errors aggregated.
-   * Returns the cleaned answers to persist (presentational fields dropped).
+   * Returns the cleaned answers to persist (presentational + hidden fields dropped).
    */
   validateForSubmit(
     fields: SurveyField[],
@@ -72,10 +73,12 @@ export class SurveyAnswerValidator {
       answerByField.set(answer.fieldId, answer.value);
     }
 
+    const visibleIds = resolveVisibleFieldIds(fields, answerByField);
     const cleaned: SurveyAnswerInput[] = [];
 
     for (const field of fields) {
       if (PRESENTATION_FIELD_TYPES.includes(field.type)) continue;
+      if (!visibleIds.has(field.id)) continue;
 
       const value = answerByField.get(field.id);
 

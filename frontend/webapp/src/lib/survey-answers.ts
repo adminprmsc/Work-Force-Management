@@ -1,4 +1,5 @@
 import { fieldIsPresentational } from "@/lib/survey"
+import { resolveVisibleFieldIds } from "@/lib/survey-field-visibility"
 import { attachmentDisplayName, isSurveyAttachmentValue } from "@/lib/survey-attachment"
 import type { SurveyField } from "@/modules/api/survey-types"
 
@@ -30,4 +31,13 @@ export function formatAnswerValue(field: SurveyField, value: unknown): string {
 
 export function answerableFields(fields: SurveyField[]): SurveyField[] {
   return fields.filter((field) => !fieldIsPresentational(field.type))
+}
+
+/** Answerable fields that are currently visible given the answer map. */
+export function visibleAnswerableFields(
+  fields: SurveyField[],
+  answers: Record<string, unknown>,
+): SurveyField[] {
+  const visible = resolveVisibleFieldIds(fields, answers)
+  return answerableFields(fields).filter((field) => visible.has(field.id))
 }

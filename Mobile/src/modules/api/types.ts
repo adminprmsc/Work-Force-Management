@@ -46,6 +46,13 @@ export type SurveyFieldConfig = {
   computedRemainingBudget?: boolean;
   computedVillageRemainingBudget?: boolean;
   computedVisitDeductions?: boolean;
+  optional?: boolean;
+  visibleWhen?: SurveyFieldVisibleWhen;
+};
+
+export type SurveyFieldVisibleWhen = {
+  fieldId: string;
+  equals: string | string[];
 };
 
 export type SurveyField = {

@@ -47,6 +47,8 @@ import type {
 
 type OptionDraft = { key: string; label: string }
 
+type SectionMode = "always" | "optional" | "conditional"
+
 type FieldDraft = {
   key: string
   type: SurveyFieldType
@@ -67,6 +69,12 @@ type FieldDraft = {
     | "computedRemaining"
     | "computedVillageRemaining"
     | "computedVisitDeductions"
+  /** SECTION_BREAK: how this section behaves */
+  sectionMode: SectionMode
+  /** SECTION_BREAK conditional: draft key of the controlling question */
+  visibleWhenFieldKey: string
+  /** SECTION_BREAK conditional: option value that must match */
+  visibleWhenEquals: string
 }
 
 function uid(): string {
@@ -85,10 +93,18 @@ function budgetBehaviorFromField(field: SurveyField): FieldDraft["budgetBehavior
   return ""
 }
 
+function sectionModeFromField(field: SurveyField): SectionMode {
+  const config = field.config ?? {}
+  if (config.optional) return "optional"
+  if (config.visibleWhen) return "conditional"
+  return "always"
+}
+
 function draftFromField(field: SurveyField): FieldDraft {
   const config = field.config ?? {}
+  const equals = config.visibleWhen?.equals
   return {
-    key: uid(),
+    key: field.id,
     type: field.type,
     label: field.label,
     helpText: field.helpText ?? "",
@@ -103,6 +119,11 @@ function draftFromField(field: SurveyField): FieldDraft {
     maxLength: config.maxLength !== undefined ? String(config.maxLength) : "",
     packageReference: config.packageReference ?? "",
     budgetBehavior: budgetBehaviorFromField(field),
+    sectionMode: sectionModeFromField(field),
+    visibleWhenFieldKey: config.visibleWhen?.fieldId ?? "",
+    visibleWhenEquals: Array.isArray(equals)
+      ? (equals[0] ?? "")
+      : (equals ?? ""),
   }
 }
 
@@ -125,6 +146,9 @@ function emptyDraft(type: SurveyFieldType): FieldDraft {
     maxLength: "",
     packageReference: "",
     budgetBehavior: "",
+    sectionMode: "always",
+    visibleWhenFieldKey: "",
+    visibleWhenEquals: "",
   }
 }
 
@@ -165,7 +189,26 @@ function toFieldInput(draft: FieldDraft, index: number): SurveyFieldInput {
     }
   }
 
+  if (draft.type === "SECTION_BREAK") {
+    if (draft.sectionMode === "optional") {
+      config = { ...(config ?? {}), optional: true }
+    } else if (
+      draft.sectionMode === "conditional" &&
+      draft.visibleWhenFieldKey &&
+      draft.visibleWhenEquals.trim()
+    ) {
+      config = {
+        ...(config ?? {}),
+        visibleWhen: {
+          fieldId: draft.visibleWhenFieldKey,
+          equals: draft.visibleWhenEquals.trim(),
+        },
+      }
+    }
+  }
+
   return {
+    id: draft.key,
     type: draft.type,
     label: draft.label.trim(),
     helpText: draft.helpText.trim() || null,
@@ -227,7 +270,15 @@ export function SurveyFormDesigner({
   }
 
   const removeField = (key: string) => {
-    setFields((prev) => prev.filter((field) => field.key !== key))
+    setFields((prev) =>
+      prev
+        .filter((field) => field.key !== key)
+        .map((field) =>
+          field.visibleWhenFieldKey === key
+            ? { ...field, visibleWhenFieldKey: "", visibleWhenEquals: "" }
+            : field,
+        ),
+    )
   }
 
   const moveField = (index: number, direction: -1 | 1) => {
@@ -257,6 +308,16 @@ export function SurveyFormDesigner({
           toast.error(`"${field.label || "Choice field"}" needs at least one option`)
           return
         }
+      }
+      if (
+        field.type === "SECTION_BREAK" &&
+        field.visibleWhenFieldKey &&
+        !field.visibleWhenEquals.trim()
+      ) {
+        toast.error(
+          `"${field.label || "Section"}" needs the answer that should show it (e.g. Yes)`,
+        )
+        return
       }
     }
 
@@ -454,6 +515,7 @@ export function SurveyFormDesigner({
                     field={field}
                     index={index}
                     total={fields.length}
+                    allFields={fields}
                     readOnly={fieldsLocked}
                     onChange={(patch) => updateField(field.key, patch)}
                     onRemove={() => removeField(field.key)}
@@ -488,6 +550,7 @@ type FieldEditorProps = {
   field: FieldDraft
   index: number
   total: number
+  allFields: FieldDraft[]
   readOnly?: boolean
   onChange: (patch: Partial<FieldDraft>) => void
   onRemove: () => void
@@ -498,6 +561,7 @@ function FieldEditor({
   field,
   index,
   total,
+  allFields,
   readOnly = false,
   onChange,
   onRemove,
@@ -507,6 +571,20 @@ function FieldEditor({
   const Icon = meta.icon
   const isSection = field.type === "SECTION_BREAK"
   const packageReferenceOptions = packageReferencesForFieldType(field.type)
+  const controllerCandidates = allFields
+    .slice(0, index)
+    .filter(
+      (candidate) =>
+        candidate.type === "MULTIPLE_CHOICE" ||
+        candidate.type === "DROPDOWN" ||
+        candidate.type === "CHECKBOXES",
+    )
+  const selectedController = controllerCandidates.find(
+    (candidate) => candidate.key === field.visibleWhenFieldKey,
+  )
+  const controllerOptions = (selectedController?.options ?? [])
+    .map((option) => option.label.trim())
+    .filter((label) => label.length > 0)
 
   const addOption = () => {
     onChange({
@@ -572,6 +650,86 @@ function FieldEditor({
             disabled={readOnly}
           />
         </div>
+
+        {isSection && !readOnly ? (
+          <div className="grid gap-2 rounded-md border border-dashed bg-muted/20 p-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Section behavior</Label>
+              <p className="text-xs text-muted-foreground">
+                Choose whether users must fill this section, or can skip it.
+              </p>
+            </div>
+            <NativeSelect
+              className="w-full"
+              value={field.sectionMode}
+              onChange={(e) => {
+                const mode = e.target.value as SectionMode
+                onChange({
+                  sectionMode: mode,
+                  visibleWhenFieldKey: mode === "conditional" ? field.visibleWhenFieldKey : "",
+                  visibleWhenEquals: mode === "conditional" ? field.visibleWhenEquals : "",
+                })
+              }}
+            >
+              <NativeSelectOption value="always">Always visible</NativeSelectOption>
+              <NativeSelectOption value="optional">Optional — user selects Yes/No to fill</NativeSelectOption>
+              <NativeSelectOption value="conditional">Conditional — depends on another question</NativeSelectOption>
+            </NativeSelect>
+            {field.sectionMode === "optional" ? (
+              <p className="text-xs text-muted-foreground">
+                Users will see a Yes/No toggle. If No, the section fields are hidden and not required.
+              </p>
+            ) : null}
+            {field.sectionMode === "conditional" ? (
+              <>
+                <NativeSelect
+                  className="w-full"
+                  value={field.visibleWhenFieldKey}
+                  onChange={(e) =>
+                    onChange({
+                      visibleWhenFieldKey: e.target.value,
+                      visibleWhenEquals: "",
+                    })
+                  }
+                >
+                  <NativeSelectOption value="">Select controlling question…</NativeSelectOption>
+                  {controllerCandidates.map((candidate) => (
+                    <NativeSelectOption key={candidate.key} value={candidate.key}>
+                      {candidate.label.trim() || "Untitled question"}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+                {field.visibleWhenFieldKey ? (
+                  <NativeSelect
+                    className="w-full"
+                    value={field.visibleWhenEquals}
+                    onChange={(e) => onChange({ visibleWhenEquals: e.target.value })}
+                  >
+                    <NativeSelectOption value="">Select answer…</NativeSelectOption>
+                    {controllerOptions.map((option) => (
+                      <NativeSelectOption key={option} value={option}>
+                        {option}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                ) : null}
+                {controllerCandidates.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Add a Multiple Choice or Dropdown question above this section first.
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
+        {isSection && readOnly && field.sectionMode !== "always" ? (
+          <Badge variant="outline">
+            {field.sectionMode === "optional"
+              ? "Optional section"
+              : `Conditional section${field.visibleWhenEquals ? ` · equals "${field.visibleWhenEquals}"` : ""}`}
+          </Badge>
+        ) : null}
 
         {!isSection ? (
           <div className="grid gap-1.5">

@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/modules/auth/protected-route"
 import { Role } from "@/modules/auth/roles"
 import { AuditLogsPage } from "@/pages/audit/audit-logs-page"
 import { GeographyPage } from "@/pages/geography/geography-page"
+import { GeographyAdminPage } from "@/pages/geography/geography-admin-page"
 import { RoleOverviewPage } from "@/pages/overview/role-overview-page"
 import { OfficesPage } from "@/pages/offices/offices-page"
 import { ConsultantsPage } from "@/pages/procurement/consultants-page"
@@ -36,6 +37,7 @@ export function DashboardRoutes() {
         <Route path="offices" element={<OfficesPage />} />
         <Route path="audit-logs" element={<AuditLogsPage />} />
         <Route path="geography" element={<GeographyPage />} />
+        <Route path="geography-admin" element={<GeographyAdminPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
         <Route path="procurement/contractors" element={<ContractorsPage />} />
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
@@ -70,6 +72,7 @@ export function DashboardRoutes() {
         <Route path="form-dashboards" element={<FormDashboardsIndexPage />} />
         <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
         <Route path="geography" element={<GeographyPage />} />
+        <Route path="geography-admin" element={<GeographyAdminPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
 

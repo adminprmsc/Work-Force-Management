@@ -51,6 +51,11 @@ export type PackageFieldReference =
 
 export type SurveyFieldBudgetEffect = "DEDUCT" | "ADD"
 
+export type SurveyFieldVisibleWhen = {
+  fieldId: string
+  equals: string | string[]
+}
+
 export type SurveyFieldConfig = {
   options?: SurveyFieldOption[]
   minLength?: number
@@ -69,6 +74,10 @@ export type SurveyFieldConfig = {
   computedRemainingBudget?: boolean
   computedVillageRemainingBudget?: boolean
   computedVisitDeductions?: boolean
+  /** SECTION_BREAK only: section is optional — user toggles Yes/No to fill it. */
+  optional?: boolean
+  /** SECTION_BREAK only: show section when a prior Yes/No (or choice) matches. */
+  visibleWhen?: SurveyFieldVisibleWhen
 }
 
 export type SurveyField = {
@@ -82,6 +91,7 @@ export type SurveyField = {
 }
 
 export type SurveyFieldInput = {
+  id?: string
   type: SurveyFieldType
   label: string
   helpText?: string | null

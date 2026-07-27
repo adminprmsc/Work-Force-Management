@@ -12,6 +12,14 @@ import {
   ListTehsilsUseCase,
 } from '../../application/use-cases/tehsils/list-tehsils.use-case';
 import { ListVillageSettlementsUseCase } from '../../application/use-cases/tehsils/list-village-settlements.use-case';
+import {
+  CreateSettlementUseCase,
+  CreateVillageUseCase,
+  DeleteSettlementUseCase,
+  DeleteVillageUseCase,
+  UpdateSettlementUseCase,
+  UpdateVillageUseCase,
+} from '../../application/use-cases/tehsils/manage-geography.use-case';
 import { CreateUserUseCase } from '../../application/use-cases/users/create-user.use-case';
 import {
   GetUserUseCase,
@@ -55,6 +63,12 @@ import { UsersController } from '../users/users.controller';
     ListTehsilsUseCase,
     ListTehsilVillagesUseCase,
     ListVillageSettlementsUseCase,
+    CreateVillageUseCase,
+    UpdateVillageUseCase,
+    DeleteVillageUseCase,
+    CreateSettlementUseCase,
+    UpdateSettlementUseCase,
+    DeleteSettlementUseCase,
     ListAuditLogsUseCase,
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },
     { provide: OFFICE_REPOSITORY, useClass: PrismaOfficeRepository },

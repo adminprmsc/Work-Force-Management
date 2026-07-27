@@ -64,14 +64,20 @@ const SURVEY_ANALYTICS_VIEWERS = [
 ] as const;
 
 function toFieldInputs(fields: SurveyFieldDto[]): SurveyFieldInput[] {
-  return fields.map((field) => ({
-    type: field.type,
-    label: field.label,
-    helpText: field.helpText ?? null,
-    required: field.required ?? false,
-    order: field.order,
-    config: (field.config as SurveyFieldConfig | null | undefined) ?? null,
-  }));
+  return fields.map((field) => {
+    const input: SurveyFieldInput = {
+      type: field.type,
+      label: field.label,
+      helpText: field.helpText ?? null,
+      required: field.required ?? false,
+      order: field.order,
+      config: (field.config as SurveyFieldConfig | null | undefined) ?? null,
+    };
+    if (typeof field.id === 'string') {
+      input.id = field.id;
+    }
+    return input;
+  });
 }
 
 function toBaselineFieldInputs(

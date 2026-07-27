@@ -28,8 +28,11 @@
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<!-- Required for cleartext HTTP to the production VM IP (no TLS hostname yet).
+		     NSExceptionDomains alone is unreliable for raw IPs across iOS versions;
+		     NSAllowsLocalNetworking only covers RFC1918/local hosts, not public IPs. -->
 		<key>NSAllowsArbitraryLoads</key>
-		<false/>
+		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 		<key>NSExceptionDomains</key>

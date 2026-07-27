@@ -26,7 +26,8 @@ import {
   buildPackageFieldAnswers,
   fieldIsPackageBound,
 } from "@/lib/package-field-reference"
-import { answerableFields } from "@/lib/survey-answers"
+import { visibleAnswerableFields } from "@/lib/survey-answers"
+import { resolveVisibleFieldIds, sectionToggleKey } from "@/lib/survey-field-visibility"
 import type {
   SurveyAnswer,
   SurveyAssignment,
@@ -47,9 +48,19 @@ function isEmpty(value: unknown): boolean {
 }
 
 function buildAnswers(fields: SurveyField[], answers: AnswerMap): SurveyAnswer[] {
-  return answerableFields(fields)
+  const fieldAnswers = visibleAnswerableFields(fields, answers)
     .filter((field) => !isEmpty(answers[field.id]))
     .map((field) => ({ fieldId: field.id, value: answers[field.id] }))
+
+  // Include section toggle answers so backend can resolve visibility
+  const togglePrefix = "__section_toggle__"
+  for (const [key, value] of Object.entries(answers)) {
+    if (key.startsWith(togglePrefix) && value) {
+      fieldAnswers.push({ fieldId: key, value })
+    }
+  }
+
+  return fieldAnswers
 }
 
 type SurveyResponseEditorProps = {
@@ -145,6 +156,10 @@ export function SurveyResponseEditor({
   const answersForSave = useMemo(
     () => ({ ...answers, ...packageAnswers }),
     [answers, packageAnswers],
+  )
+  const visibleFieldIds = useMemo(
+    () => resolveVisibleFieldIds(fields, answersForSave),
+    [fields, answersForSave],
   )
 
   const ensureServerResponse = async (): Promise<string> => {
@@ -309,8 +324,37 @@ export function SurveyResponseEditor({
             <p className="text-sm text-muted-foreground">Loading form…</p>
           ) : (
             <div className="space-y-4">
-              {fields.map((field) =>
-                fieldIsPresentational(field.type) ? (
+              {fields.map((field) => {
+                if (!visibleFieldIds.has(field.id)) return null
+                if (field.type === "SECTION_BREAK") {
+                  const isOptional = field.config?.optional === true
+                  const toggleKey = sectionToggleKey(field.id)
+                  const toggled = answersForSave[toggleKey] === "yes"
+                  return (
+                    <div key={field.id} className="pt-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold">{field.label}</p>
+                        {isOptional && !readOnly ? (
+                          <NativeSelect
+                            className="w-32"
+                            value={toggled ? "yes" : "no"}
+                            onChange={(e) => setAnswer(toggleKey, e.target.value)}
+                          >
+                            <NativeSelectOption value="no">No</NativeSelectOption>
+                            <NativeSelectOption value="yes">Yes</NativeSelectOption>
+                          </NativeSelect>
+                        ) : null}
+                        {isOptional && readOnly ? (
+                          <span className="text-xs text-muted-foreground">
+                            {toggled ? "Yes" : "No"}
+                          </span>
+                        ) : null}
+                      </div>
+                      <Separator className="mt-1" />
+                    </div>
+                  )
+                }
+                return fieldIsPresentational(field.type) ? (
                   <div key={field.id} className="pt-2">
                     <p className="text-sm font-semibold">{field.label}</p>
                     <Separator className="mt-1" />
@@ -343,8 +387,8 @@ export function SurveyResponseEditor({
                       uploadContext={uploadContext}
                     />
                   </div>
-                ),
-              )}
+                )
+              })}
             </div>
           )}
         </div>

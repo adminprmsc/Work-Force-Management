@@ -24,6 +24,10 @@ import {
 } from '../../../domain/entities/survey.entity';
 
 export class SurveyFieldDto {
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsEnum(SurveyFieldType)
   type!: SurveyFieldType;
 
@@ -51,10 +55,6 @@ export class SurveyFieldDto {
 }
 
 export class SurveyFormBaselineFieldDto extends SurveyFieldDto {
-  @IsOptional()
-  @IsUUID()
-  id?: string;
-
   @IsOptional()
   @IsBoolean()
   writeOnce?: boolean;

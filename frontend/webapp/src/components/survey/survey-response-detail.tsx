@@ -36,6 +36,7 @@ import {
   useRevertSurveyResponseMutation,
 } from "@/hooks/api/survey-hooks"
 import { answerableFields, formatAnswerValue } from "@/lib/survey-answers"
+import { resolveVisibleFieldIds } from "@/lib/survey-field-visibility"
 import {
   canReviewSurveyResponses,
   fieldIsPresentational,
@@ -146,6 +147,8 @@ export function SurveyResponseDetail({
   const answerMap = new Map(
     response.answers.map((answer) => [answer.fieldId, answer.value]),
   )
+  const answerRecord = Object.fromEntries(answerMap)
+  const visibleFieldIds = resolveVisibleFieldIds(fields, answerRecord)
   const showReviewActions = canReview && response.status === "SUBMITTED"
 
   const closeReview = () => {
@@ -225,13 +228,15 @@ export function SurveyResponseDetail({
               {fields.length === 0 || answerableFields(fields).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No answers recorded.</p>
               ) : (
-                fields.map((field) => (
+                fields.map((field) =>
+                  visibleFieldIds.has(field.id) ? (
                   <AnswerField
                     key={field.id}
                     field={field}
                     value={answerMap.get(field.id)}
                   />
-                ))
+                  ) : null,
+                )
               )}
             </CardContent>
           </Card>

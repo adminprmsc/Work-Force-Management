@@ -18,6 +18,7 @@ const list_audit_logs_use_case_1 = require("../../application/use-cases/audit/li
 const list_offices_use_case_1 = require("../../application/use-cases/offices/list-offices.use-case");
 const list_tehsils_use_case_1 = require("../../application/use-cases/tehsils/list-tehsils.use-case");
 const list_village_settlements_use_case_1 = require("../../application/use-cases/tehsils/list-village-settlements.use-case");
+const manage_geography_use_case_1 = require("../../application/use-cases/tehsils/manage-geography.use-case");
 const create_user_use_case_1 = require("../../application/use-cases/users/create-user.use-case");
 const list_users_use_case_1 = require("../../application/use-cases/users/list-users.use-case");
 const reset_credentials_use_case_1 = require("../../application/use-cases/users/reset-credentials.use-case");
@@ -57,6 +58,12 @@ exports.RbacModule = RbacModule = __decorate([
             list_tehsils_use_case_1.ListTehsilsUseCase,
             list_tehsils_use_case_1.ListTehsilVillagesUseCase,
             list_village_settlements_use_case_1.ListVillageSettlementsUseCase,
+            manage_geography_use_case_1.CreateVillageUseCase,
+            manage_geography_use_case_1.UpdateVillageUseCase,
+            manage_geography_use_case_1.DeleteVillageUseCase,
+            manage_geography_use_case_1.CreateSettlementUseCase,
+            manage_geography_use_case_1.UpdateSettlementUseCase,
+            manage_geography_use_case_1.DeleteSettlementUseCase,
             list_audit_logs_use_case_1.ListAuditLogsUseCase,
             { provide: user_repository_port_1.USER_REPOSITORY, useClass: prisma_user_repository_1.PrismaUserRepository },
             { provide: office_repository_port_1.OFFICE_REPOSITORY, useClass: prisma_office_repository_1.PrismaOfficeRepository },

@@ -62,9 +62,10 @@ export async function apiRequest<T>(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
-  } catch {
+  } catch (err) {
+    const detail = err instanceof Error && err.message ? ` (${err.message})` : '';
     throw new Error(
-      `Cannot reach API at ${url}. Check API_BASE_URL in .env, device network, and HTTP/HTTPS settings.`,
+      `Cannot reach API at ${url}. Check API_BASE_URL in .env, device network, and HTTP/HTTPS settings.${detail}`,
     );
   }
 
@@ -96,9 +97,10 @@ export async function apiFormDataRequest<T>(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
-  } catch {
+  } catch (err) {
+    const detail = err instanceof Error && err.message ? ` (${err.message})` : '';
     throw new Error(
-      `Cannot reach API at ${url}. Check API_BASE_URL in .env, device network, and HTTP/HTTPS settings.`,
+      `Cannot reach API at ${url}. Check API_BASE_URL in .env, device network, and HTTP/HTTPS settings.${detail}`,
     );
   }
 

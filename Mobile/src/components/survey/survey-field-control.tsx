@@ -1,5 +1,5 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { SurveyAttachmentField } from '@/components/survey/survey-attachment-field';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label, Muted, Text } from '@/components/ui/text';
 import { layout } from '@/lib/layout';
+import { resolveVisibleFieldIds, sectionToggleKey } from '@/lib/survey-field-visibility';
 import { colors, spacing } from '@/lib/theme';
 import type { SurveyField } from '@/modules/api/types';
 
@@ -301,6 +302,10 @@ export function SurveyFormRenderer({
   isOnline?: boolean;
 }) {
   const sorted = [...fields].sort((a, b) => a.order - b.order);
+  const visibleIds = useMemo(
+    () => resolveVisibleFieldIds(fields, answers),
+    [fields, answers],
+  );
 
   return (
     <ScrollView
@@ -309,18 +314,42 @@ export function SurveyFormRenderer({
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={styles.scrollContent}
     >
-      {sorted.map((field) => (
-        <SurveyFieldControl
-          key={field.id}
-          field={field}
-          value={answers[field.id]}
-          onChange={(value) => onChange(field.id, value)}
-          readOnly={readOnly}
-          uploadContext={uploadContext}
-          token={token}
-          isOnline={isOnline}
-        />
-      ))}
+      {sorted.map((field) => {
+        if (!visibleIds.has(field.id)) return null;
+        if (field.type === 'SECTION_BREAK' && field.config?.optional) {
+          const toggleKey = sectionToggleKey(field.id);
+          const toggled = answers[toggleKey] === 'yes';
+          return (
+            <View key={field.id} style={styles.section}>
+              <View style={styles.optionalHeader}>
+                <Text style={styles.sectionTitle}>{field.label}</Text>
+                {!readOnly ? (
+                  <Pressable
+                    onPress={() => onChange(toggleKey, toggled ? 'no' : 'yes')}
+                    style={styles.toggleButton}
+                  >
+                    <Text style={styles.toggleText}>{toggled ? 'Yes' : 'No'}</Text>
+                  </Pressable>
+                ) : (
+                  <Muted>{toggled ? 'Yes' : 'No'}</Muted>
+                )}
+              </View>
+            </View>
+          );
+        }
+        return (
+          <SurveyFieldControl
+            key={field.id}
+            field={field}
+            value={answers[field.id]}
+            onChange={(value) => onChange(field.id, value)}
+            readOnly={readOnly}
+            uploadContext={uploadContext}
+            token={token}
+            isOnline={isOnline}
+          />
+        );
+      })}
     </ScrollView>
   );
 }
@@ -337,6 +366,24 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '600',
+    color: colors.foreground,
+    flex: 1,
+  },
+  optionalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  toggleButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  toggleText: {
+    fontSize: 13,
     color: colors.foreground,
   },
   paragraph: {

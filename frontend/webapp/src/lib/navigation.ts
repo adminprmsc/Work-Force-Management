@@ -119,6 +119,26 @@ export const NAV_GROUPS: NavGroup[] = [
           description: "Who did what — user actions with performer and affected account details",
         },
       },
+      {
+        label: "Manage Geography",
+        path: "/dashboard/senior-manager/geography-admin",
+        icon: MapPinned,
+        roles: [Role.SENIOR_MANAGER_ES],
+        meta: {
+          title: "Manage Geography",
+          description: "Add, rename, or remove villages and settlements under tehsils",
+        },
+      },
+      {
+        label: "Manage Geography",
+        path: "/dashboard/ra-environment/geography-admin",
+        icon: MapPinned,
+        roles: [Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "Manage Geography",
+          description: "Add, rename, or remove villages and settlements under tehsils",
+        },
+      },
     ],
   },
   {

@@ -128,6 +128,7 @@ function toSurveyFormRecord(record: SurveyFormWithRelations): SurveyFormRecord {
 
 function fieldCreateData(fields: SurveyFieldInput[]) {
   return fields.map((field) => ({
+    ...(field.id ? { id: field.id } : {}),
     type: field.type,
     label: field.label,
     helpText: field.helpText ?? null,
@@ -135,6 +136,57 @@ function fieldCreateData(fields: SurveyFieldInput[]) {
     order: field.order,
     config: configToPrisma(field.config),
   }));
+}
+
+async function syncVisitFields(
+  tx: Prisma.TransactionClient,
+  formId: string,
+  fields: SurveyFieldInput[],
+): Promise<void> {
+  const existing = await tx.surveyField.findMany({
+    where: { formId },
+    select: { id: true },
+  });
+  const existingIds = new Set(existing.map((field) => field.id));
+  const keepIds = new Set<string>();
+
+  for (const field of fields) {
+    const data = {
+      type: field.type,
+      label: field.label,
+      helpText: field.helpText ?? null,
+      required: field.required,
+      order: field.order,
+      config: configToPrisma(field.config),
+    };
+
+    if (field.id && existingIds.has(field.id)) {
+      await tx.surveyField.update({
+        where: { id: field.id },
+        data,
+      });
+      keepIds.add(field.id);
+    } else {
+      const created = await tx.surveyField.create({
+        data: {
+          ...(field.id ? { id: field.id } : {}),
+          formId,
+          ...data,
+        },
+        select: { id: true },
+      });
+      keepIds.add(created.id);
+    }
+  }
+
+  const removeIds = existing
+    .map((field) => field.id)
+    .filter((id) => !keepIds.has(id));
+  if (removeIds.length > 0) {
+    await tx.surveyField.deleteMany({
+      where: { id: { in: removeIds } },
+    });
+  }
 }
 
 function baselineFieldCreateData(fields: SurveyFormBaselineFieldInput[]) {
@@ -253,15 +305,7 @@ export class PrismaSurveyFormRepository implements SurveyFormRepositoryPort {
   async update(id: string, data: UpdateSurveyFormData): Promise<SurveyForm> {
     const record = await this.prisma.$transaction(async (tx) => {
       if (data.fields !== undefined) {
-        await tx.surveyField.deleteMany({ where: { formId: id } });
-        if (data.fields.length > 0) {
-          await tx.surveyField.createMany({
-            data: fieldCreateData(data.fields).map((field) => ({
-              ...field,
-              formId: id,
-            })),
-          });
-        }
+        await syncVisitFields(tx, id, data.fields);
       }
 
       if (data.baselineFields !== undefined) {

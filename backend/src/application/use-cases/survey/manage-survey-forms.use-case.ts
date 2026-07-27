@@ -62,6 +62,7 @@ export interface UpdateSurveyFormCommand {
 
 function fieldsToInput(fields: SurveyField[]): SurveyFieldInput[] {
   return fields.map((field) => ({
+    id: field.id,
     type: field.type,
     label: field.label,
     helpText: field.helpText,
@@ -75,6 +76,7 @@ function baselineFieldsToInput(
   fields: SurveyFormBaselineField[],
 ): SurveyFormBaselineFieldInput[] {
   return fields.map((field) => ({
+    id: field.id,
     type: field.type,
     label: field.label,
     helpText: field.helpText,

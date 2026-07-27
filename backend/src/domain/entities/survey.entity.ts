@@ -89,6 +89,15 @@ export type PackageFieldReference =
 /** How a NUMBER field affects the procurement package budget when submitted. */
 export type SurveyFieldBudgetEffect = 'DEDUCT' | 'ADD';
 
+/**
+ * Show a SECTION_BREAK (and the fields that follow it until the next break)
+ * only when a prior choice field answers with one of the expected values.
+ */
+export interface SurveyFieldVisibleWhen {
+  fieldId: string;
+  equals: string | string[];
+}
+
 /** Type-specific configuration persisted as JSON on each field. */
 export interface SurveyFieldConfig {
   options?: SurveyFieldOption[];
@@ -114,6 +123,10 @@ export interface SurveyFieldConfig {
   computedVillageRemainingBudget?: boolean;
   /** Read-only field: sum of in-form DEDUCT budget fields. */
   computedVisitDeductions?: boolean;
+  /** SECTION_BREAK only: section is optional — user toggles Yes/No to fill it. */
+  optional?: boolean;
+  /** SECTION_BREAK only: hide this section unless the controlling answer matches. */
+  visibleWhen?: SurveyFieldVisibleWhen;
 }
 
 export class SurveyField {
