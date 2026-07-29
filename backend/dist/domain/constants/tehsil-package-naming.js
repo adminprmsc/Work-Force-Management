@@ -35,15 +35,15 @@ exports.TEHSIL_PACKAGE_NAMING = {
     },
     'KALLAR KAHAR': {
         zoneLabel: 'North',
-        displayLabel: 'Kallar Kahar & Kot Momin',
+        displayLabel: 'Kallar Kahar',
         abbrev: 'KLK',
         groupKey: 'KLK',
     },
     'KOT MOMIN': {
         zoneLabel: 'North',
-        displayLabel: 'Kallar Kahar & Kot Momin',
-        abbrev: 'KLK',
-        groupKey: 'KLK',
+        displayLabel: 'Kot Momin',
+        abbrev: 'KTM',
+        groupKey: 'KTM',
     },
     'AHMADPUR SIAL': {
         zoneLabel: 'South-I',
