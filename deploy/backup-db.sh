@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
-# Pull a Postgres dump from the production VM onto this Mac.
+# Production DB backup: create on the VM first, then copy to this Mac.
 #
-# Runs pg_dump inside the remote postgres container and streams the gzipped
-# SQL over SSH straight into ./backups/ — nothing is left on the VM disk.
+# Two steps (you can also run them separately):
+#   1. On the VM  →  make db-backup
+#        writes ~/wfm/backups/wfm-YYYYMMDD-HHMMSS.sql.gz  (stays on the VM)
+#   2. On your Mac →  this script (or --pull-only)
+#        scp that file into ./backups/ on your laptop
 #
-# Usage:
-#   ./deploy/backup-db.sh
-#   ./deploy/backup-db.sh --host 101.50.84.209
+# Usage (from your Mac, repo root):
 #   WFM_SSH_HOST=101.50.84.209 ./deploy/backup-db.sh
+#   ./deploy/backup-db.sh --host 101.50.84.209
+#   ./deploy/backup-db.sh --host 101.50.84.209 --pull-only   # copy latest VM backup only
 #
-# Optional env (or matching flags below):
+# Optional env / flags:
 #   WFM_SSH_HOST      VM hostname or IP          (required)
 #   WFM_SSH_USER      SSH user                   (default: adminprms98)
 #   WFM_SSH_KEY       Path to private key        (default: ~/.ssh/wfm_instance)
-#   WFM_REMOTE_DIR    App directory on the VM    (default: ~/wfm)
+#   WFM_REMOTE_DIR    App directory on the VM    (default: $HOME/wfm)
 #   WFM_BACKUP_DIR    Local folder for dumps     (default: <repo>/backups)
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -24,25 +27,29 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SSH_HOST="${WFM_SSH_HOST:-}"
 SSH_USER="${WFM_SSH_USER:-adminprms98}"
 SSH_KEY="${WFM_SSH_KEY:-$HOME/.ssh/wfm_instance}"
-REMOTE_DIR="${WFM_REMOTE_DIR:-~/wfm}"
+REMOTE_DIR="${WFM_REMOTE_DIR:-\$HOME/wfm}"
 BACKUP_DIR="${WFM_BACKUP_DIR:-$ROOT_DIR/backups}"
+PULL_ONLY=0
+DELETE_REMOTE=0
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,20p' "$0" | sed 's/^# \?//'
+  sed -n '2,24p' "$0" | sed 's/^# \?//'
   exit 0
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -H|--host)        SSH_HOST="$2"; shift 2 ;;
-    -u|--user)        SSH_USER="$2"; shift 2 ;;
-    -i|--identity)    SSH_KEY="$2"; shift 2 ;;
-    -d|--remote-dir)  REMOTE_DIR="$2"; shift 2 ;;
-    -o|--output)      BACKUP_DIR="$2"; shift 2 ;;
-    -h|--help)        usage ;;
+    -H|--host)         SSH_HOST="$2"; shift 2 ;;
+    -u|--user)         SSH_USER="$2"; shift 2 ;;
+    -i|--identity)     SSH_KEY="$2"; shift 2 ;;
+    -d|--remote-dir)   REMOTE_DIR="$2"; shift 2 ;;
+    -o|--output)       BACKUP_DIR="$2"; shift 2 ;;
+    --pull-only)       PULL_ONLY=1; shift ;;
+    --delete-remote)   DELETE_REMOTE=1; shift ;;
+    -h|--help)         usage ;;
     *) die "Unknown option: $1 (try --help)" ;;
   esac
 done
@@ -50,69 +57,86 @@ done
 [[ -n "$SSH_HOST" ]] || die "Set WFM_SSH_HOST or pass --host <ip>. Example:
   WFM_SSH_HOST=101.50.84.209 ./deploy/backup-db.sh"
 
-[[ -f "$SSH_KEY" ]] || die "SSH key not found: $SSH_KEY
-  Set WFM_SSH_KEY or pass --identity /path/to/key"
+SSH_KEY="${SSH_KEY/#\~/$HOME}"
+[[ -f "$SSH_KEY" ]] || die "SSH key not found: $SSH_KEY"
 
 command -v ssh >/dev/null 2>&1 || die "ssh is required"
-command -v scp >/dev/null 2>&1 || true
+command -v scp >/dev/null 2>&1 || die "scp is required"
+
+if [[ "$REMOTE_DIR" == '~/wfm' ]]; then
+  REMOTE_DIR='$HOME/wfm'
+fi
 
 mkdir -p "$BACKUP_DIR"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT_FILE="$BACKUP_DIR/wfm-${STAMP}.sql.gz"
-PARTIAL_FILE="${OUT_FILE}.partial"
+CONTROL_DIR="${TMPDIR:-/tmp}/wfm-ssh-$$"
+CONTROL_PATH="${CONTROL_DIR}/control-%r@%h:%p"
+mkdir -p "$CONTROL_DIR"
+
+REMOTE="${SSH_USER}@${SSH_HOST}"
+
+cleanup() {
+  ssh -O exit -o ControlPath="$CONTROL_PATH" "$REMOTE" >/dev/null 2>&1 || true
+  rm -rf "$CONTROL_DIR"
+}
+trap cleanup EXIT
 
 SSH_OPTS=(
   -i "$SSH_KEY"
   -o IdentitiesOnly=yes
   -o StrictHostKeyChecking=accept-new
   -o ConnectTimeout=15
+  -o ControlMaster=auto
+  -o ControlPath="$CONTROL_PATH"
+  -o ControlPersist=60
 )
 
-REMOTE="${SSH_USER}@${SSH_HOST}"
+log "Connecting to ${REMOTE} (enter key passphrase once if prompted)..."
+ssh "${SSH_OPTS[@]}" "$REMOTE" 'echo connected' >/dev/null \
+  || die "SSH failed. Try: ssh -i ${SSH_KEY} ${REMOTE}"
 
-log "Checking SSH access to ${REMOTE}..."
-ssh "${SSH_OPTS[@]}" "$REMOTE" "test -d ${REMOTE_DIR}" \
-  || die "Cannot reach ${REMOTE} or missing remote dir ${REMOTE_DIR}"
+REMOTE_REL=""
+if [[ "$PULL_ONLY" -eq 1 ]]; then
+  log "Step 1 skipped (--pull-only). Finding latest backup on VM..."
+  REMOTE_REL="$(
+    ssh "${SSH_OPTS[@]}" "$REMOTE" \
+      "set -e; cd ${REMOTE_DIR}; ls -1t backups/wfm-*.sql.gz 2>/dev/null | head -1"
+  )"
+  [[ -n "$REMOTE_REL" ]] || die "No backups found on VM under ${REMOTE_DIR}/backups/
+  On the VM run first: cd ~/wfm && make db-backup"
+else
+  log "Step 1/2 — creating backup on the VM (make db-backup)..."
+  REMOTE_OUT="$(
+    ssh "${SSH_OPTS[@]}" "$REMOTE" \
+      "set -e; cd ${REMOTE_DIR}; make db-backup"
+  )"
+  printf '%s\n' "$REMOTE_OUT"
+  REMOTE_REL="$(printf '%s\n' "$REMOTE_OUT" | sed -n 's/^CREATED://p' | tail -1)"
+  [[ -n "$REMOTE_REL" ]] || die "VM backup finished but no CREATED: path was printed.
+  On the VM check: cd ~/wfm && make db-backup"
+fi
 
-log "Dumping database on VM (streamed over SSH)..."
-# Credentials come from the postgres container env (Compose injects .env).
-# Custom format is avoided so the artifact stays a plain gzipped SQL dump,
-# matching the restore recipe in deploy/DEPLOYMENT.md.
-ssh "${SSH_OPTS[@]}" "$REMOTE" bash -s -- "$REMOTE_DIR" <<'REMOTE_EOF' >"$PARTIAL_FILE"
-set -euo pipefail
-REMOTE_DIR="$1"
-# Expand a leading ~ against the remote user's home (quoted paths skip tilde).
-case "$REMOTE_DIR" in
-  "~/"*) REMOTE_DIR="${HOME}/${REMOTE_DIR#~/}" ;;
-  "~")   REMOTE_DIR="${HOME}" ;;
-esac
-cd "$REMOTE_DIR"
-COMPOSE="docker compose -f docker-compose.prod.yml"
+REMOTE_NAME="$(basename "$REMOTE_REL")"
+OUT_FILE="$BACKUP_DIR/$REMOTE_NAME"
 
-$COMPOSE exec -T postgres true >/dev/null 2>&1 \
-  || { echo "postgres container is not running on the VM" >&2; exit 1; }
+REMOTE_ABS="$(
+  ssh "${SSH_OPTS[@]}" "$REMOTE" "cd ${REMOTE_DIR} && pwd"
+)"
+[[ -n "$REMOTE_ABS" ]] || die "Could not resolve remote app directory"
 
-$COMPOSE exec -T postgres sh -c \
-  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl' \
-  | gzip -c
-REMOTE_EOF
-
-mv "$PARTIAL_FILE" "$OUT_FILE"
+log "Step 2/2 — copying ${REMOTE_ABS}/${REMOTE_REL} → ${OUT_FILE}..."
+scp "${SSH_OPTS[@]}" "${REMOTE}:${REMOTE_ABS}/${REMOTE_REL}" "$OUT_FILE" \
+  || die "scp download failed"
 
 BYTES="$(wc -c <"$OUT_FILE" | tr -d ' ')"
-if [[ "$BYTES" -lt 100 ]]; then
-  rm -f "$OUT_FILE"
-  die "Backup looks empty (${BYTES} bytes). Check VM logs: make logs on the host."
-fi
+[[ "$BYTES" -ge 100 ]] || { rm -f "$OUT_FILE"; die "Downloaded backup empty (${BYTES} bytes)."; }
 
-# Human-readable size without requiring numfmt (macOS-friendly).
-if command -v du >/dev/null 2>&1; then
-  SIZE="$(du -h "$OUT_FILE" | awk '{print $1}')"
+if [[ "$DELETE_REMOTE" -eq 1 ]]; then
+  log "Removing VM copy (--delete-remote)..."
+  ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -f '${REMOTE_ABS}/${REMOTE_REL}'" || true
 else
-  SIZE="${BYTES}B"
+  log "VM copy kept at ${REMOTE_ABS}/${REMOTE_REL}"
 fi
 
-log "Backup saved: ${OUT_FILE} (${SIZE})"
-log "Restore later with (on the VM, into a running stack):
-  gunzip -c ${OUT_FILE} | docker compose -f docker-compose.prod.yml exec -T postgres \\
-    sh -c 'psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'"
+SIZE="$(du -h "$OUT_FILE" | awk '{print $1}')"
+log "Local backup: ${OUT_FILE} (${SIZE})"
+log "Done."

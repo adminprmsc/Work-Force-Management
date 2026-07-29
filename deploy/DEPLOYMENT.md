@@ -197,6 +197,7 @@ make logs-api        # API logs only
 make health          # edge + API health checks
 make migrate         # apply migrations only (no restart)
 make seed            # run idempotent seed manually
+make db-backup       # dump Postgres to ./backups/ (keep on VM)
 make down            # stop stack (data preserved)
 make db-shell        # psql into the database
 make prune           # reclaim disk from dangling images
@@ -204,36 +205,36 @@ make prune           # reclaim disk from dangling images
 
 ### Backups
 
-**From your Mac (recommended)** — stream a dump off the VM into `./backups/`:
+Two-step flow: **dump on the VM first**, then copy to your Mac.
+
+**Step 1 — on the VM** (keeps a copy under `~/wfm/backups/`):
 
 ```bash
-# One-time: ensure your SSH key works
-#   ssh -i ~/.ssh/wfm_instance adminprms98@<VM_IP>
-
-WFM_SSH_HOST=<VM_IP> ./deploy/backup-db.sh
-
-# Or with flags:
-./deploy/backup-db.sh --host <VM_IP> --identity ~/.ssh/wfm_instance
+ssh -i ~/.ssh/wfm_instance adminprms98@<VM_IP>
+cd ~/wfm
+make db-backup
+# → backups/wfm-YYYYMMDD-HHMMSS.sql.gz
 ```
 
-The script SSHs in, runs `pg_dump` inside the `postgres` container, and writes
-`backups/wfm-YYYYMMDD-HHMMSS.sql.gz` locally. Nothing is left on the VM disk.
-
-**On the VM** (manual dump kept on-box):
+**Step 2 — on your Mac** (copies that file into local `./backups/`):
 
 ```bash
-# Dump
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' | gzip > wfm-$(date +%F).sql.gz
+# Creates a fresh dump on the VM, then downloads it (VM copy is kept)
+WFM_SSH_HOST=<VM_IP> ./deploy/backup-db.sh
 
-# Restore (into a running DB — destructive; prefer restore into a fresh volume)
-gunzip -c wfm-YYYY-MM-DD.sql.gz | \
+# Or only download the latest dump already on the VM
+WFM_SSH_HOST=<VM_IP> ./deploy/backup-db.sh --pull-only
+```
+
+**Restore** (destructive — prefer restoring into a fresh volume):
+
+```bash
+gunzip -c backups/wfm-YYYYMMDD-HHMMSS.sql.gz | \
   docker compose -f docker-compose.prod.yml exec -T postgres \
   sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
-Schedule the Mac pull via launchd/cron, or dump on the VM and ship the artifact
-off-box (S3/object storage).
+Watch disk on the VM (`df -h`); prune old files under `~/wfm/backups/` when needed.
 
 ### Admin DB access (no public port)
 
