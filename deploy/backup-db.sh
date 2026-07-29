@@ -68,15 +68,17 @@ if [[ "$REMOTE_DIR" == '~/wfm' ]]; then
 fi
 
 mkdir -p "$BACKUP_DIR"
-CONTROL_DIR="${TMPDIR:-/tmp}/wfm-ssh-$$"
-CONTROL_PATH="${CONTROL_DIR}/control-%r@%h:%p"
-mkdir -p "$CONTROL_DIR"
 
 REMOTE="${SSH_USER}@${SSH_HOST}"
 
+# macOS caps Unix socket paths ~104 chars; TMPDIR paths are often too long.
+# %C is a short hash of the connection — keeps ControlPath under the limit.
+CONTROL_PATH="/tmp/wfm-ssh-%C"
+
 cleanup() {
-  ssh -O exit -o ControlPath="$CONTROL_PATH" "$REMOTE" >/dev/null 2>&1 || true
-  rm -rf "$CONTROL_DIR"
+  ssh -O exit \
+    -o ControlPath="$CONTROL_PATH" \
+    "$REMOTE" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
