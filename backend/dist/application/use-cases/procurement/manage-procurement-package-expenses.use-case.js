@@ -18,6 +18,8 @@ const procurement_access_policy_1 = require("../../../domain/policies/procuremen
 const procurement_package_expense_repository_port_1 = require("../../ports/procurement-package-expense.repository.port");
 const procurement_package_repository_port_1 = require("../../ports/procurement-package.repository.port");
 const procurement_actor_resolver_1 = require("../../services/procurement-actor.resolver");
+const audit_service_1 = require("../../services/audit.service");
+const audit_log_entity_1 = require("../../../domain/entities/audit-log.entity");
 function formatMoney(value) {
     return value.toFixed(2);
 }
@@ -58,10 +60,12 @@ let CreateProcurementPackageExpenseUseCase = class CreateProcurementPackageExpen
     packageRepository;
     expenseRepository;
     actorResolver;
-    constructor(packageRepository, expenseRepository, actorResolver) {
+    auditService;
+    constructor(packageRepository, expenseRepository, actorResolver, auditService) {
         this.packageRepository = packageRepository;
         this.expenseRepository = expenseRepository;
         this.actorResolver = actorResolver;
+        this.auditService = auditService;
     }
     async execute(user, packageId, command) {
         const actor = await this.actorResolver.resolve(user);
@@ -75,7 +79,7 @@ let CreateProcurementPackageExpenseUseCase = class CreateProcurementPackageExpen
         if (!pkg) {
             throw new common_1.NotFoundException('Procurement package not found');
         }
-        return this.expenseRepository.create({
+        const expense = await this.expenseRepository.create({
             packageId,
             amount: formatMoney(command.amount),
             description: command.description?.trim() || null,
@@ -84,6 +88,14 @@ let CreateProcurementPackageExpenseUseCase = class CreateProcurementPackageExpen
                 : undefined,
             createdById: user.id,
         });
+        await this.auditService.logPackageAction(user.id, audit_log_entity_1.AuditAction.PACKAGE_EXPENSE_CREATED, packageId, {
+            packageName: pkg.name,
+            expenseId: expense.id,
+            amount: expense.amount,
+            description: expense.description,
+            expenseDate: expense.expenseDate.toISOString(),
+        });
+        return expense;
     }
 };
 exports.CreateProcurementPackageExpenseUseCase = CreateProcurementPackageExpenseUseCase;
@@ -93,16 +105,19 @@ exports.CreateProcurementPackageExpenseUseCase = CreateProcurementPackageExpense
     __param(1, (0, common_1.Inject)(procurement_package_expense_repository_port_1.PROCUREMENT_PACKAGE_EXPENSE_REPOSITORY)),
     __metadata("design:paramtypes", [procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
         procurement_package_expense_repository_port_1.ProcurementPackageExpenseRepositoryPort,
-        procurement_actor_resolver_1.ProcurementActorResolver])
+        procurement_actor_resolver_1.ProcurementActorResolver,
+        audit_service_1.AuditService])
 ], CreateProcurementPackageExpenseUseCase);
 let UpdateProcurementPackageExpenseUseCase = class UpdateProcurementPackageExpenseUseCase {
     expenseRepository;
     packageRepository;
     actorResolver;
-    constructor(expenseRepository, packageRepository, actorResolver) {
+    auditService;
+    constructor(expenseRepository, packageRepository, actorResolver, auditService) {
         this.expenseRepository = expenseRepository;
         this.packageRepository = packageRepository;
         this.actorResolver = actorResolver;
+        this.auditService = auditService;
     }
     async execute(user, packageId, expenseId, command) {
         const actor = await this.actorResolver.resolve(user);
@@ -120,7 +135,7 @@ let UpdateProcurementPackageExpenseUseCase = class UpdateProcurementPackageExpen
         if (!expense || expense.packageId !== packageId) {
             throw new common_1.NotFoundException('Expense not found for this package');
         }
-        return this.expenseRepository.update(expenseId, {
+        const updated = await this.expenseRepository.update(expenseId, {
             amount: command.amount !== undefined ? formatMoney(command.amount) : undefined,
             description: command.description !== undefined
                 ? command.description?.trim() || null
@@ -129,6 +144,21 @@ let UpdateProcurementPackageExpenseUseCase = class UpdateProcurementPackageExpen
                 ? new Date(command.expenseDate)
                 : undefined,
         });
+        await this.auditService.logPackageAction(user.id, audit_log_entity_1.AuditAction.PACKAGE_EXPENSE_UPDATED, packageId, {
+            packageName: pkg.name,
+            expenseId: updated.id,
+            before: {
+                amount: expense.amount,
+                description: expense.description,
+                expenseDate: expense.expenseDate.toISOString(),
+            },
+            after: {
+                amount: updated.amount,
+                description: updated.description,
+                expenseDate: updated.expenseDate.toISOString(),
+            },
+        });
+        return updated;
     }
 };
 exports.UpdateProcurementPackageExpenseUseCase = UpdateProcurementPackageExpenseUseCase;
@@ -138,16 +168,19 @@ exports.UpdateProcurementPackageExpenseUseCase = UpdateProcurementPackageExpense
     __param(1, (0, common_1.Inject)(procurement_package_repository_port_1.PROCUREMENT_PACKAGE_REPOSITORY)),
     __metadata("design:paramtypes", [procurement_package_expense_repository_port_1.ProcurementPackageExpenseRepositoryPort,
         procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
-        procurement_actor_resolver_1.ProcurementActorResolver])
+        procurement_actor_resolver_1.ProcurementActorResolver,
+        audit_service_1.AuditService])
 ], UpdateProcurementPackageExpenseUseCase);
 let DeleteProcurementPackageExpenseUseCase = class DeleteProcurementPackageExpenseUseCase {
     expenseRepository;
     packageRepository;
     actorResolver;
-    constructor(expenseRepository, packageRepository, actorResolver) {
+    auditService;
+    constructor(expenseRepository, packageRepository, actorResolver, auditService) {
         this.expenseRepository = expenseRepository;
         this.packageRepository = packageRepository;
         this.actorResolver = actorResolver;
+        this.auditService = auditService;
     }
     async execute(user, packageId, expenseId) {
         const actor = await this.actorResolver.resolve(user);
@@ -162,6 +195,13 @@ let DeleteProcurementPackageExpenseUseCase = class DeleteProcurementPackageExpen
         if (!expense || expense.packageId !== packageId) {
             throw new common_1.NotFoundException('Expense not found for this package');
         }
+        await this.auditService.logPackageAction(user.id, audit_log_entity_1.AuditAction.PACKAGE_EXPENSE_DELETED, packageId, {
+            packageName: pkg.name,
+            expenseId: expense.id,
+            amount: expense.amount,
+            description: expense.description,
+            expenseDate: expense.expenseDate.toISOString(),
+        });
         await this.expenseRepository.delete(expenseId);
     }
 };
@@ -172,6 +212,7 @@ exports.DeleteProcurementPackageExpenseUseCase = DeleteProcurementPackageExpense
     __param(1, (0, common_1.Inject)(procurement_package_repository_port_1.PROCUREMENT_PACKAGE_REPOSITORY)),
     __metadata("design:paramtypes", [procurement_package_expense_repository_port_1.ProcurementPackageExpenseRepositoryPort,
         procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
-        procurement_actor_resolver_1.ProcurementActorResolver])
+        procurement_actor_resolver_1.ProcurementActorResolver,
+        audit_service_1.AuditService])
 ], DeleteProcurementPackageExpenseUseCase);
 //# sourceMappingURL=manage-procurement-package-expenses.use-case.js.map

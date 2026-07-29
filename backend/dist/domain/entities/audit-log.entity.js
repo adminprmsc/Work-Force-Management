@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AuditLog = exports.AuditAction = void 0;
+exports.AuditLog = exports.AUDIT_RESOURCE_TYPES = exports.AuditAction = void 0;
 var AuditAction;
 (function (AuditAction) {
     AuditAction["USER_CREATED"] = "USER_CREATED";
@@ -9,7 +9,24 @@ var AuditAction;
     AuditAction["USER_ACTIVATED"] = "USER_ACTIVATED";
     AuditAction["USER_DEACTIVATED"] = "USER_DEACTIVATED";
     AuditAction["USER_CREDENTIALS_RESET"] = "USER_CREDENTIALS_RESET";
+    AuditAction["PACKAGE_CREATED"] = "PACKAGE_CREATED";
+    AuditAction["PACKAGE_UPDATED"] = "PACKAGE_UPDATED";
+    AuditAction["PACKAGE_DELETED"] = "PACKAGE_DELETED";
+    AuditAction["PACKAGE_EXPENSE_CREATED"] = "PACKAGE_EXPENSE_CREATED";
+    AuditAction["PACKAGE_EXPENSE_UPDATED"] = "PACKAGE_EXPENSE_UPDATED";
+    AuditAction["PACKAGE_EXPENSE_DELETED"] = "PACKAGE_EXPENSE_DELETED";
+    AuditAction["PACKAGE_BASELINE_SAVED"] = "PACKAGE_BASELINE_SAVED";
+    AuditAction["SURVEY_ASSIGNMENT_CREATED"] = "SURVEY_ASSIGNMENT_CREATED";
+    AuditAction["SURVEY_ASSIGNMENT_DELETED"] = "SURVEY_ASSIGNMENT_DELETED";
+    AuditAction["SURVEY_RESPONSE_SUBMITTED"] = "SURVEY_RESPONSE_SUBMITTED";
+    AuditAction["SURVEY_RESPONSE_ACCEPTED"] = "SURVEY_RESPONSE_ACCEPTED";
+    AuditAction["SURVEY_RESPONSE_REJECTED"] = "SURVEY_RESPONSE_REJECTED";
+    AuditAction["SURVEY_RESPONSE_REVERTED"] = "SURVEY_RESPONSE_REVERTED";
 })(AuditAction || (exports.AuditAction = AuditAction = {}));
+exports.AUDIT_RESOURCE_TYPES = {
+    USER: 'user',
+    PROCUREMENT_PACKAGE: 'procurement_package',
+};
 class AuditLog {
     id;
     actorId;

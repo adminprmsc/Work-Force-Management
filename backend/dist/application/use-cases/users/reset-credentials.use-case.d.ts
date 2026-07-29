@@ -5,6 +5,7 @@ import { AuditService } from '../../services/audit.service';
 export interface ActorContext {
     id: string;
     role: UserRole;
+    canManageUsers: boolean;
 }
 export interface ResetCredentialsResult {
     email: string;

@@ -22,10 +22,27 @@ import { SurveyFormsPage } from "@/pages/survey/survey-forms-page"
 import { SurveyResponseDetailPage } from "@/pages/survey/survey-response-detail-page"
 import { SurveyResponsesPage } from "@/pages/survey/survey-responses-page"
 import { UsersPage } from "@/pages/users/users-page"
+import { UserCreatePage } from "@/pages/users/user-create-page"
+import { UserEditPage } from "@/pages/users/user-edit-page"
 
 export function DashboardRoutes() {
   return (
     <Routes>
+      <Route
+        path="users"
+        element={
+          <ProtectedRoute
+            allowedRoles={[Role.SENIOR_MANAGER_ES, Role.RA_ENVIRONMENT_HO]}
+          >
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<UsersPage />} />
+        <Route path="create" element={<UserCreatePage />} />
+        <Route path=":userId/edit" element={<UserEditPage />} />
+      </Route>
+
       <Route
         path="senior-manager"
         element={
@@ -35,7 +52,7 @@ export function DashboardRoutes() {
         }
       >
         <Route index element={<SeniorManagerOverviewPage />} />
-        <Route path="users" element={<UsersPage />} />
+        <Route path="users/*" element={<Navigate to="/dashboard/users" replace />} />
         <Route path="offices" element={<OfficesPage />} />
         <Route path="audit-logs" element={<AuditLogsPage />} />
         <Route path="geography" element={<GeographyPage />} />
@@ -91,6 +108,7 @@ export function DashboardRoutes() {
         <Route path="form-dashboards/:formId" element={<FormDashboardPage />} />
         <Route path="geography" element={<GeographyPage />} />
         <Route path="geography-admin" element={<GeographyAdminPage />} />
+        <Route path="users/*" element={<Navigate to="/dashboard/users" replace />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
 

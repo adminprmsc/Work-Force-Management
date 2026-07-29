@@ -30,6 +30,8 @@ import {
 } from '../../ports/survey-form-revision.repository.port';
 import { SurveyScopeResolver } from '../../services/survey-scope.resolver';
 import { AssignmentBaselineEnricher } from '../../services/assignment-baseline.enricher';
+import { AuditService } from '../../services/audit.service';
+import { AuditAction } from '../../../domain/entities/audit-log.entity';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 
 export interface CreateSurveyAssignmentsCommand {
@@ -83,6 +85,7 @@ export class CreateSurveyAssignmentsUseCase {
     private readonly packageRepository: ProcurementPackageRepositoryPort,
     private readonly scopeResolver: SurveyScopeResolver,
     private readonly baselineEnricher: AssignmentBaselineEnricher,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -150,7 +153,7 @@ export class CreateSurveyAssignmentsUseCase {
         continue; // already assigned — idempotent
       }
 
-      await this.assignmentRepository.create({
+      const created = await this.assignmentRepository.create({
         formId,
         formRevisionId,
         tehsilId: pkg.tehsil.id,
@@ -161,6 +164,21 @@ export class CreateSurveyAssignmentsUseCase {
         endDate,
         instructions,
       });
+
+      await this.auditService.logPackageAction(
+        user.id,
+        AuditAction.SURVEY_ASSIGNMENT_CREATED,
+        packageId,
+        {
+          packageName: pkg.name,
+          assignmentId: created.id,
+          formId: form.id,
+          formTitle: form.title,
+          frequency: command.frequency,
+          startDate: command.startDate,
+          endDate: command.endDate,
+        },
+      );
     }
 
     const assignments = await this.assignmentRepository.findByForm(formId);
@@ -174,6 +192,7 @@ export class DeleteSurveyAssignmentUseCase {
     @Inject(SURVEY_ASSIGNMENT_REPOSITORY)
     private readonly assignmentRepository: SurveyAssignmentRepositoryPort,
     private readonly scopeResolver: SurveyScopeResolver,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(user: AuthenticatedUser, assignmentId: string): Promise<void> {
@@ -192,6 +211,18 @@ export class DeleteSurveyAssignmentUseCase {
         'Cannot remove an assignment that already has responses',
       );
     }
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.SURVEY_ASSIGNMENT_DELETED,
+      assignment.procurementPackage.id,
+      {
+        packageName: assignment.procurementPackage.name,
+        assignmentId: assignment.id,
+        formId: assignment.formId,
+        formTitle: assignment.formTitle,
+      },
+    );
 
     await this.assignmentRepository.delete(assignmentId);
   }

@@ -13,6 +13,7 @@ function toUserResponse(user) {
         username: user.username,
         role: user.role,
         status: user.status,
+        canManageUsers: user.canManageUsers,
         officeId: user.officeId,
         officeName: user.officeName,
         officeType: user.officeType,
@@ -23,6 +24,10 @@ function toUserResponse(user) {
     };
 }
 function toActorContext(user) {
-    return { id: user.id, role: user.role };
+    return {
+        id: user.id,
+        role: user.role,
+        canManageUsers: user.canManageUsers,
+    };
 }
 //# sourceMappingURL=user.mapper.js.map

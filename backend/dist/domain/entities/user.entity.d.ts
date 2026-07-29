@@ -21,6 +21,7 @@ export declare class User {
     readonly role: UserRole;
     readonly status: UserStatus;
     readonly mustChangePassword: boolean;
+    readonly canManageUsers: boolean;
     readonly officeId: string | null;
     readonly officeName: string | null;
     readonly officeType: OfficeType | null;
@@ -28,5 +29,5 @@ export declare class User {
     readonly createdById: string | null;
     readonly createdAt: Date;
     readonly updatedAt: Date;
-    constructor(id: string, email: string, username: string, password: string, role: UserRole, status: UserStatus, mustChangePassword: boolean, officeId: string | null, officeName: string | null, officeType: OfficeType | null, tehsilName: string | null, createdById: string | null, createdAt: Date, updatedAt: Date);
+    constructor(id: string, email: string, username: string, password: string, role: UserRole, status: UserStatus, mustChangePassword: boolean, canManageUsers: boolean, officeId: string | null, officeName: string | null, officeType: OfficeType | null, tehsilName: string | null, createdById: string | null, createdAt: Date, updatedAt: Date);
 }

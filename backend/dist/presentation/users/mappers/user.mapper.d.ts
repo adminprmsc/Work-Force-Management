@@ -5,6 +5,7 @@ export declare function toUserResponse(user: User): {
     username: string;
     role: UserRole;
     status: UserStatus;
+    canManageUsers: boolean;
     officeId: string | null;
     officeName: string | null;
     officeType: import("../../../domain/entities/user.entity").OfficeType | null;
@@ -16,8 +17,10 @@ export declare function toUserResponse(user: User): {
 export declare function toActorContext(user: {
     id: string;
     role: UserRole;
+    canManageUsers: boolean;
 }): {
     id: string;
     role: UserRole;
+    canManageUsers: boolean;
 };
 export { UserRole, UserStatus };

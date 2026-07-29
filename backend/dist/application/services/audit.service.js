@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuditService = void 0;
 const common_1 = require("@nestjs/common");
+const audit_log_entity_1 = require("../../domain/entities/audit-log.entity");
 const audit_log_repository_port_1 = require("../ports/audit-log.repository.port");
 let AuditService = class AuditService {
     auditLogRepository;
@@ -27,8 +28,17 @@ let AuditService = class AuditService {
         await this.log({
             actorId,
             action,
-            resourceType: 'user',
+            resourceType: audit_log_entity_1.AUDIT_RESOURCE_TYPES.USER,
             resourceId: targetUserId,
+            metadata: metadata ?? null,
+        });
+    }
+    async logPackageAction(actorId, action, packageId, metadata) {
+        await this.log({
+            actorId,
+            action,
+            resourceType: audit_log_entity_1.AUDIT_RESOURCE_TYPES.PROCUREMENT_PACKAGE,
+            resourceId: packageId,
             metadata: metadata ?? null,
         });
     }

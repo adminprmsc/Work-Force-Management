@@ -5,4 +5,5 @@ export interface AuthenticatedUser {
     username: string;
     role: UserRole;
     mustChangePassword: boolean;
+    canManageUsers: boolean;
 }

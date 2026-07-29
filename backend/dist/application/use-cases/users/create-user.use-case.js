@@ -33,7 +33,7 @@ let CreateUserUseCase = class CreateUserUseCase {
         this.auditService = auditService;
     }
     async execute(actor, input) {
-        if (!(0, user_management_policy_1.canCreateRole)(actor.role, input.role)) {
+        if (!(0, user_management_policy_1.canCreateRole)(actor, input.role)) {
             throw new common_1.ForbiddenException(`You are not allowed to create users with role ${input.role}`);
         }
         const requiredOfficeType = (0, user_management_policy_1.requiredOfficeTypeForRole)(input.role);

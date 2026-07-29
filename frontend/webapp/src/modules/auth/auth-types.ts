@@ -6,6 +6,7 @@ export type AuthenticatedUser = {
   username: string
   role: Role
   mustChangePassword: boolean
+  canManageUsers: boolean
 }
 
 export type AuthResult = {
@@ -16,7 +17,7 @@ export type AuthResult = {
     username: string
     role: Role
     mustChangePassword: boolean
+    canManageUsers: boolean
     createdAt: string
   }
 }
-

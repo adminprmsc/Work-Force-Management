@@ -1,11 +1,11 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { AuditLog } from '../../../domain/entities/audit-log.entity';
 import { UserRole } from '../../../domain/entities/user.entity';
 import {
   AUDIT_LOG_REPOSITORY,
   AuditLogRepositoryPort,
   ListAuditLogsFilter,
 } from '../../ports/audit-log.repository.port';
-import { AuditLog } from '../../../domain/entities/audit-log.entity';
 
 export interface ActorContext {
   id: string;

@@ -16,6 +16,7 @@ exports.ProcurementPackagesController = void 0;
 const common_1 = require("@nestjs/common");
 const manage_procurement_package_expenses_use_case_1 = require("../../application/use-cases/procurement/manage-procurement-package-expenses.use-case");
 const list_package_baseline_forms_use_case_1 = require("../../application/use-cases/procurement/list-package-baseline-forms.use-case");
+const list_package_activity_use_case_1 = require("../../application/use-cases/procurement/list-package-activity.use-case");
 const manage_package_baseline_use_case_1 = require("../../application/use-cases/procurement/manage-package-baseline.use-case");
 const manage_procurement_packages_use_case_1 = require("../../application/use-cases/procurement/manage-procurement-packages.use-case");
 const user_entity_1 = require("../../domain/entities/user.entity");
@@ -55,7 +56,8 @@ let ProcurementPackagesController = class ProcurementPackagesController {
     getPackageBaselineUseCase;
     savePackageBaselineUseCase;
     listPackageBaselineFormsUseCase;
-    constructor(listPackagesUseCase, getPackageUseCase, previewNameUseCase, createPackageUseCase, updatePackageUseCase, deletePackageUseCase, listExpensesUseCase, createExpenseUseCase, updateExpenseUseCase, deleteExpenseUseCase, getPackageBaselineUseCase, savePackageBaselineUseCase, listPackageBaselineFormsUseCase) {
+    listPackageActivityUseCase;
+    constructor(listPackagesUseCase, getPackageUseCase, previewNameUseCase, createPackageUseCase, updatePackageUseCase, deletePackageUseCase, listExpensesUseCase, createExpenseUseCase, updateExpenseUseCase, deleteExpenseUseCase, getPackageBaselineUseCase, savePackageBaselineUseCase, listPackageBaselineFormsUseCase, listPackageActivityUseCase) {
         this.listPackagesUseCase = listPackagesUseCase;
         this.getPackageUseCase = getPackageUseCase;
         this.previewNameUseCase = previewNameUseCase;
@@ -69,12 +71,16 @@ let ProcurementPackagesController = class ProcurementPackagesController {
         this.getPackageBaselineUseCase = getPackageBaselineUseCase;
         this.savePackageBaselineUseCase = savePackageBaselineUseCase;
         this.listPackageBaselineFormsUseCase = listPackageBaselineFormsUseCase;
+        this.listPackageActivityUseCase = listPackageActivityUseCase;
     }
     async list(user, query) {
         const pagination = (0, pagination_1.resolvePagination)(query);
-        const result = await this.listPackagesUseCase.execute(user, pagination);
+        const result = await this.listPackagesUseCase.execute(user, {
+            page: pagination.page,
+            limit: pagination.limit,
+        });
         return {
-            items: result.items.map(procurement_mapper_1.toProcurementPackageResponse),
+            items: result.items.map((pkg) => (0, procurement_mapper_1.toProcurementPackageResponse)(pkg)),
             total: result.total,
             page: result.page,
             limit: result.limit,
@@ -82,6 +88,31 @@ let ProcurementPackagesController = class ProcurementPackagesController {
     }
     async previewName(user, tehsilId) {
         return this.previewNameUseCase.execute(user, tehsilId);
+    }
+    async listActivity(user, id, query) {
+        const pagination = (0, pagination_1.resolvePagination)(query);
+        const result = await this.listPackageActivityUseCase.execute(user, id, {
+            page: pagination.page,
+            limit: pagination.limit,
+        });
+        return {
+            items: result.items.map((log) => ({
+                id: log.id,
+                action: log.action,
+                resourceType: log.resourceType,
+                resourceId: log.resourceId,
+                metadata: log.metadata,
+                createdAt: log.createdAt,
+                actor: {
+                    id: log.actorId,
+                    email: log.actorEmail,
+                    username: log.actorUsername,
+                },
+            })),
+            total: result.total,
+            page: pagination.page,
+            limit: pagination.limit,
+        };
     }
     async listExpenses(user, id) {
         const expenses = await this.listExpensesUseCase.execute(user, id);
@@ -147,6 +178,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], ProcurementPackagesController.prototype, "previewName", null);
+__decorate([
+    (0, common_1.Get)(':id/activity'),
+    (0, roles_decorator_1.Roles)(...PROCUREMENT_READERS),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', common_1.ParseUUIDPipe)),
+    __param(2, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, pagination_1.PaginationQueryDto]),
+    __metadata("design:returntype", Promise)
+], ProcurementPackagesController.prototype, "listActivity", null);
 __decorate([
     (0, common_1.Get)(':id/expenses'),
     (0, roles_decorator_1.Roles)(...PROCUREMENT_READERS),
@@ -269,6 +310,7 @@ exports.ProcurementPackagesController = ProcurementPackagesController = __decora
         manage_procurement_package_expenses_use_case_1.DeleteProcurementPackageExpenseUseCase,
         manage_package_baseline_use_case_1.GetPackageFormBaselineUseCase,
         manage_package_baseline_use_case_1.SavePackageFormBaselineUseCase,
-        list_package_baseline_forms_use_case_1.ListPackageBaselineFormsUseCase])
+        list_package_baseline_forms_use_case_1.ListPackageBaselineFormsUseCase,
+        list_package_activity_use_case_1.ListPackageActivityUseCase])
 ], ProcurementPackagesController);
 //# sourceMappingURL=procurement-packages.controller.js.map

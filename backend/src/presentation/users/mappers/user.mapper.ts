@@ -11,6 +11,7 @@ export function toUserResponse(user: User) {
     username: user.username,
     role: user.role,
     status: user.status,
+    canManageUsers: user.canManageUsers,
     officeId: user.officeId,
     officeName: user.officeName,
     officeType: user.officeType,
@@ -21,8 +22,16 @@ export function toUserResponse(user: User) {
   };
 }
 
-export function toActorContext(user: { id: string; role: UserRole }) {
-  return { id: user.id, role: user.role };
+export function toActorContext(user: {
+  id: string;
+  role: UserRole;
+  canManageUsers: boolean;
+}) {
+  return {
+    id: user.id,
+    role: user.role,
+    canManageUsers: user.canManageUsers,
+  };
 }
 
 export { UserRole, UserStatus };

@@ -60,6 +60,7 @@ export class AuthService {
         username: user.username,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
+        canManageUsers: user.canManageUsers,
         createdAt: user.createdAt,
       },
     };

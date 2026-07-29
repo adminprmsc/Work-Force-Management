@@ -22,7 +22,16 @@ export class AuditLogsController {
   ) {
     const result = await this.listAuditLogsUseCase.execute(
       toActorContext(actor),
-      query,
+      {
+        page: query.page,
+        limit: query.limit,
+        resourceType: query.resourceType,
+        resourceId: query.resourceId,
+        action: query.action,
+        actorId: query.actorId,
+        userId: query.userId,
+        search: query.search,
+      },
     );
 
     return {

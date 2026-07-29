@@ -54,12 +54,14 @@ import { PrismaSurveyResponseRepository } from '../../infrastructure/database/re
 import { PrismaSurveyAttachmentRepository } from '../../infrastructure/database/repositories/prisma-survey-attachment.repository';
 import { PrismaTehsilRepository } from '../../infrastructure/database/repositories/prisma-tehsil.repository';
 import { PrismaUserRepository } from '../../infrastructure/database/repositories/prisma-user.repository';
+import { AuditModule } from '../audit/audit.module';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { SurveyAssignmentsController } from './survey-assignments.controller';
 import { SurveyFormsController } from './survey-forms.controller';
 import { SurveyResponsesController } from './survey-responses.controller';
 
 @Module({
+  imports: [AuditModule],
   controllers: [
     SurveyFormsController,
     SurveyAssignmentsController,

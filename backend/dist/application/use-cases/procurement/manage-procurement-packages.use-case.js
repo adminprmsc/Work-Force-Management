@@ -21,6 +21,8 @@ const procurement_actor_resolver_1 = require("../../services/procurement-actor.r
 const procurement_package_validator_1 = require("../../services/procurement-package.validator");
 const procurement_package_naming_service_1 = require("../../services/procurement-package-naming.service");
 const procurement_package_budget_enricher_1 = require("../../services/procurement-package-budget.enricher");
+const audit_service_1 = require("../../services/audit.service");
+const audit_log_entity_1 = require("../../../domain/entities/audit-log.entity");
 function formatMoney(value) {
     return value.toFixed(2);
 }
@@ -92,15 +94,15 @@ let ListProcurementPackagesUseCase = class ListProcurementPackagesUseCase {
         const filter = {
             page,
             limit,
-            ...(actor.role === user_entity_1.UserRole.RA_ES_TEHSIL && actor.tehsilId
-                ? { tehsilId: actor.tehsilId }
-                : {}),
         };
-        const result = await this.packageRepository.findAll(filter);
-        const items = await this.budgetEnricher.enrich(result.items);
+        if (actor.role === user_entity_1.UserRole.RA_ES_TEHSIL && actor.tehsilId) {
+            filter.tehsilId = actor.tehsilId;
+        }
+        const listed = await this.packageRepository.findAll(filter);
+        const items = await this.budgetEnricher.enrich(listed.items);
         return {
             items,
-            total: result.total,
+            total: listed.total,
             page,
             limit,
         };
@@ -172,11 +174,13 @@ let CreateProcurementPackageUseCase = class CreateProcurementPackageUseCase {
     actorResolver;
     packageValidator;
     namingService;
-    constructor(packageRepository, actorResolver, packageValidator, namingService) {
+    auditService;
+    constructor(packageRepository, actorResolver, packageValidator, namingService, auditService) {
         this.packageRepository = packageRepository;
         this.actorResolver = actorResolver;
         this.packageValidator = packageValidator;
         this.namingService = namingService;
+        this.auditService = auditService;
     }
     async execute(user, command) {
         const actor = await this.actorResolver.resolve(user);
@@ -203,7 +207,7 @@ let CreateProcurementPackageUseCase = class CreateProcurementPackageUseCase {
         const villageAllocations = resolveVillageAllocations(command.budgetAmount, command.villageIds, command.villageAllocations);
         const name = await this.namingService.resolvePackageName(cluster, code, command.tehsilId);
         await assertUniquePackageName(this.packageRepository, name);
-        return this.packageRepository.create({
+        const created = await this.packageRepository.create({
             name,
             budgetAmount: formatMoney(command.budgetAmount),
             contractorId: command.contractorId,
@@ -211,6 +215,19 @@ let CreateProcurementPackageUseCase = class CreateProcurementPackageUseCase {
             tehsilId: command.tehsilId,
             villageAllocations,
         });
+        await this.auditService.logPackageAction(user.id, audit_log_entity_1.AuditAction.PACKAGE_CREATED, created.id, {
+            packageName: created.name,
+            budgetAmount: created.budgetAmount,
+            contractorId: created.contractor.id,
+            contractorName: created.contractor.name,
+            consultantId: created.consultant.id,
+            consultantName: created.consultant.name,
+            tehsilId: created.tehsil.id,
+            tehsilName: created.tehsil.displayName,
+            villageIds: created.villages.map((v) => v.id),
+            villageNames: created.villages.map((v) => v.name),
+        });
+        return created;
     }
 };
 exports.CreateProcurementPackageUseCase = CreateProcurementPackageUseCase;
@@ -220,16 +237,19 @@ exports.CreateProcurementPackageUseCase = CreateProcurementPackageUseCase = __de
     __metadata("design:paramtypes", [procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
         procurement_actor_resolver_1.ProcurementActorResolver,
         procurement_package_validator_1.ProcurementPackageValidator,
-        procurement_package_naming_service_1.ProcurementPackageNamingService])
+        procurement_package_naming_service_1.ProcurementPackageNamingService,
+        audit_service_1.AuditService])
 ], CreateProcurementPackageUseCase);
 let UpdateProcurementPackageUseCase = class UpdateProcurementPackageUseCase {
     packageRepository;
     actorResolver;
     packageValidator;
-    constructor(packageRepository, actorResolver, packageValidator) {
+    auditService;
+    constructor(packageRepository, actorResolver, packageValidator, auditService) {
         this.packageRepository = packageRepository;
         this.actorResolver = actorResolver;
         this.packageValidator = packageValidator;
+        this.auditService = auditService;
     }
     async execute(user, id, command) {
         const actor = await this.actorResolver.resolve(user);
@@ -258,9 +278,7 @@ let UpdateProcurementPackageUseCase = class UpdateProcurementPackageUseCase {
         const villageIds = command.villageIds ?? existing.villages.map((village) => village.id);
         const contractorId = command.contractorId ?? existing.contractor.id;
         const consultantId = command.consultantId ?? existing.consultant.id;
-        if (command.villageIds ||
-            command.contractorId ||
-            command.consultantId) {
+        if (command.villageIds || command.contractorId || command.consultantId) {
             await this.packageValidator.validate({
                 contractorId,
                 consultantId,
@@ -275,7 +293,7 @@ let UpdateProcurementPackageUseCase = class UpdateProcurementPackageUseCase {
             command.budgetAmount !== undefined) {
             villageAllocations = resolveVillageAllocations(budgetAmount, villageIds, command.villageAllocations);
         }
-        return this.packageRepository.update(id, {
+        const updated = await this.packageRepository.update(id, {
             name: nextName,
             budgetAmount: command.budgetAmount !== undefined
                 ? formatMoney(command.budgetAmount)
@@ -284,6 +302,38 @@ let UpdateProcurementPackageUseCase = class UpdateProcurementPackageUseCase {
             consultantId: command.consultantId,
             villageAllocations,
         });
+        await this.auditService.logPackageAction(user.id, audit_log_entity_1.AuditAction.PACKAGE_UPDATED, updated.id, {
+            packageName: updated.name,
+            before: {
+                name: existing.name,
+                budgetAmount: existing.budgetAmount,
+                contractorId: existing.contractor.id,
+                contractorName: existing.contractor.name,
+                consultantId: existing.consultant.id,
+                consultantName: existing.consultant.name,
+                villageIds: existing.villages.map((v) => v.id),
+                villageNames: existing.villages.map((v) => v.name),
+            },
+            after: {
+                name: updated.name,
+                budgetAmount: updated.budgetAmount,
+                contractorId: updated.contractor.id,
+                contractorName: updated.contractor.name,
+                consultantId: updated.consultant.id,
+                consultantName: updated.consultant.name,
+                villageIds: updated.villages.map((v) => v.id),
+                villageNames: updated.villages.map((v) => v.name),
+            },
+            changes: {
+                name: command.name !== undefined,
+                budgetAmount: command.budgetAmount !== undefined,
+                contractor: command.contractorId !== undefined,
+                consultant: command.consultantId !== undefined,
+                villages: command.villageIds !== undefined ||
+                    command.villageAllocations !== undefined,
+            },
+        });
+        return updated;
     }
 };
 exports.UpdateProcurementPackageUseCase = UpdateProcurementPackageUseCase;
@@ -292,14 +342,17 @@ exports.UpdateProcurementPackageUseCase = UpdateProcurementPackageUseCase = __de
     __param(0, (0, common_1.Inject)(procurement_package_repository_port_1.PROCUREMENT_PACKAGE_REPOSITORY)),
     __metadata("design:paramtypes", [procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
         procurement_actor_resolver_1.ProcurementActorResolver,
-        procurement_package_validator_1.ProcurementPackageValidator])
+        procurement_package_validator_1.ProcurementPackageValidator,
+        audit_service_1.AuditService])
 ], UpdateProcurementPackageUseCase);
 let DeleteProcurementPackageUseCase = class DeleteProcurementPackageUseCase {
     packageRepository;
     actorResolver;
-    constructor(packageRepository, actorResolver) {
+    auditService;
+    constructor(packageRepository, actorResolver, auditService) {
         this.packageRepository = packageRepository;
         this.actorResolver = actorResolver;
+        this.auditService = auditService;
     }
     async execute(user, id) {
         const actor = await this.actorResolver.resolve(user);
@@ -310,6 +363,18 @@ let DeleteProcurementPackageUseCase = class DeleteProcurementPackageUseCase {
         if (!existing) {
             throw new common_1.NotFoundException('Procurement package not found');
         }
+        await this.auditService.logPackageAction(user.id, audit_log_entity_1.AuditAction.PACKAGE_DELETED, existing.id, {
+            packageName: existing.name,
+            budgetAmount: existing.budgetAmount,
+            contractorId: existing.contractor.id,
+            contractorName: existing.contractor.name,
+            consultantId: existing.consultant.id,
+            consultantName: existing.consultant.name,
+            tehsilId: existing.tehsil.id,
+            tehsilName: existing.tehsil.displayName,
+            villageIds: existing.villages.map((v) => v.id),
+            villageNames: existing.villages.map((v) => v.name),
+        });
         await this.packageRepository.delete(id);
     }
 };
@@ -318,6 +383,7 @@ exports.DeleteProcurementPackageUseCase = DeleteProcurementPackageUseCase = __de
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(procurement_package_repository_port_1.PROCUREMENT_PACKAGE_REPOSITORY)),
     __metadata("design:paramtypes", [procurement_package_repository_port_1.ProcurementPackageRepositoryPort,
-        procurement_actor_resolver_1.ProcurementActorResolver])
+        procurement_actor_resolver_1.ProcurementActorResolver,
+        audit_service_1.AuditService])
 ], DeleteProcurementPackageUseCase);
 //# sourceMappingURL=manage-procurement-packages.use-case.js.map

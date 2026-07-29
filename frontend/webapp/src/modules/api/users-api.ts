@@ -13,13 +13,19 @@ export type CreateUserInput = {
 export type UpdateUserInput = {
   email?: string
   username?: string
+  role?: Role
   officeId?: string
+  canManageUsers?: boolean
 }
 
 export type ResetUserCredentialsResult = {
   email: string
   username: string
   temporaryPassword: string
+}
+
+export function getUser(token: string, userId: string): Promise<User> {
+  return apiRequest<User>(`/users/${userId}`, { method: "GET", token })
 }
 
 export function listUsers(token: string): Promise<User[]> {

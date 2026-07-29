@@ -75,7 +75,9 @@ export function DashboardLayout() {
   const navigate = useNavigate();
 
   const user = auth.status === "authenticated" ? auth.user : null;
-  const navGroups = user ? getNavGroupsForRole(user.role) : [];
+  const navGroups = user
+    ? getNavGroupsForRole(user.role, { canManageUsers: user.canManageUsers })
+    : [];
   const meta = getRouteMeta(location.pathname);
   const profilePath = user ? getProfilePath(user.role) : null;
 

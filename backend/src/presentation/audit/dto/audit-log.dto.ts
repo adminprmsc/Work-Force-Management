@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { AuditAction } from '../../../domain/entities/audit-log.entity';
 
 export class ListAuditLogsQueryDto {
   @IsOptional()
@@ -14,4 +24,29 @@ export class ListAuditLogsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  @IsOptional()
+  @IsString()
+  resourceType?: string;
+
+  @IsOptional()
+  @IsUUID()
+  resourceId?: string;
+
+  @IsOptional()
+  @IsEnum(AuditAction)
+  action?: AuditAction;
+
+  @IsOptional()
+  @IsUUID()
+  actorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
 }

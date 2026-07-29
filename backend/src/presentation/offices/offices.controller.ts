@@ -14,7 +14,7 @@ class ListOfficesQueryDto {
 
 @Controller('offices')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SENIOR_MANAGER_ES)
+@Roles(UserRole.SENIOR_MANAGER_ES, UserRole.RA_ENVIRONMENT_HO)
 export class OfficesController {
   constructor(private readonly listOfficesUseCase: ListOfficesUseCase) {}
 

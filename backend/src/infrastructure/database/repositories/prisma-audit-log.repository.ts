@@ -11,6 +11,18 @@ import {
 } from '../../../application/ports/audit-log.repository.port';
 import { PrismaService } from '../prisma/prisma.service';
 
+const SEARCHABLE_METADATA_KEYS = [
+  'targetUsername',
+  'targetEmail',
+  'packageName',
+  'formTitle',
+  'villageName',
+  'contractorName',
+  'consultantName',
+  'respondentUsername',
+  'description',
+];
+
 @Injectable()
 export class PrismaAuditLogRepository implements AuditLogRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
@@ -37,14 +49,47 @@ export class PrismaAuditLogRepository implements AuditLogRepositoryPort {
     const limit = filter?.limit ?? 20;
     const skip = (page - 1) * limit;
 
+    const where: Prisma.AuditLogWhereInput = {};
+    if (filter?.resourceType) where.resourceType = filter.resourceType;
+    if (filter?.resourceId) where.resourceId = filter.resourceId;
+    if (filter?.action) where.action = filter.action;
+    if (filter?.actorId) where.actorId = filter.actorId;
+
+    const conditions: Prisma.AuditLogWhereInput[] = [];
+    if (filter?.userId) {
+      conditions.push({
+        OR: [{ actorId: filter.userId }, { resourceId: filter.userId }],
+      });
+    }
+
+    const search = filter?.search?.trim();
+    if (search) {
+      conditions.push({
+        OR: [
+          { actor: { username: { contains: search, mode: 'insensitive' } } },
+          { actor: { email: { contains: search, mode: 'insensitive' } } },
+          ...SEARCHABLE_METADATA_KEYS.map((key) => ({
+            metadata: {
+              path: [key],
+              string_contains: search,
+              mode: 'insensitive' as const,
+            },
+          })),
+        ],
+      });
+    }
+
+    if (conditions.length > 0) where.AND = conditions;
+
     const [records, total] = await Promise.all([
       this.prisma.auditLog.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: { actor: true },
       }),
-      this.prisma.auditLog.count(),
+      this.prisma.auditLog.count({ where }),
     ]);
 
     return {

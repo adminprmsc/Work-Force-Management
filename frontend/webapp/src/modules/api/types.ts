@@ -10,6 +10,7 @@ export type User = {
   username: string
   role: Role
   status: UserStatus
+  canManageUsers: boolean
   officeId: string | null
   officeName: string | null
   officeType: OfficeType | null
@@ -58,6 +59,19 @@ export type AuditAction =
   | "USER_ACTIVATED"
   | "USER_DEACTIVATED"
   | "USER_CREDENTIALS_RESET"
+  | "PACKAGE_CREATED"
+  | "PACKAGE_UPDATED"
+  | "PACKAGE_DELETED"
+  | "PACKAGE_EXPENSE_CREATED"
+  | "PACKAGE_EXPENSE_UPDATED"
+  | "PACKAGE_EXPENSE_DELETED"
+  | "PACKAGE_BASELINE_SAVED"
+  | "SURVEY_ASSIGNMENT_CREATED"
+  | "SURVEY_ASSIGNMENT_DELETED"
+  | "SURVEY_RESPONSE_SUBMITTED"
+  | "SURVEY_RESPONSE_ACCEPTED"
+  | "SURVEY_RESPONSE_REJECTED"
+  | "SURVEY_RESPONSE_REVERTED"
 
 export type AuditLog = {
   id: string

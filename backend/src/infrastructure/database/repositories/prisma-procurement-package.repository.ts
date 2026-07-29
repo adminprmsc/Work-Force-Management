@@ -5,6 +5,7 @@ import {
   ProcurementPackageRepositoryPort,
   UpdateProcurementPackageData,
 } from '../../../application/ports/procurement-package.repository.port';
+import { ProcurementPackage } from '../../../domain/entities/procurement-package.entity';
 import {
   asProcurementPrisma,
   ProcurementPackageInclude,
@@ -38,7 +39,9 @@ export class PrismaProcurementPackageRepository implements ProcurementPackageRep
     },
   };
 
-  async findAll(filter?: ListProcurementPackagesFilter) {
+  async findAll(
+    filter?: ListProcurementPackagesFilter,
+  ): Promise<{ items: ProcurementPackage[]; total: number }> {
     const page = Math.max(1, filter?.page ?? 1);
     const limit = filter?.limit ?? 25;
     const skip = (page - 1) * limit;

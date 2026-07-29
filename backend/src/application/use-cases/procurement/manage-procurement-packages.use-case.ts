@@ -14,6 +14,7 @@ import {
   canReadProcurementPackages,
 } from '../../../domain/policies/procurement-access.policy';
 import {
+  ListProcurementPackagesFilter,
   PROCUREMENT_PACKAGE_REPOSITORY,
   ProcurementPackageRepositoryPort,
   VillageAllocationInput,
@@ -25,6 +26,8 @@ import {
 import { ProcurementPackageValidator } from '../../services/procurement-package.validator';
 import { ProcurementPackageNamingService } from '../../services/procurement-package-naming.service';
 import { ProcurementPackageBudgetEnricher } from '../../services/procurement-package-budget.enricher';
+import { AuditService } from '../../services/audit.service';
+import { AuditAction } from '../../../domain/entities/audit-log.entity';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 
 export interface VillageAllocationCommand {
@@ -165,19 +168,20 @@ export class ListProcurementPackagesUseCase {
     const page = Math.max(1, query?.page ?? 1);
     const limit = query?.limit ?? 25;
 
-    const filter = {
+    const filter: ListProcurementPackagesFilter = {
       page,
       limit,
-      ...(actor.role === UserRole.RA_ES_TEHSIL && actor.tehsilId
-        ? { tehsilId: actor.tehsilId }
-        : {}),
     };
+    if (actor.role === UserRole.RA_ES_TEHSIL && actor.tehsilId) {
+      filter.tehsilId = actor.tehsilId;
+    }
 
-    const result = await this.packageRepository.findAll(filter);
-    const items = await this.budgetEnricher.enrich(result.items);
+    const listed: { items: ProcurementPackage[]; total: number } =
+      await this.packageRepository.findAll(filter);
+    const items = await this.budgetEnricher.enrich(listed.items);
     return {
       items,
-      total: result.total,
+      total: listed.total,
       page,
       limit,
     };
@@ -240,6 +244,7 @@ export class CreateProcurementPackageUseCase {
     private readonly actorResolver: ProcurementActorResolver,
     private readonly packageValidator: ProcurementPackageValidator,
     private readonly namingService: ProcurementPackageNamingService,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -286,7 +291,7 @@ export class CreateProcurementPackageUseCase {
 
     await assertUniquePackageName(this.packageRepository, name);
 
-    return this.packageRepository.create({
+    const created = await this.packageRepository.create({
       name,
       budgetAmount: formatMoney(command.budgetAmount),
       contractorId: command.contractorId,
@@ -294,6 +299,26 @@ export class CreateProcurementPackageUseCase {
       tehsilId: command.tehsilId,
       villageAllocations,
     });
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.PACKAGE_CREATED,
+      created.id,
+      {
+        packageName: created.name,
+        budgetAmount: created.budgetAmount,
+        contractorId: created.contractor.id,
+        contractorName: created.contractor.name,
+        consultantId: created.consultant.id,
+        consultantName: created.consultant.name,
+        tehsilId: created.tehsil.id,
+        tehsilName: created.tehsil.displayName,
+        villageIds: created.villages.map((v) => v.id),
+        villageNames: created.villages.map((v) => v.name),
+      },
+    );
+
+    return created;
   }
 }
 
@@ -304,6 +329,7 @@ export class UpdateProcurementPackageUseCase {
     private readonly packageRepository: ProcurementPackageRepositoryPort,
     private readonly actorResolver: ProcurementActorResolver,
     private readonly packageValidator: ProcurementPackageValidator,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -348,11 +374,7 @@ export class UpdateProcurementPackageUseCase {
     const contractorId = command.contractorId ?? existing.contractor.id;
     const consultantId = command.consultantId ?? existing.consultant.id;
 
-    if (
-      command.villageIds ||
-      command.contractorId ||
-      command.consultantId
-    ) {
+    if (command.villageIds || command.contractorId || command.consultantId) {
       await this.packageValidator.validate({
         contractorId,
         consultantId,
@@ -377,7 +399,7 @@ export class UpdateProcurementPackageUseCase {
       );
     }
 
-    return this.packageRepository.update(id, {
+    const updated = await this.packageRepository.update(id, {
       name: nextName,
       budgetAmount:
         command.budgetAmount !== undefined
@@ -387,6 +409,46 @@ export class UpdateProcurementPackageUseCase {
       consultantId: command.consultantId,
       villageAllocations,
     });
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.PACKAGE_UPDATED,
+      updated.id,
+      {
+        packageName: updated.name,
+        before: {
+          name: existing.name,
+          budgetAmount: existing.budgetAmount,
+          contractorId: existing.contractor.id,
+          contractorName: existing.contractor.name,
+          consultantId: existing.consultant.id,
+          consultantName: existing.consultant.name,
+          villageIds: existing.villages.map((v) => v.id),
+          villageNames: existing.villages.map((v) => v.name),
+        },
+        after: {
+          name: updated.name,
+          budgetAmount: updated.budgetAmount,
+          contractorId: updated.contractor.id,
+          contractorName: updated.contractor.name,
+          consultantId: updated.consultant.id,
+          consultantName: updated.consultant.name,
+          villageIds: updated.villages.map((v) => v.id),
+          villageNames: updated.villages.map((v) => v.name),
+        },
+        changes: {
+          name: command.name !== undefined,
+          budgetAmount: command.budgetAmount !== undefined,
+          contractor: command.contractorId !== undefined,
+          consultant: command.consultantId !== undefined,
+          villages:
+            command.villageIds !== undefined ||
+            command.villageAllocations !== undefined,
+        },
+      },
+    );
+
+    return updated;
   }
 }
 
@@ -396,6 +458,7 @@ export class DeleteProcurementPackageUseCase {
     @Inject(PROCUREMENT_PACKAGE_REPOSITORY)
     private readonly packageRepository: ProcurementPackageRepositoryPort,
     private readonly actorResolver: ProcurementActorResolver,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(user: AuthenticatedUser, id: string): Promise<void> {
@@ -408,6 +471,24 @@ export class DeleteProcurementPackageUseCase {
     if (!existing) {
       throw new NotFoundException('Procurement package not found');
     }
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.PACKAGE_DELETED,
+      existing.id,
+      {
+        packageName: existing.name,
+        budgetAmount: existing.budgetAmount,
+        contractorId: existing.contractor.id,
+        contractorName: existing.contractor.name,
+        consultantId: existing.consultant.id,
+        consultantName: existing.consultant.name,
+        tehsilId: existing.tehsil.id,
+        tehsilName: existing.tehsil.displayName,
+        villageIds: existing.villages.map((v) => v.id),
+        villageNames: existing.villages.map((v) => v.name),
+      },
+    );
 
     await this.packageRepository.delete(id);
   }

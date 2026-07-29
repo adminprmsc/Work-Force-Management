@@ -20,6 +20,7 @@ export declare class UsersController {
         username: string;
         role: UserRole;
         status: import("./mappers/user.mapper").UserStatus;
+        canManageUsers: boolean;
         officeId: string | null;
         officeName: string | null;
         officeType: import("../../domain/entities/user.entity").OfficeType | null;
@@ -28,12 +29,13 @@ export declare class UsersController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    list(): Promise<{
+    list(actor: AuthenticatedUser): Promise<{
         id: string;
         email: string;
         username: string;
         role: UserRole;
         status: import("./mappers/user.mapper").UserStatus;
+        canManageUsers: boolean;
         officeId: string | null;
         officeName: string | null;
         officeType: import("../../domain/entities/user.entity").OfficeType | null;
@@ -48,6 +50,7 @@ export declare class UsersController {
         username: string;
         role: UserRole;
         status: import("./mappers/user.mapper").UserStatus;
+        canManageUsers: boolean;
         officeId: string | null;
         officeName: string | null;
         officeType: import("../../domain/entities/user.entity").OfficeType | null;
@@ -62,6 +65,7 @@ export declare class UsersController {
         username: string;
         role: UserRole;
         status: import("./mappers/user.mapper").UserStatus;
+        canManageUsers: boolean;
         officeId: string | null;
         officeName: string | null;
         officeType: import("../../domain/entities/user.entity").OfficeType | null;
@@ -79,6 +83,7 @@ export declare class UsersController {
         username: string;
         role: UserRole;
         status: import("./mappers/user.mapper").UserStatus;
+        canManageUsers: boolean;
         officeId: string | null;
         officeName: string | null;
         officeType: import("../../domain/entities/user.entity").OfficeType | null;

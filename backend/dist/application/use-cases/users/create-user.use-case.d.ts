@@ -13,6 +13,7 @@ export interface CreateUserInput {
 export interface ActorContext {
     id: string;
     role: UserRole;
+    canManageUsers: boolean;
 }
 export declare class CreateUserUseCase {
     private readonly userRepository;

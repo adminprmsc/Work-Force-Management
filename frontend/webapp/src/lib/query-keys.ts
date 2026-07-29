@@ -7,6 +7,7 @@ export const queryKeys = {
   users: {
     all: ["users"] as const,
     list: () => ["users", "list"] as const,
+    detail: (userId: string) => ["users", "detail", userId] as const,
   },
   offices: {
     all: ["offices"] as const,
@@ -19,8 +20,30 @@ export const queryKeys = {
     settlements: (villageId: string) => ["villages", villageId, "settlements"] as const,
   },
   audit: {
-    list: (params: { page: number; limit: number }) =>
-      ["audit", "list", { page: params.page, limit: params.limit }] as const,
+    list: (params: {
+      page: number
+      limit: number
+      resourceType?: string | null
+      resourceId?: string | null
+      action?: string | null
+      actorId?: string | null
+      userId?: string | null
+      search?: string | null
+    }) =>
+      [
+        "audit",
+        "list",
+        {
+          page: params.page,
+          limit: params.limit,
+          resourceType: params.resourceType ?? null,
+          resourceId: params.resourceId ?? null,
+          action: params.action ?? null,
+          actorId: params.actorId ?? null,
+          userId: params.userId ?? null,
+          search: params.search?.trim() || null,
+        },
+      ] as const,
   },
   contractors: {
     all: ["contractors"] as const,
@@ -42,6 +65,13 @@ export const queryKeys = {
         },
       ] as const,
     detail: (id: string) => ["procurement-packages", id] as const,
+    activity: (id: string, params: { page?: number; limit?: number } = {}) =>
+      [
+        "procurement-packages",
+        id,
+        "activity",
+        { page: params.page ?? 1, limit: params.limit ?? 50 },
+      ] as const,
     baseline: (packageId: string, formId: string) =>
       ["procurement-packages", packageId, "baseline", formId] as const,
     baselineForms: (packageId: string) =>

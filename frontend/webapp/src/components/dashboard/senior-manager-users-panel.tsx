@@ -3,14 +3,10 @@ import type { ReactNode } from "react"
 import {
   Building2,
   Copy,
-  Eye,
-  EyeOff,
   KeyRound,
-  Mail,
   Pencil,
   Plus,
   Power,
-  RefreshCw,
   ScrollText,
   Search,
   Trash2,
@@ -40,23 +36,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  InputGroupText,
-} from "@/components/ui/input-group"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -74,63 +54,26 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  useCreateUserMutation,
   useDeleteUserMutation,
-  useOfficesQuery,
   useResetUserCredentialsMutation,
-  useUpdateUserMutation,
   useUpdateUserStatusMutation,
   useUsersQuery,
 } from "@/hooks/api"
-import type { Office, User } from "@/modules/api/types"
+import type { User } from "@/modules/api/types"
 import { Role, type Role as RoleType } from "@/modules/auth/roles"
+import { useAuth } from "@/modules/auth/use-auth"
 import {
-  CREATABLE_ROLES,
   ROLE_LABELS,
-  formatOfficeOption,
-  officesForRole,
-  roleRequiresOffice,
+  SM_CREATABLE_ROLES,
+  usersCreatePath,
+  usersEditPath,
+  canDeleteTargetUser,
 } from "@/lib/user-management"
 import { copyTextToClipboard } from "@/lib/copy-to-clipboard"
 import { roleBadgeClass, roleLabel, userInitials } from "@/lib/user-display"
-import { getQueryViewState, mergeQueryViewStates } from "@/lib/query-view-state"
+import { getQueryViewState } from "@/lib/query-view-state"
 import { cn } from "@/lib/utils"
 import type { UserStatus } from "@/modules/api/types"
-
-const EMAIL_DOMAIN = "ens.com"
-const DEFAULT_PASSWORD = "Root123!"
-
-// Users only type the local part; keep state free of "@" and the domain.
-function sanitizeEmailLocalPart(value: string): string {
-  return value.split("@")[0].replace(/\s/g, "")
-}
-
-function randomChar(set: string): string {
-  const buf = new Uint32Array(1)
-  crypto.getRandomValues(buf)
-  return set[buf[0] % set.length]
-}
-
-// Strong password with at least one upper, lower, digit, and symbol.
-// Ambiguous characters (0/O, 1/l/I) are excluded for legibility.
-function generatePassword(length = 14): string {
-  const groups = [
-    "ABCDEFGHJKLMNPQRSTUVWXYZ",
-    "abcdefghijkmnopqrstuvwxyz",
-    "23456789",
-    "!@#$%^&*",
-  ]
-  const all = groups.join("")
-  const chars = groups.map(randomChar)
-  while (chars.length < length) chars.push(randomChar(all))
-  for (let i = chars.length - 1; i > 0; i--) {
-    const buf = new Uint32Array(1)
-    crypto.getRandomValues(buf)
-    const j = buf[0] % (i + 1)
-    ;[chars[i], chars[j]] = [chars[j], chars[i]]
-  }
-  return chars.join("")
-}
 
 type UserSummaryCardProps = {
   label: string
@@ -150,13 +93,12 @@ function UserSummaryCard({
   return (
     <div
       className={cn(
-        "rounded-lg border border-border/80 bg-card px-4 py-3 shadow-sm",
-        "border-l-4",
+        "rounded-xl border border-border/70 bg-card px-4 py-3 shadow-sm border-l-4",
         accentClassName,
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {label}
           </p>
@@ -175,22 +117,26 @@ function UserSummaryCard({
 
 type UserTableRowProps = {
   user: User
-  onEditEmail: (user: User) => void
   onViewCredentials: (user: User) => void
   onCopyEmail: (email: string) => void
   onToggleStatus: (user: User) => void
   onDelete: (user: User) => void
+  canAdminister: boolean
+  canDelete: boolean
+  showAuditLink: boolean
   isTogglingStatus: boolean
   isDeleting: boolean
 }
 
 const UserTableRow = memo(function UserTableRow({
   user,
-  onEditEmail,
   onViewCredentials,
   onCopyEmail,
   onToggleStatus,
   onDelete,
+  canAdminister,
+  canDelete,
+  showAuditLink,
   isTogglingStatus,
   isDeleting,
 }: UserTableRowProps) {
@@ -228,9 +174,16 @@ const UserTableRow = memo(function UserTableRow({
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant="outline" className={cn("font-normal", roleBadgeClass(user.role))}>
-          {roleLabel(user.role)}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className={cn("font-normal", roleBadgeClass(user.role))}>
+            {roleLabel(user.role)}
+          </Badge>
+          {user.canManageUsers ? (
+            <Badge variant="secondary" className="font-normal">
+              User admin
+            </Badge>
+          ) : null}
+        </div>
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
@@ -267,16 +220,18 @@ const UserTableRow = memo(function UserTableRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="View audit activity"
-            asChild
-          >
-            <Link to={auditLink}>
-              <ScrollText className="size-4" />
-            </Link>
-          </Button>
+          {showAuditLink ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="View audit activity"
+              asChild
+            >
+              <Link to={auditLink}>
+                <ScrollText className="size-4" />
+              </Link>
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -285,32 +240,42 @@ const UserTableRow = memo(function UserTableRow({
           >
             <KeyRound className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="Edit email"
-            onClick={() => onEditEmail(user)}
-          >
-            <Mail className="size-4" />
-          </Button>
+          {canAdminister ? (
+            <Button variant="ghost" size="icon-sm" title="Edit user" asChild>
+              <Link to={usersEditPath(user.id)}>
+                <Pencil className="size-4" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Edit user"
+              disabled
+            >
+              <Pencil className="size-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
             title={user.status === "ACTIVE" ? "Deactivate" : "Activate"}
-            disabled={isTogglingStatus}
+            disabled={!canAdminister || isTogglingStatus}
             onClick={() => onToggleStatus(user)}
           >
             <Power className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="Delete user"
-            disabled={isDeleting}
-            onClick={() => onDelete(user)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          {canDelete ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Delete user"
+              disabled={isDeleting}
+              onClick={() => onDelete(user)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          ) : null}
         </div>
       </TableCell>
     </TableRow>
@@ -318,51 +283,34 @@ const UserTableRow = memo(function UserTableRow({
 })
 
 export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
+  const { user: actor } = useAuth()
   const usersQuery = useUsersQuery()
-  const officesQuery = useOfficesQuery()
-  const createUserMutation = useCreateUserMutation()
-  const updateUserMutation = useUpdateUserMutation()
   const updateUserStatusMutation = useUpdateUserStatusMutation()
   const deleteUserMutation = useDeleteUserMutation()
   const resetCredentialsMutation = useResetUserCredentialsMutation()
 
-  const usersView = useMemo(() => getQueryViewState<User[]>(usersQuery), [usersQuery])
-  const officesView = useMemo(() => getQueryViewState<Office[]>(officesQuery), [officesQuery])
-  const viewState = useMemo(
-    () => mergeQueryViewStates([usersView, officesView]),
-    [officesView, usersView],
+  const adminActor = useMemo(
+    () => ({
+      role: actor?.role ?? Role.SENIOR_MANAGER_ES,
+      canManageUsers: actor?.canManageUsers,
+    }),
+    [actor],
   )
+  const showAuditLink = adminActor.role === Role.SENIOR_MANAGER_ES
 
+  const usersView = useMemo(() => getQueryViewState<User[]>(usersQuery), [usersQuery])
   const users = usersView.data
 
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"ALL" | UserStatus>("ALL")
   const [roleTab, setRoleTab] = useState<"ALL" | RoleType>("ALL")
-
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createRole, setCreateRole] = useState<RoleType>(Role.RA_ENVIRONMENT_HO)
-  const [createOfficeId, setCreateOfficeId] = useState("")
-  const [createEmail, setCreateEmail] = useState("")
-  const [createUsername, setCreateUsername] = useState("")
-  const [createPassword, setCreatePassword] = useState(DEFAULT_PASSWORD)
-  const [showPassword, setShowPassword] = useState(false)
-
-  const [editUser, setEditUser] = useState<User | null>(null)
-  const [editEmail, setEditEmail] = useState("")
-
   const [deleteUser, setDeleteUser] = useState<User | null>(null)
 
   const [credentialsOpen, setCredentialsOpen] = useState(false)
   const [credentials, setCredentials] = useState<UserCredentials | null>(null)
   const [credentialsUserId, setCredentialsUserId] = useState<string | null>(null)
   const [credentialsTitle, setCredentialsTitle] = useState("User credentials")
-
-  const availableOffices = useMemo(
-    () => officesForRole(officesView.data ?? [], createRole),
-    [createRole, officesView.data],
-  )
-
-  const needsOffice = roleRequiresOffice(createRole)
+  const [credentialsCanReset, setCredentialsCanReset] = useState(false)
 
   const userStats = useMemo(() => {
     const list = users ?? []
@@ -376,7 +324,7 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
 
   const roleCounts = useMemo(() => {
     const counts = new Map<RoleType, number>()
-    for (const role of CREATABLE_ROLES) counts.set(role, 0)
+    for (const role of SM_CREATABLE_ROLES) counts.set(role, 0)
     for (const user of users ?? []) {
       counts.set(user.role, (counts.get(user.role) ?? 0) + 1)
     }
@@ -402,93 +350,6 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
       return haystack.includes(q)
     })
   }, [roleTab, search, statusFilter, users])
-
-  const resolvedCreateOfficeId = useMemo(() => {
-    if (!needsOffice) return ""
-    if (availableOffices.length === 1) return availableOffices[0]!.id
-    if (
-      createOfficeId &&
-      availableOffices.some((office) => office.id === createOfficeId)
-    ) {
-      return createOfficeId
-    }
-    return ""
-  }, [availableOffices, createOfficeId, needsOffice])
-
-  const canCreate = useMemo(() => {
-    if (!createEmail.trim() || !createUsername.trim() || createPassword.length < 8) {
-      return false
-    }
-    if (needsOffice && !resolvedCreateOfficeId) {
-      return false
-    }
-    return true
-  }, [createEmail, createPassword, createUsername, needsOffice, resolvedCreateOfficeId])
-
-  const handleEditEmail = useCallback((user: User) => {
-    setEditUser(user)
-    setEditEmail(user.email)
-  }, [])
-
-  const resetCreateForm = useCallback(() => {
-    setCreateRole(Role.RA_ENVIRONMENT_HO)
-    setCreateOfficeId("")
-    setCreateEmail("")
-    setCreateUsername("")
-    setCreatePassword(DEFAULT_PASSWORD)
-    setShowPassword(false)
-  }, [])
-
-  const handleCreate = useCallback(async () => {
-    if (!canCreate) return
-
-    const email = `${createEmail.trim()}@${EMAIL_DOMAIN}`
-    const username = createUsername.trim()
-
-    try {
-      await createUserMutation.mutateAsync({
-        email,
-        username,
-        password: createPassword,
-        role: createRole,
-        officeId: needsOffice ? resolvedCreateOfficeId : undefined,
-      })
-      toast.success(`${ROLE_LABELS[createRole]} user created`)
-      setCreateOpen(false)
-      resetCreateForm()
-      setCredentialsUserId(null)
-      setCredentialsTitle("New user credentials")
-      setCredentials({ username, email, password: createPassword })
-      setCredentialsOpen(true)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create user")
-    }
-  }, [
-    canCreate,
-    createEmail,
-    createPassword,
-    createRole,
-    createUserMutation,
-    createUsername,
-    needsOffice,
-    resetCreateForm,
-    resolvedCreateOfficeId,
-  ])
-
-  const handleSaveEmail = useCallback(async () => {
-    if (!editUser) return
-
-    try {
-      await updateUserMutation.mutateAsync({
-        userId: editUser.id,
-        input: { email: editEmail.trim() },
-      })
-      toast.success("Email updated")
-      setEditUser(null)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update email")
-    }
-  }, [editEmail, editUser, updateUserMutation])
 
   const handleToggleStatus = useCallback(
     async (user: User) => {
@@ -528,16 +389,20 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
     }
   }, [])
 
-  const handleViewCredentials = useCallback((user: User) => {
-    setCredentialsUserId(user.id)
-    setCredentialsTitle(`Credentials — ${user.username}`)
-    setCredentials({
-      username: user.username,
-      email: user.email,
-      password: null,
-    })
-    setCredentialsOpen(true)
-  }, [])
+  const handleViewCredentials = useCallback(
+    (user: User) => {
+      setCredentialsUserId(user.id)
+      setCredentialsTitle(`Credentials — ${user.username}`)
+      setCredentials({
+        username: user.username,
+        email: user.email,
+        password: null,
+      })
+      setCredentialsCanReset(canDeleteTargetUser(adminActor, user.role))
+      setCredentialsOpen(true)
+    },
+    [adminActor],
+  )
 
   const handleResetPassword = useCallback(async () => {
     if (!credentialsUserId) return
@@ -592,9 +457,11 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
         title="User accounts"
         description="Manage accounts by role — create users, assign offices, and review activity"
         action={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Create user
+          <Button size="sm" asChild>
+            <Link to={usersCreatePath()}>
+              <Plus className="mr-2 size-4" />
+              Create user
+            </Link>
           </Button>
         }
         contentClassName="space-y-4"
@@ -632,7 +499,7 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
             <TabsTrigger value="ALL" className="px-3">
               All ({users?.length ?? 0})
             </TabsTrigger>
-            {CREATABLE_ROLES.map((role) => (
+            {SM_CREATABLE_ROLES.map((role) => (
               <TabsTrigger key={role} value={role} className="px-3">
                 {ROLE_LABELS[role]} ({roleCounts.get(role) ?? 0})
               </TabsTrigger>
@@ -640,12 +507,12 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
           </TabsList>
         </Tabs>
 
-        {viewState.error ? (
-          <p className="text-sm text-destructive">{viewState.error}</p>
+        {usersView.error ? (
+          <p className="text-sm text-destructive">{usersView.error}</p>
         ) : (
           <ShimmerContainer
-            isInitialLoading={viewState.isInitialLoading}
-            isRefreshing={viewState.isRefreshing}
+            isInitialLoading={usersView.isInitialLoading}
+            isRefreshing={usersView.isRefreshing}
             shimmer={<TableRowsShimmer rows={6} columns={5} />}
           >
             {filteredUsers.length === 0 ? (
@@ -677,11 +544,13 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
                       <UserTableRow
                         key={user.id}
                         user={user}
-                        onEditEmail={handleEditEmail}
                         onViewCredentials={handleViewCredentials}
                         onCopyEmail={(email) => void handleCopyEmail(email)}
                         onToggleStatus={(selected) => void handleToggleStatus(selected)}
                         onDelete={setDeleteUser}
+                        canAdminister={canDeleteTargetUser(adminActor, user.role)}
+                        canDelete={canDeleteTargetUser(adminActor, user.role)}
+                        showAuditLink={showAuditLink}
                         isTogglingStatus={updateUserStatusMutation.isPending}
                         isDeleting={deleteUserMutation.isPending}
                       />
@@ -693,194 +562,6 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
           </ShimmerContainer>
         )}
       </DataPanel>
-
-      <Dialog
-        open={createOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open)
-          if (!open) resetCreateForm()
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create user</DialogTitle>
-            <DialogDescription>
-              Choose a role and assign the matching office when required.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-2">
-              <Label htmlFor="create-role">Role</Label>
-              <Select
-                value={createRole}
-                onValueChange={(value) => {
-                  setCreateRole(value as RoleType)
-                  setCreateOfficeId("")
-                }}
-              >
-                <SelectTrigger id="create-role" className="w-full">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CREATABLE_ROLES.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {ROLE_LABELS[role]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {needsOffice ? (
-              <div className="grid gap-2">
-                <Label htmlFor="create-office">Office</Label>
-                {availableOffices.length > 0 ? (
-                  <Select
-                    value={resolvedCreateOfficeId}
-                    onValueChange={setCreateOfficeId}
-                  >
-                    <SelectTrigger id="create-office" className="w-full">
-                      <SelectValue placeholder="Select office" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableOffices.map((office) => (
-                        <SelectItem key={office.id} value={office.id}>
-                          {formatOfficeOption(office)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No office available for this role. Run database seed first.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Senior Manager accounts are not tied to an office.
-              </p>
-            )}
-
-            <div className="grid gap-2">
-              <Label htmlFor="create-email">Email</Label>
-              <InputGroup>
-                <InputGroupInput
-                  id="create-email"
-                  value={createEmail}
-                  onChange={(e) =>
-                    setCreateEmail(sanitizeEmailLocalPart(e.target.value))
-                  }
-                  placeholder="username"
-                  autoComplete="off"
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupText>@{EMAIL_DOMAIN}</InputGroupText>
-                </InputGroupAddon>
-              </InputGroup>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="create-username">Username</Label>
-              <Input
-                id="create-username"
-                value={createUsername}
-                onChange={(e) => setCreateUsername(e.target.value)}
-                placeholder="username"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="create-password">Password</Label>
-              <InputGroup>
-                <InputGroupInput
-                  id="create-password"
-                  type={showPassword ? "text" : "password"}
-                  value={createPassword}
-                  onChange={(e) => setCreatePassword(e.target.value)}
-                  placeholder="Min. 8 characters"
-                  autoComplete="new-password"
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    size="icon-xs"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    onClick={() => setShowPassword((v) => !v)}
-                  >
-                    {showPassword ? <EyeOff /> : <Eye />}
-                  </InputGroupButton>
-                  <InputGroupButton
-                    onClick={() => {
-                      setCreatePassword(generatePassword())
-                      setShowPassword(true)
-                    }}
-                  >
-                    <RefreshCw />
-                    Generate
-                  </InputGroupButton>
-                </InputGroupAddon>
-              </InputGroup>
-              <p className="text-xs text-muted-foreground">
-                Defaults to <code>{DEFAULT_PASSWORD}</code>. Use Generate for a
-                strong random password.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setCreateOpen(false)}
-              disabled={createUserMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleCreate()}
-              disabled={createUserMutation.isPending || !canCreate}
-            >
-              {createUserMutation.isPending ? "Creating…" : "Create user"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(editUser)} onOpenChange={(open) => !open && setEditUser(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pencil className="size-4" />
-              Edit email
-            </DialogTitle>
-            <DialogDescription>Update email for {editUser?.username}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2 py-2">
-            <Label htmlFor="edit-email">Email</Label>
-            <Input
-              id="edit-email"
-              type="email"
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setEditUser(null)}
-              disabled={updateUserMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleSaveEmail()}
-              disabled={
-                updateUserMutation.isPending ||
-                !editEmail.trim() ||
-                editEmail === editUser?.email
-              }
-            >
-              {updateUserMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={Boolean(deleteUser)} onOpenChange={(open) => !open && setDeleteUser(null)}>
         <AlertDialogContent>
@@ -912,7 +593,7 @@ export const SeniorManagerUsersPanel = memo(function SeniorManagerUsersPanel() {
         onOpenChange={setCredentialsOpen}
         credentials={credentials}
         title={credentialsTitle}
-        canResetPassword={Boolean(credentialsUserId)}
+        canResetPassword={Boolean(credentialsUserId) && credentialsCanReset}
         isResetting={resetCredentialsMutation.isPending}
         onResetPassword={() => void handleResetPassword()}
       />

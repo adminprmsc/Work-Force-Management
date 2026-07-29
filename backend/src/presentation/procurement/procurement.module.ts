@@ -41,6 +41,7 @@ import {
   SavePackageFormBaselineUseCase,
 } from '../../application/use-cases/procurement/manage-package-baseline.use-case';
 import { ListPackageBaselineFormsUseCase } from '../../application/use-cases/procurement/list-package-baseline-forms.use-case';
+import { ListPackageActivityUseCase } from '../../application/use-cases/procurement/list-package-activity.use-case';
 import {
   CreateProcurementPackageUseCase,
   DeleteProcurementPackageUseCase,
@@ -59,12 +60,14 @@ import { PrismaSurveyAssignmentRepository } from '../../infrastructure/database/
 import { PrismaSurveyFormRepository } from '../../infrastructure/database/repositories/prisma-survey-form.repository';
 import { PrismaTehsilRepository } from '../../infrastructure/database/repositories/prisma-tehsil.repository';
 import { PrismaUserRepository } from '../../infrastructure/database/repositories/prisma-user.repository';
+import { AuditModule } from '../audit/audit.module';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { ConsultantsController } from './consultants.controller';
 import { ContractorsController } from './contractors.controller';
 import { ProcurementPackagesController } from './procurement-packages.controller';
 
 @Module({
+  imports: [AuditModule],
   controllers: [
     ContractorsController,
     ConsultantsController,
@@ -98,6 +101,7 @@ import { ProcurementPackagesController } from './procurement-packages.controller
     GetPackageFormBaselineUseCase,
     SavePackageFormBaselineUseCase,
     ListPackageBaselineFormsUseCase,
+    ListPackageActivityUseCase,
     ListProcurementPackageExpensesUseCase,
     CreateProcurementPackageExpenseUseCase,
     UpdateProcurementPackageExpenseUseCase,

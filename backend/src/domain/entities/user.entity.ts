@@ -25,6 +25,7 @@ export class User {
     public readonly role: UserRole,
     public readonly status: UserStatus,
     public readonly mustChangePassword: boolean,
+    public readonly canManageUsers: boolean,
     public readonly officeId: string | null,
     public readonly officeName: string | null,
     public readonly officeType: OfficeType | null,

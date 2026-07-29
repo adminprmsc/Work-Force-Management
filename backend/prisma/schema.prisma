@@ -31,6 +31,19 @@ enum AuditAction {
   USER_ACTIVATED
   USER_DEACTIVATED
   USER_CREDENTIALS_RESET
+  PACKAGE_CREATED
+  PACKAGE_UPDATED
+  PACKAGE_DELETED
+  PACKAGE_EXPENSE_CREATED
+  PACKAGE_EXPENSE_UPDATED
+  PACKAGE_EXPENSE_DELETED
+  PACKAGE_BASELINE_SAVED
+  SURVEY_ASSIGNMENT_CREATED
+  SURVEY_ASSIGNMENT_DELETED
+  SURVEY_RESPONSE_SUBMITTED
+  SURVEY_RESPONSE_ACCEPTED
+  SURVEY_RESPONSE_REJECTED
+  SURVEY_RESPONSE_REVERTED
 }
 
 enum SurveyStatus {
@@ -88,6 +101,7 @@ model User {
   role               UserRole
   status             UserStatus @default(ACTIVE)
   mustChangePassword Boolean    @default(false) @map("must_change_password")
+  canManageUsers     Boolean    @default(false) @map("can_manage_users")
   officeId           String?    @map("office_id")
   createdById String?    @map("created_by_id")
   createdAt   DateTime   @default(now()) @map("created_at")
@@ -180,6 +194,7 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([actorId])
+  @@index([resourceType, resourceId, createdAt])
   @@map("audit_logs")
 }
 

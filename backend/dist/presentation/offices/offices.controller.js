@@ -57,7 +57,7 @@ __decorate([
 exports.OfficesController = OfficesController = __decorate([
     (0, common_1.Controller)('offices'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SENIOR_MANAGER_ES),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SENIOR_MANAGER_ES, user_entity_1.UserRole.RA_ENVIRONMENT_HO),
     __metadata("design:paramtypes", [list_offices_use_case_1.ListOfficesUseCase])
 ], OfficesController);
 //# sourceMappingURL=offices.controller.js.map

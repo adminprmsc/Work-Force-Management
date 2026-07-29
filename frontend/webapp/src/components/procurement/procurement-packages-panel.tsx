@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/dialog"
 import { PackageBaselineRequirements } from "@/components/compliance/package-baseline-requirements"
 import { PackageBaselineDialog } from "@/components/procurement/package-baseline-dialog"
+import { PackageActivityTimeline } from "@/components/procurement/package-activity-timeline"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -315,11 +317,16 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
           <DialogHeader>
             <DialogTitle>{detailPackage?.name}</DialogTitle>
             <DialogDescription>
-              Package details and budget summary from submitted village monitoring forms
+              Package details, budget summary, and complete activity history
             </DialogDescription>
           </DialogHeader>
           {detailPackage ? (
-            <div className="grid gap-5 text-sm">
+            <Tabs defaultValue="details" className="gap-4">
+              <TabsList>
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+              <TabsContent value="details" className="grid gap-5 text-sm">
               <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-muted-foreground">Allocated budget</p>
@@ -385,7 +392,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                             {formatCurrency(village.spent)}
                           </TableCell>
                           <TableCell
-                            className={`text-right font-medium ${
+                            className={`text-right ${
                               Number.parseFloat(village.remaining) < 0
                                 ? "text-destructive"
                                 : ""
@@ -407,7 +414,11 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                 monitoring utilization on the C-ESMP checklist) is summed across all village
                 visits for this package.
               </p>
-            </div>
+              </TabsContent>
+              <TabsContent value="history">
+                <PackageActivityTimeline packageId={detailPackage.id} />
+              </TabsContent>
+            </Tabs>
           ) : null}
         </DialogContent>
       </Dialog>

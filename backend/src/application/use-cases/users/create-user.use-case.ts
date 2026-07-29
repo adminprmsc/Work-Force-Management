@@ -40,6 +40,7 @@ export interface CreateUserInput {
 export interface ActorContext {
   id: string;
   role: UserRole;
+  canManageUsers: boolean;
 }
 
 @Injectable()
@@ -55,7 +56,7 @@ export class CreateUserUseCase {
   ) {}
 
   async execute(actor: ActorContext, input: CreateUserInput): Promise<User> {
-    if (!canCreateRole(actor.role, input.role)) {
+    if (!canCreateRole(actor, input.role)) {
       throw new ForbiddenException(
         `You are not allowed to create users with role ${input.role}`,
       );

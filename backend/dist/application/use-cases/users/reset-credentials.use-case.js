@@ -34,7 +34,7 @@ let ResetUserCredentialsUseCase = class ResetUserCredentialsUseCase {
         if (!user) {
             throw new common_1.NotFoundException('User not found');
         }
-        if (!(0, user_management_policy_1.canManageUser)(actor.role)) {
+        if (!(0, user_management_policy_1.canManageUser)(actor) || !(0, user_management_policy_1.canAdministerTarget)(actor, user.role)) {
             throw new common_1.ForbiddenException('You cannot reset credentials for this user');
         }
         const temporaryPassword = (0, crypto_1.randomBytes)(9).toString('base64url');

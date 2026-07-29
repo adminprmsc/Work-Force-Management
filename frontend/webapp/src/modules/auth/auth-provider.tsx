@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       username: res.user.username,
       role: res.user.role,
       mustChangePassword: res.user.mustChangePassword,
+      canManageUsers: res.user.canManageUsers,
     }
     setState({
       status: "authenticated",

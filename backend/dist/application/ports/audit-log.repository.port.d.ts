@@ -9,6 +9,12 @@ export interface CreateAuditLogData {
 export interface ListAuditLogsFilter {
     page?: number;
     limit?: number;
+    resourceType?: string;
+    resourceId?: string;
+    action?: AuditAction;
+    actorId?: string;
+    userId?: string;
+    search?: string;
 }
 export declare abstract class AuditLogRepositoryPort {
     abstract create(data: CreateAuditLogData): Promise<AuditLog>;

@@ -46,8 +46,8 @@ let UsersController = class UsersController {
         const user = await this.createUserUseCase.execute((0, user_mapper_1.toActorContext)(actor), dto);
         return (0, user_mapper_1.toUserResponse)(user);
     }
-    async list() {
-        const users = await this.listUsersUseCase.execute();
+    async list(actor) {
+        const users = await this.listUsersUseCase.execute((0, user_mapper_1.toActorContext)(actor));
         return users.map(user_mapper_1.toUserResponse);
     }
     async getOne(actor, id) {
@@ -81,8 +81,9 @@ __decorate([
 ], UsersController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "list", null);
 __decorate([
@@ -130,7 +131,7 @@ __decorate([
 exports.UsersController = UsersController = __decorate([
     (0, common_1.Controller)('users'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SENIOR_MANAGER_ES),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SENIOR_MANAGER_ES, user_entity_1.UserRole.RA_ENVIRONMENT_HO),
     __metadata("design:paramtypes", [create_user_use_case_1.CreateUserUseCase,
         list_users_use_case_1.ListUsersUseCase,
         list_users_use_case_1.GetUserUseCase,

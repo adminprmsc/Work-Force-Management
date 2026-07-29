@@ -16,6 +16,7 @@ import {
   listConsultants,
   listContractors,
   listPackageBaselineForms,
+  listProcurementPackageActivity,
   listProcurementPackages,
   previewProcurementPackageName,
   savePackageFormBaseline,
@@ -153,6 +154,27 @@ export function useProcurementPackageQuery(
   return useQuery({
     queryKey: queryKeys.procurementPackages.detail(packageId ?? ""),
     queryFn: () => getProcurementPackage(token!, packageId!),
+    enabled: Boolean(token && packageId) && enabled,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function usePackageActivityQuery(
+  packageId: string | null | undefined,
+  params: PaginationParams = {},
+  enabled = true,
+) {
+  const token = useAuthToken()
+  const page = params.page ?? 1
+  const limit = params.limit ?? 50
+
+  return useQuery({
+    queryKey: queryKeys.procurementPackages.activity(packageId ?? "", {
+      page,
+      limit,
+    }),
+    queryFn: () =>
+      listProcurementPackageActivity(token!, packageId!, { page, limit }),
     enabled: Boolean(token && packageId) && enabled,
     placeholderData: keepPreviousData,
   })

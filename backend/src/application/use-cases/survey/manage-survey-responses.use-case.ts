@@ -60,6 +60,8 @@ import { ProcurementPackageBudgetEnricher } from '../../services/procurement-pac
 import { linkSurveyAttachmentsToResponse } from '../../services/survey-attachment.util';
 import { SurveyAnswerValidator } from '../../services/survey-answer.validator';
 import { SurveyScopeResolver } from '../../services/survey-scope.resolver';
+import { AuditService } from '../../services/audit.service';
+import { AuditAction } from '../../../domain/entities/audit-log.entity';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 import { ProcurementPackage } from '../../../domain/entities/procurement-package.entity';
 import type {
@@ -530,6 +532,7 @@ export class SubmitSurveyResponseUseCase {
     private readonly scopeResolver: SurveyScopeResolver,
     private readonly answerValidator: SurveyAnswerValidator,
     private readonly budgetEnricher: ProcurementPackageBudgetEnricher,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -606,7 +609,7 @@ export class SubmitSurveyResponseUseCase {
 
     const isResubmit = response.status === SurveyResponseStatus.REVERTED;
     const submittedAt = new Date();
-    return this.responseRepository.submit(
+    const submitted = await this.responseRepository.submit(
       id,
       cleaned,
       submittedAt,
@@ -618,6 +621,25 @@ export class SubmitSurveyResponseUseCase {
         capturedAt: submittedAt,
       },
     );
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.SURVEY_RESPONSE_SUBMITTED,
+      submitted.procurementPackage.id,
+      {
+        packageName: submitted.procurementPackage.name,
+        responseId: submitted.id,
+        formId: submitted.form.id,
+        formTitle: submitted.form.title,
+        villageId: submitted.village.id,
+        villageName: submitted.village.name,
+        respondentId: submitted.respondent.id,
+        respondentUsername: submitted.respondent.username,
+        isResubmit,
+      },
+    );
+
+    return submitted;
   }
 }
 
@@ -652,6 +674,7 @@ export class AcceptSurveyResponseUseCase {
     @Inject(SURVEY_RESPONSE_REPOSITORY)
     private readonly responseRepository: SurveyResponseRepositoryPort,
     private readonly scopeResolver: SurveyScopeResolver,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -661,11 +684,28 @@ export class AcceptSurveyResponseUseCase {
   ): Promise<SurveyResponse> {
     const actor = await this.scopeResolver.resolve(user);
     await assertReviewable(actor, this.responseRepository, id);
-    return this.responseRepository.accept(id, {
+    const accepted = await this.responseRepository.accept(id, {
       reviewerId: actor.id,
       reviewedAt: new Date(),
       remarks: command.remarks ?? null,
     });
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.SURVEY_RESPONSE_ACCEPTED,
+      accepted.procurementPackage.id,
+      {
+        packageName: accepted.procurementPackage.name,
+        responseId: accepted.id,
+        formId: accepted.form.id,
+        formTitle: accepted.form.title,
+        villageName: accepted.village.name,
+        respondentUsername: accepted.respondent.username,
+        remarks: command.remarks ?? null,
+      },
+    );
+
+    return accepted;
   }
 }
 
@@ -675,6 +715,7 @@ export class RejectSurveyResponseUseCase {
     @Inject(SURVEY_RESPONSE_REPOSITORY)
     private readonly responseRepository: SurveyResponseRepositoryPort,
     private readonly scopeResolver: SurveyScopeResolver,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -690,11 +731,28 @@ export class RejectSurveyResponseUseCase {
         'Remarks are required when rejecting a response',
       );
     }
-    return this.responseRepository.reject(id, {
+    const rejected = await this.responseRepository.reject(id, {
       reviewerId: actor.id,
       reviewedAt: new Date(),
       remarks,
     });
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.SURVEY_RESPONSE_REJECTED,
+      rejected.procurementPackage.id,
+      {
+        packageName: rejected.procurementPackage.name,
+        responseId: rejected.id,
+        formId: rejected.form.id,
+        formTitle: rejected.form.title,
+        villageName: rejected.village.name,
+        respondentUsername: rejected.respondent.username,
+        remarks,
+      },
+    );
+
+    return rejected;
   }
 }
 
@@ -704,6 +762,7 @@ export class RevertSurveyResponseUseCase {
     @Inject(SURVEY_RESPONSE_REPOSITORY)
     private readonly responseRepository: SurveyResponseRepositoryPort,
     private readonly scopeResolver: SurveyScopeResolver,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -719,10 +778,27 @@ export class RevertSurveyResponseUseCase {
         'Remarks are required when reverting a response to the author',
       );
     }
-    return this.responseRepository.revert(id, {
+    const reverted = await this.responseRepository.revert(id, {
       reviewerId: actor.id,
       reviewedAt: new Date(),
       remarks,
     });
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.SURVEY_RESPONSE_REVERTED,
+      reverted.procurementPackage.id,
+      {
+        packageName: reverted.procurementPackage.name,
+        responseId: reverted.id,
+        formId: reverted.form.id,
+        formTitle: reverted.form.title,
+        villageName: reverted.village.name,
+        respondentUsername: reverted.respondent.username,
+        remarks,
+      },
+    );
+
+    return reverted;
   }
 }

@@ -23,6 +23,8 @@ import {
 } from '../../ports/survey-form.repository.port';
 import { ProcurementActorResolver } from '../../services/procurement-actor.resolver';
 import { SurveyBaselineFieldValidator } from '../../services/survey-baseline-field.validator';
+import { AuditService } from '../../services/audit.service';
+import { AuditAction } from '../../../domain/entities/audit-log.entity';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 
 export interface SavePackageBaselineCommand {
@@ -82,6 +84,7 @@ export class SavePackageFormBaselineUseCase {
     private readonly baselineRepository: PackageBaselineRepositoryPort,
     private readonly baselineValidator: SurveyBaselineFieldValidator,
     private readonly actorResolver: ProcurementActorResolver,
+    private readonly auditService: AuditService,
   ) {}
 
   async execute(
@@ -121,11 +124,26 @@ export class SavePackageFormBaselineUseCase {
       existingMap,
     );
 
-    return this.baselineRepository.saveAnswers(
+    const saved = await this.baselineRepository.saveAnswers(
       packageId,
       formId,
       cleaned,
       actor.id,
     );
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.PACKAGE_BASELINE_SAVED,
+      packageId,
+      {
+        packageName: pkg.name,
+        formId: form.id,
+        formTitle: form.title,
+        answerCount: cleaned.length,
+        fieldIds: cleaned.map((a) => a.fieldId),
+      },
+    );
+
+    return saved;
   }
 }

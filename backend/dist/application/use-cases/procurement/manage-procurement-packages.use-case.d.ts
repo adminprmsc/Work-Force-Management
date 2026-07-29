@@ -4,6 +4,7 @@ import { ProcurementActorResolver } from '../../services/procurement-actor.resol
 import { ProcurementPackageValidator } from '../../services/procurement-package.validator';
 import { ProcurementPackageNamingService } from '../../services/procurement-package-naming.service';
 import { ProcurementPackageBudgetEnricher } from '../../services/procurement-package-budget.enricher';
+import { AuditService } from '../../services/audit.service';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 export interface VillageAllocationCommand {
     villageId: string;
@@ -60,19 +61,22 @@ export declare class CreateProcurementPackageUseCase {
     private readonly actorResolver;
     private readonly packageValidator;
     private readonly namingService;
-    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, packageValidator: ProcurementPackageValidator, namingService: ProcurementPackageNamingService);
+    private readonly auditService;
+    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, packageValidator: ProcurementPackageValidator, namingService: ProcurementPackageNamingService, auditService: AuditService);
     execute(user: AuthenticatedUser, command: CreateProcurementPackageCommand): Promise<ProcurementPackage>;
 }
 export declare class UpdateProcurementPackageUseCase {
     private readonly packageRepository;
     private readonly actorResolver;
     private readonly packageValidator;
-    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, packageValidator: ProcurementPackageValidator);
+    private readonly auditService;
+    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, packageValidator: ProcurementPackageValidator, auditService: AuditService);
     execute(user: AuthenticatedUser, id: string, command: UpdateProcurementPackageCommand): Promise<ProcurementPackage>;
 }
 export declare class DeleteProcurementPackageUseCase {
     private readonly packageRepository;
     private readonly actorResolver;
-    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver);
+    private readonly auditService;
+    constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, auditService: AuditService);
     execute(user: AuthenticatedUser, id: string): Promise<void>;
 }

@@ -8,12 +8,56 @@ export const ROLE_LABELS: Record<RoleType, string> = {
   WORLD_BANK_USER: "World Bank",
 }
 
-export const CREATABLE_ROLES: RoleType[] = [
+export const SM_CREATABLE_ROLES: RoleType[] = [
   Role.RA_ENVIRONMENT_HO,
   Role.RA_ES_TEHSIL,
   Role.WORLD_BANK_USER,
   Role.SENIOR_MANAGER_ES,
 ]
+
+export const RA_HO_ADMIN_CREATABLE_ROLES: RoleType[] = [
+  Role.RA_ENVIRONMENT_HO,
+  Role.RA_ES_TEHSIL,
+  Role.WORLD_BANK_USER,
+]
+
+/** @deprecated Prefer creatableRolesFor(actor) */
+export const CREATABLE_ROLES = SM_CREATABLE_ROLES
+
+export type UserAdminActor = {
+  role: RoleType
+  canManageUsers?: boolean
+}
+
+export function isUserAdmin(actor: UserAdminActor): boolean {
+  if (actor.role === Role.SENIOR_MANAGER_ES) return true
+  return actor.role === Role.RA_ENVIRONMENT_HO && Boolean(actor.canManageUsers)
+}
+
+export function creatableRolesFor(actor: UserAdminActor): RoleType[] {
+  if (actor.role === Role.SENIOR_MANAGER_ES) return [...SM_CREATABLE_ROLES]
+  if (actor.role === Role.RA_ENVIRONMENT_HO && actor.canManageUsers) {
+    return [...RA_HO_ADMIN_CREATABLE_ROLES]
+  }
+  return []
+}
+
+export function canChangeUserRole(actor: UserAdminActor): boolean {
+  return actor.role === Role.SENIOR_MANAGER_ES
+}
+
+export function canGrantUserAdmin(actor: UserAdminActor): boolean {
+  return actor.role === Role.SENIOR_MANAGER_ES
+}
+
+export function canDeleteTargetUser(
+  actor: UserAdminActor,
+  targetRole: RoleType,
+): boolean {
+  if (!isUserAdmin(actor)) return false
+  if (actor.role === Role.SENIOR_MANAGER_ES) return true
+  return targetRole !== Role.SENIOR_MANAGER_ES
+}
 
 export function requiredOfficeTypeForRole(role: RoleType): OfficeType | null {
   switch (role) {
@@ -43,4 +87,14 @@ export function formatOfficeOption(office: Office): string {
     return `${office.tehsilName} — ${office.name}`
   }
   return office.name
+}
+
+export const USERS_PATH = "/dashboard/users"
+
+export function usersCreatePath(): string {
+  return `${USERS_PATH}/create`
+}
+
+export function usersEditPath(userId: string): string {
+  return `${USERS_PATH}/${userId}/edit`
 }

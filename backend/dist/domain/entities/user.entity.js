@@ -27,6 +27,7 @@ class User {
     role;
     status;
     mustChangePassword;
+    canManageUsers;
     officeId;
     officeName;
     officeType;
@@ -34,7 +35,7 @@ class User {
     createdById;
     createdAt;
     updatedAt;
-    constructor(id, email, username, password, role, status, mustChangePassword, officeId, officeName, officeType, tehsilName, createdById, createdAt, updatedAt) {
+    constructor(id, email, username, password, role, status, mustChangePassword, canManageUsers, officeId, officeName, officeType, tehsilName, createdById, createdAt, updatedAt) {
         this.id = id;
         this.email = email;
         this.username = username;
@@ -42,6 +43,7 @@ class User {
         this.role = role;
         this.status = status;
         this.mustChangePassword = mustChangePassword;
+        this.canManageUsers = canManageUsers;
         this.officeId = officeId;
         this.officeName = officeName;
         this.officeType = officeType;

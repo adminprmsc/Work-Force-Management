@@ -51,8 +51,16 @@ export class UpdateUserDto {
   username?: string;
 
   @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
+
+  @IsOptional()
   @IsUUID()
   officeId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  canManageUsers?: boolean;
 }
 
 export class UpdateUserStatusDto {

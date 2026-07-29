@@ -1,6 +1,6 @@
+import { AuditLog } from '../../../domain/entities/audit-log.entity';
 import { UserRole } from '../../../domain/entities/user.entity';
 import { AuditLogRepositoryPort, ListAuditLogsFilter } from '../../ports/audit-log.repository.port';
-import { AuditLog } from '../../../domain/entities/audit-log.entity';
 export interface ActorContext {
     id: string;
     role: UserRole;

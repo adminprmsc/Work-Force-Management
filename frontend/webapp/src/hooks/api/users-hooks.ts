@@ -1,7 +1,15 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import type { CreateUserInput, UpdateUserInput } from "@/modules/api/users-api"
-import { createUser, deleteUser, listUsers, resetUserCredentials, updateUser, updateUserStatus } from "@/modules/api/users-api"
+import {
+  createUser,
+  deleteUser,
+  getUser,
+  listUsers,
+  resetUserCredentials,
+  updateUser,
+  updateUserStatus,
+} from "@/modules/api/users-api"
 import { queryKeys } from "@/lib/query-keys"
 import { useAuthToken } from "@/hooks/use-auth-token"
 
@@ -13,6 +21,16 @@ export function useUsersQuery() {
     queryFn: () => listUsers(token!),
     enabled: Boolean(token),
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useUserQuery(userId: string | undefined) {
+  const token = useAuthToken()
+
+  return useQuery({
+    queryKey: queryKeys.users.detail(userId ?? ""),
+    queryFn: () => getUser(token!, userId!),
+    enabled: Boolean(token && userId),
   })
 }
 
@@ -36,8 +54,11 @@ export function useUpdateUserMutation() {
   return useMutation({
     mutationFn: (params: { userId: string; input: UpdateUserInput }) =>
       updateUser(token!, params.userId, params.input),
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
       await qc.invalidateQueries({ queryKey: queryKeys.users.all })
+      await qc.invalidateQueries({
+        queryKey: queryKeys.users.detail(vars.userId),
+      })
       await qc.invalidateQueries({ queryKey: queryKeys.audit.list({ page: 1, limit: 20 }) })
     },
   })
@@ -50,8 +71,11 @@ export function useUpdateUserStatusMutation() {
   return useMutation({
     mutationFn: (params: { userId: string; active: boolean }) =>
       updateUserStatus(token!, params.userId, params.active),
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
       await qc.invalidateQueries({ queryKey: queryKeys.users.all })
+      await qc.invalidateQueries({
+        queryKey: queryKeys.users.detail(vars.userId),
+      })
       await qc.invalidateQueries({ queryKey: queryKeys.audit.list({ page: 1, limit: 20 }) })
     },
   })
@@ -81,4 +105,3 @@ export function useResetUserCredentialsMutation() {
     },
   })
 }
-

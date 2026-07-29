@@ -11,6 +11,14 @@ export interface CreateAuditLogData {
 export interface ListAuditLogsFilter {
   page?: number;
   limit?: number;
+  resourceType?: string;
+  resourceId?: string;
+  action?: AuditAction;
+  actorId?: string;
+  /** Matches events where the user is the actor or the affected resource. */
+  userId?: string;
+  /** Free-text match on actor identity and well-known metadata labels. */
+  search?: string;
 }
 
 export abstract class AuditLogRepositoryPort {

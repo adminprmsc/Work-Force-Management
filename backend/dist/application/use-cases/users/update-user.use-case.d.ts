@@ -7,10 +7,12 @@ export interface UpdateUserInput {
     username?: string;
     role?: UserRole;
     officeId?: string;
+    canManageUsers?: boolean;
 }
 export interface ActorContext {
     id: string;
     role: UserRole;
+    canManageUsers: boolean;
 }
 export declare class UpdateUserUseCase {
     private readonly userRepository;

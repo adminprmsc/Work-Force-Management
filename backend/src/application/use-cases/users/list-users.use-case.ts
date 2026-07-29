@@ -14,6 +14,7 @@ import {
 export interface ActorContext {
   id: string;
   role: UserRole;
+  canManageUsers: boolean;
 }
 
 @Injectable()
@@ -23,7 +24,10 @@ export class ListUsersUseCase {
     private readonly userRepository: UserRepositoryPort,
   ) {}
 
-  async execute(): Promise<User[]> {
+  async execute(actor: ActorContext): Promise<User[]> {
+    if (!canManageUser(actor)) {
+      throw new ForbiddenException('You cannot list users');
+    }
     return this.userRepository.findAll();
   }
 }
@@ -41,7 +45,7 @@ export class GetUserUseCase {
       throw new NotFoundException('User not found');
     }
 
-    if (!canManageUser(actor.role) && actor.id !== userId) {
+    if (!canManageUser(actor) && actor.id !== userId) {
       throw new ForbiddenException('You cannot access this user');
     }
 

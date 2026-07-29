@@ -28,7 +28,16 @@ let AuditLogsController = class AuditLogsController {
         this.listAuditLogsUseCase = listAuditLogsUseCase;
     }
     async list(actor, query) {
-        const result = await this.listAuditLogsUseCase.execute((0, user_mapper_1.toActorContext)(actor), query);
+        const result = await this.listAuditLogsUseCase.execute((0, user_mapper_1.toActorContext)(actor), {
+            page: query.page,
+            limit: query.limit,
+            resourceType: query.resourceType,
+            resourceId: query.resourceId,
+            action: query.action,
+            actorId: query.actorId,
+            userId: query.userId,
+            search: query.search,
+        });
         return {
             items: result.items.map((log) => ({
                 id: log.id,

@@ -12,9 +12,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ListAuditLogsQueryDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const audit_log_entity_1 = require("../../../domain/entities/audit-log.entity");
 class ListAuditLogsQueryDto {
     page;
     limit;
+    resourceType;
+    resourceId;
+    action;
+    actorId;
+    userId;
+    search;
 }
 exports.ListAuditLogsQueryDto = ListAuditLogsQueryDto;
 __decorate([
@@ -32,4 +39,35 @@ __decorate([
     (0, class_validator_1.Max)(100),
     __metadata("design:type", Number)
 ], ListAuditLogsQueryDto.prototype, "limit", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListAuditLogsQueryDto.prototype, "resourceType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ListAuditLogsQueryDto.prototype, "resourceId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(audit_log_entity_1.AuditAction),
+    __metadata("design:type", String)
+], ListAuditLogsQueryDto.prototype, "action", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ListAuditLogsQueryDto.prototype, "actorId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ListAuditLogsQueryDto.prototype, "userId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
+    __metadata("design:type", String)
+], ListAuditLogsQueryDto.prototype, "search", void 0);
 //# sourceMappingURL=audit-log.dto.js.map

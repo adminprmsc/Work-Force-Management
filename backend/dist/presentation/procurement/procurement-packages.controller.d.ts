@@ -1,5 +1,6 @@
 import { CreateProcurementPackageExpenseUseCase, DeleteProcurementPackageExpenseUseCase, ListProcurementPackageExpensesUseCase, UpdateProcurementPackageExpenseUseCase } from '../../application/use-cases/procurement/manage-procurement-package-expenses.use-case';
 import { ListPackageBaselineFormsUseCase } from '../../application/use-cases/procurement/list-package-baseline-forms.use-case';
+import { ListPackageActivityUseCase } from '../../application/use-cases/procurement/list-package-activity.use-case';
 import { GetPackageFormBaselineUseCase, SavePackageFormBaselineUseCase } from '../../application/use-cases/procurement/manage-package-baseline.use-case';
 import { CreateProcurementPackageUseCase, DeleteProcurementPackageUseCase, GetProcurementPackageUseCase, ListProcurementPackagesUseCase, PreviewProcurementPackageNameUseCase, UpdateProcurementPackageUseCase } from '../../application/use-cases/procurement/manage-procurement-packages.use-case';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
@@ -19,7 +20,8 @@ export declare class ProcurementPackagesController {
     private readonly getPackageBaselineUseCase;
     private readonly savePackageBaselineUseCase;
     private readonly listPackageBaselineFormsUseCase;
-    constructor(listPackagesUseCase: ListProcurementPackagesUseCase, getPackageUseCase: GetProcurementPackageUseCase, previewNameUseCase: PreviewProcurementPackageNameUseCase, createPackageUseCase: CreateProcurementPackageUseCase, updatePackageUseCase: UpdateProcurementPackageUseCase, deletePackageUseCase: DeleteProcurementPackageUseCase, listExpensesUseCase: ListProcurementPackageExpensesUseCase, createExpenseUseCase: CreateProcurementPackageExpenseUseCase, updateExpenseUseCase: UpdateProcurementPackageExpenseUseCase, deleteExpenseUseCase: DeleteProcurementPackageExpenseUseCase, getPackageBaselineUseCase: GetPackageFormBaselineUseCase, savePackageBaselineUseCase: SavePackageFormBaselineUseCase, listPackageBaselineFormsUseCase: ListPackageBaselineFormsUseCase);
+    private readonly listPackageActivityUseCase;
+    constructor(listPackagesUseCase: ListProcurementPackagesUseCase, getPackageUseCase: GetProcurementPackageUseCase, previewNameUseCase: PreviewProcurementPackageNameUseCase, createPackageUseCase: CreateProcurementPackageUseCase, updatePackageUseCase: UpdateProcurementPackageUseCase, deletePackageUseCase: DeleteProcurementPackageUseCase, listExpensesUseCase: ListProcurementPackageExpensesUseCase, createExpenseUseCase: CreateProcurementPackageExpenseUseCase, updateExpenseUseCase: UpdateProcurementPackageExpenseUseCase, deleteExpenseUseCase: DeleteProcurementPackageExpenseUseCase, getPackageBaselineUseCase: GetPackageFormBaselineUseCase, savePackageBaselineUseCase: SavePackageFormBaselineUseCase, listPackageBaselineFormsUseCase: ListPackageBaselineFormsUseCase, listPackageActivityUseCase: ListPackageActivityUseCase);
     list(user: AuthenticatedUser, query: PaginationQueryDto): Promise<{
         items: {
             id: string;
@@ -69,6 +71,24 @@ export declare class ProcurementPackagesController {
         limit: number;
     }>;
     previewName(user: AuthenticatedUser, tehsilId: string): Promise<import("../../application/services/procurement-package-naming.service").TehsilNamingPreview>;
+    listActivity(user: AuthenticatedUser, id: string, query: PaginationQueryDto): Promise<{
+        items: {
+            id: string;
+            action: import("../../domain/entities/audit-log.entity").AuditAction;
+            resourceType: string;
+            resourceId: string | null;
+            metadata: Record<string, unknown> | null;
+            createdAt: Date;
+            actor: {
+                id: string;
+                email: string | undefined;
+                username: string | undefined;
+            };
+        }[];
+        total: number;
+        page: number;
+        limit: 100 | 25 | 50;
+    }>;
     listExpenses(user: AuthenticatedUser, id: string): Promise<{
         id: string;
         packageId: string;

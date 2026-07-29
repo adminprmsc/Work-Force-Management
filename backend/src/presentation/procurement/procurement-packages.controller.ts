@@ -18,6 +18,7 @@ import {
   UpdateProcurementPackageExpenseUseCase,
 } from '../../application/use-cases/procurement/manage-procurement-package-expenses.use-case';
 import { ListPackageBaselineFormsUseCase } from '../../application/use-cases/procurement/list-package-baseline-forms.use-case';
+import { ListPackageActivityUseCase } from '../../application/use-cases/procurement/list-package-activity.use-case';
 import {
   GetPackageFormBaselineUseCase,
   SavePackageFormBaselineUseCase,
@@ -43,10 +44,7 @@ import {
   UpdateProcurementPackageExpenseDto,
   SavePackageBaselineDto,
 } from './dto/procurement.dto';
-import {
-  PaginationQueryDto,
-  resolvePagination,
-} from '../common/pagination';
+import { PaginationQueryDto, resolvePagination } from '../common/pagination';
 import {
   toPackageBaselineFormSummaryResponse,
   toPackageFormBaselineResponse,
@@ -89,6 +87,7 @@ export class ProcurementPackagesController {
     private readonly getPackageBaselineUseCase: GetPackageFormBaselineUseCase,
     private readonly savePackageBaselineUseCase: SavePackageFormBaselineUseCase,
     private readonly listPackageBaselineFormsUseCase: ListPackageBaselineFormsUseCase,
+    private readonly listPackageActivityUseCase: ListPackageActivityUseCase,
   ) {}
 
   @Get()
@@ -98,9 +97,12 @@ export class ProcurementPackagesController {
     @Query() query: PaginationQueryDto,
   ) {
     const pagination = resolvePagination(query);
-    const result = await this.listPackagesUseCase.execute(user, pagination);
+    const result = await this.listPackagesUseCase.execute(user, {
+      page: pagination.page,
+      limit: pagination.limit,
+    });
     return {
-      items: result.items.map(toProcurementPackageResponse),
+      items: result.items.map((pkg) => toProcurementPackageResponse(pkg)),
       total: result.total,
       page: result.page,
       limit: result.limit,
@@ -114,6 +116,38 @@ export class ProcurementPackagesController {
     @Query('tehsilId', ParseUUIDPipe) tehsilId: string,
   ) {
     return this.previewNameUseCase.execute(user, tehsilId);
+  }
+
+  @Get(':id/activity')
+  @Roles(...PROCUREMENT_READERS)
+  async listActivity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: PaginationQueryDto,
+  ) {
+    const pagination = resolvePagination(query);
+    const result = await this.listPackageActivityUseCase.execute(user, id, {
+      page: pagination.page,
+      limit: pagination.limit,
+    });
+    return {
+      items: result.items.map((log) => ({
+        id: log.id,
+        action: log.action,
+        resourceType: log.resourceType,
+        resourceId: log.resourceId,
+        metadata: log.metadata,
+        createdAt: log.createdAt,
+        actor: {
+          id: log.actorId,
+          email: log.actorEmail,
+          username: log.actorUsername,
+        },
+      })),
+      total: result.total,
+      page: pagination.page,
+      limit: pagination.limit,
+    };
   }
 
   @Get(':id/expenses')

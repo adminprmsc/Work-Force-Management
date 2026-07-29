@@ -5,4 +5,5 @@ export declare class AuditService {
     constructor(auditLogRepository: AuditLogRepositoryPort);
     log(data: CreateAuditLogData): Promise<void>;
     logUserAction(actorId: string, action: AuditAction, targetUserId: string, metadata?: Record<string, unknown>): Promise<void>;
+    logPackageAction(actorId: string, action: AuditAction, packageId: string, metadata?: Record<string, unknown>): Promise<void>;
 }

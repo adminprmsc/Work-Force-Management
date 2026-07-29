@@ -26,6 +26,8 @@ export type NavItem = {
   path: string
   icon: LucideIcon
   roles: RoleType[]
+  /** When true, only shown if the user has user-admin privileges (SM or delegated RA HO). */
+  requireUserAdmin?: boolean
   meta: RouteMeta
 }
 
@@ -91,9 +93,10 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       {
         label: "Users",
-        path: "/dashboard/senior-manager/users",
+        path: "/dashboard/users",
         icon: Users,
-        roles: [Role.SENIOR_MANAGER_ES],
+        roles: [Role.SENIOR_MANAGER_ES, Role.RA_ENVIRONMENT_HO],
+        requireUserAdmin: true,
         meta: {
           title: "Users",
           description: "Accounts by role — create, manage status, and jump to per-user audit activity",
@@ -116,7 +119,7 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: [Role.SENIOR_MANAGER_ES],
         meta: {
           title: "Audit logs",
-          description: "Who did what — user actions with performer and affected account details",
+          description: "Domain audit trail — users, packages, expenses, baselines, and survey milestones",
         },
       },
       {
@@ -378,10 +381,20 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-export function getNavGroupsForRole(role: RoleType): NavGroup[] {
+export function getNavGroupsForRole(
+  role: RoleType,
+  options?: { canManageUsers?: boolean },
+): NavGroup[] {
+  const isAdmin =
+    role === Role.SENIOR_MANAGER_ES || Boolean(options?.canManageUsers)
+
   return NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => item.roles.includes(role)),
+    items: group.items.filter((item) => {
+      if (!item.roles.includes(role)) return false
+      if (item.requireUserAdmin && !isAdmin) return false
+      return true
+    }),
   })).filter((group) => group.items.length > 0)
 }
 

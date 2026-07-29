@@ -7,7 +7,10 @@ import {
 import { randomBytes } from 'crypto';
 import { AuditAction } from '../../../domain/entities/audit-log.entity';
 import { UserRole } from '../../../domain/entities/user.entity';
-import { canManageUser } from '../../../domain/policies/user-management.policy';
+import {
+  canAdministerTarget,
+  canManageUser,
+} from '../../../domain/policies/user-management.policy';
 import {
   HASHING_SERVICE,
   HashingServicePort,
@@ -21,6 +24,7 @@ import { AuditService } from '../../services/audit.service';
 export interface ActorContext {
   id: string;
   role: UserRole;
+  canManageUsers: boolean;
 }
 
 export interface ResetCredentialsResult {
@@ -48,7 +52,7 @@ export class ResetUserCredentialsUseCase {
       throw new NotFoundException('User not found');
     }
 
-    if (!canManageUser(actor.role)) {
+    if (!canManageUser(actor) || !canAdministerTarget(actor, user.role)) {
       throw new ForbiddenException(
         'You cannot reset credentials for this user',
       );

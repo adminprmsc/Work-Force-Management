@@ -21,7 +21,10 @@ let ListUsersUseCase = class ListUsersUseCase {
     constructor(userRepository) {
         this.userRepository = userRepository;
     }
-    async execute() {
+    async execute(actor) {
+        if (!(0, user_management_policy_1.canManageUser)(actor)) {
+            throw new common_1.ForbiddenException('You cannot list users');
+        }
         return this.userRepository.findAll();
     }
 };
@@ -41,7 +44,7 @@ let GetUserUseCase = class GetUserUseCase {
         if (!user) {
             throw new common_1.NotFoundException('User not found');
         }
-        if (!(0, user_management_policy_1.canManageUser)(actor.role) && actor.id !== userId) {
+        if (!(0, user_management_policy_1.canManageUser)(actor) && actor.id !== userId) {
             throw new common_1.ForbiddenException('You cannot access this user');
         }
         return user;

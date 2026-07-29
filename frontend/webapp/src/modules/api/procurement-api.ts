@@ -14,6 +14,7 @@ import type {
   PackageFormBaseline,
   PackageBaselineFormSummary,
   SavePackageBaselineInput,
+  AuditLogsResponse,
 } from "./types"
 
 export function listContractors(token: string): Promise<Contractor[]> {
@@ -119,6 +120,21 @@ export function getProcurementPackage(
     method: "GET",
     token,
   })
+}
+
+export function listProcurementPackageActivity(
+  token: string,
+  packageId: string,
+  params: PaginationParams = {},
+): Promise<AuditLogsResponse> {
+  const search = new URLSearchParams()
+  if (params.page) search.set("page", String(params.page))
+  if (params.limit) search.set("limit", String(params.limit))
+  const qs = search.toString()
+  return apiRequest<AuditLogsResponse>(
+    `/procurement-packages/${packageId}/activity${qs ? `?${qs}` : ""}`,
+    { method: "GET", token },
+  )
 }
 
 export function createProcurementPackage(

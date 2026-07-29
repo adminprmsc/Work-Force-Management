@@ -1,5 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AuditAction } from '../../domain/entities/audit-log.entity';
+import {
+  AUDIT_RESOURCE_TYPES,
+  AuditAction,
+} from '../../domain/entities/audit-log.entity';
 import {
   AUDIT_LOG_REPOSITORY,
   AuditLogRepositoryPort,
@@ -26,8 +29,23 @@ export class AuditService {
     await this.log({
       actorId,
       action,
-      resourceType: 'user',
+      resourceType: AUDIT_RESOURCE_TYPES.USER,
       resourceId: targetUserId,
+      metadata: metadata ?? null,
+    });
+  }
+
+  async logPackageAction(
+    actorId: string,
+    action: AuditAction,
+    packageId: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.log({
+      actorId,
+      action,
+      resourceType: AUDIT_RESOURCE_TYPES.PROCUREMENT_PACKAGE,
+      resourceId: packageId,
       metadata: metadata ?? null,
     });
   }

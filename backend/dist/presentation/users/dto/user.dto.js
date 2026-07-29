@@ -52,7 +52,9 @@ __decorate([
 class UpdateUserDto {
     email;
     username;
+    role;
     officeId;
+    canManageUsers;
 }
 exports.UpdateUserDto = UpdateUserDto;
 __decorate([
@@ -70,9 +72,19 @@ __decorate([
 ], UpdateUserDto.prototype, "username", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(user_entity_1.UserRole),
+    __metadata("design:type", String)
+], UpdateUserDto.prototype, "role", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], UpdateUserDto.prototype, "officeId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateUserDto.prototype, "canManageUsers", void 0);
 class UpdateUserStatusDto {
     active;
 }

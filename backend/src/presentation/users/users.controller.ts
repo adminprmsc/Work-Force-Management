@@ -35,7 +35,7 @@ import { toActorContext, toUserResponse } from './mappers/user.mapper';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SENIOR_MANAGER_ES)
+@Roles(UserRole.SENIOR_MANAGER_ES, UserRole.RA_ENVIRONMENT_HO)
 export class UsersController {
   constructor(
     private readonly createUserUseCase: CreateUserUseCase,
@@ -60,8 +60,8 @@ export class UsersController {
   }
 
   @Get()
-  async list() {
-    const users = await this.listUsersUseCase.execute();
+  async list(@CurrentUser() actor: AuthenticatedUser) {
+    const users = await this.listUsersUseCase.execute(toActorContext(actor));
     return users.map(toUserResponse);
   }
 

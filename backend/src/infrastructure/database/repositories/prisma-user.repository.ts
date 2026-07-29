@@ -26,6 +26,7 @@ type UserRecord = {
   role: PrismaUserRole;
   status: PrismaUserStatus;
   mustChangePassword: boolean;
+  canManageUsers: boolean;
   officeId: string | null;
   createdById: string | null;
   createdAt: Date;
@@ -107,6 +108,7 @@ export class PrismaUserRepository implements UserRepositoryPort {
         role: data.role,
         officeId: data.officeId,
         mustChangePassword: data.mustChangePassword,
+        canManageUsers: data.canManageUsers,
       },
       include: this.include,
     });
@@ -135,6 +137,7 @@ export class PrismaUserRepository implements UserRepositoryPort {
       record.role as UserRole,
       record.status as UserStatus,
       record.mustChangePassword,
+      record.canManageUsers,
       record.officeId,
       record.office?.name ?? null,
       (record.office?.type as OfficeType) ?? null,

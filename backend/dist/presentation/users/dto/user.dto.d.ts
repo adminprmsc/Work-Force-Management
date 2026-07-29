@@ -9,7 +9,9 @@ export declare class CreateUserDto {
 export declare class UpdateUserDto {
     email?: string;
     username?: string;
+    role?: UserRole;
     officeId?: string;
+    canManageUsers?: boolean;
 }
 export declare class UpdateUserStatusDto {
     active: boolean;

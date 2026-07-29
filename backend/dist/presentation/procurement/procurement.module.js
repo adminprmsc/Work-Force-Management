@@ -32,6 +32,7 @@ const manage_consultants_use_case_1 = require("../../application/use-cases/procu
 const manage_procurement_package_expenses_use_case_1 = require("../../application/use-cases/procurement/manage-procurement-package-expenses.use-case");
 const manage_package_baseline_use_case_1 = require("../../application/use-cases/procurement/manage-package-baseline.use-case");
 const list_package_baseline_forms_use_case_1 = require("../../application/use-cases/procurement/list-package-baseline-forms.use-case");
+const list_package_activity_use_case_1 = require("../../application/use-cases/procurement/list-package-activity.use-case");
 const manage_procurement_packages_use_case_1 = require("../../application/use-cases/procurement/manage-procurement-packages.use-case");
 const prisma_contractor_repository_1 = require("../../infrastructure/database/repositories/prisma-contractor.repository");
 const prisma_consultant_repository_1 = require("../../infrastructure/database/repositories/prisma-consultant.repository");
@@ -43,6 +44,7 @@ const prisma_survey_assignment_repository_1 = require("../../infrastructure/data
 const prisma_survey_form_repository_1 = require("../../infrastructure/database/repositories/prisma-survey-form.repository");
 const prisma_tehsil_repository_1 = require("../../infrastructure/database/repositories/prisma-tehsil.repository");
 const prisma_user_repository_1 = require("../../infrastructure/database/repositories/prisma-user.repository");
+const audit_module_1 = require("../audit/audit.module");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const consultants_controller_1 = require("./consultants.controller");
 const contractors_controller_1 = require("./contractors.controller");
@@ -52,6 +54,7 @@ let ProcurementModule = class ProcurementModule {
 exports.ProcurementModule = ProcurementModule;
 exports.ProcurementModule = ProcurementModule = __decorate([
     (0, common_1.Module)({
+        imports: [audit_module_1.AuditModule],
         controllers: [
             contractors_controller_1.ContractorsController,
             consultants_controller_1.ConsultantsController,
@@ -85,6 +88,7 @@ exports.ProcurementModule = ProcurementModule = __decorate([
             manage_package_baseline_use_case_1.GetPackageFormBaselineUseCase,
             manage_package_baseline_use_case_1.SavePackageFormBaselineUseCase,
             list_package_baseline_forms_use_case_1.ListPackageBaselineFormsUseCase,
+            list_package_activity_use_case_1.ListPackageActivityUseCase,
             manage_procurement_package_expenses_use_case_1.ListProcurementPackageExpensesUseCase,
             manage_procurement_package_expenses_use_case_1.CreateProcurementPackageExpenseUseCase,
             manage_procurement_package_expenses_use_case_1.UpdateProcurementPackageExpenseUseCase,
