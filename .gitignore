@@ -8,6 +8,9 @@
 /Work Force Management
 /Work Force Management.pub
 
+# ── Local DB dumps pulled from the VM (see deploy/backup-db.sh) ─────────────
+/backups/
+
 # ── OS / editor cruft ────────────────────────────────────────────────────────
 .DS_Store
 *.log

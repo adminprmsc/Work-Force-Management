@@ -204,18 +204,36 @@ make prune           # reclaim disk from dangling images
 
 ### Backups
 
+**From your Mac (recommended)** — stream a dump off the VM into `./backups/`:
+
+```bash
+# One-time: ensure your SSH key works
+#   ssh -i ~/.ssh/wfm_instance adminprms98@<VM_IP>
+
+WFM_SSH_HOST=<VM_IP> ./deploy/backup-db.sh
+
+# Or with flags:
+./deploy/backup-db.sh --host <VM_IP> --identity ~/.ssh/wfm_instance
+```
+
+The script SSHs in, runs `pg_dump` inside the `postgres` container, and writes
+`backups/wfm-YYYYMMDD-HHMMSS.sql.gz` locally. Nothing is left on the VM disk.
+
+**On the VM** (manual dump kept on-box):
+
 ```bash
 # Dump
 docker compose -f docker-compose.prod.yml exec -T postgres \
-  pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > wfm-$(date +%F).sql.gz
+  sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' | gzip > wfm-$(date +%F).sql.gz
 
-# Restore (into a running, empty DB)
+# Restore (into a running DB — destructive; prefer restore into a fresh volume)
 gunzip -c wfm-YYYY-MM-DD.sql.gz | \
   docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
-Schedule the dump via cron and ship the artifact off-box (S3/object storage).
+Schedule the Mac pull via launchd/cron, or dump on the VM and ship the artifact
+off-box (S3/object storage).
 
 ### Admin DB access (no public port)
 
