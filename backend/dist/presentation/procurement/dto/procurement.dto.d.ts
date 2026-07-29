@@ -19,7 +19,10 @@ export declare class CreateProcurementPackageDto {
     villageAllocations?: VillageAllocationDto[];
 }
 export declare class UpdateProcurementPackageDto {
+    name?: string;
     budgetAmount?: number;
+    contractorId?: string;
+    consultantId?: string;
     villageIds?: string[];
     villageAllocations?: VillageAllocationDto[];
 }

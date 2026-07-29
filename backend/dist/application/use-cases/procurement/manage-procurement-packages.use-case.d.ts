@@ -20,7 +20,10 @@ export interface CreateProcurementPackageCommand {
     villageAllocations?: VillageAllocationCommand[];
 }
 export interface UpdateProcurementPackageCommand {
+    name?: string;
     budgetAmount?: number;
+    contractorId?: string;
+    consultantId?: string;
     villageIds?: string[];
     villageAllocations?: VillageAllocationCommand[];
 }

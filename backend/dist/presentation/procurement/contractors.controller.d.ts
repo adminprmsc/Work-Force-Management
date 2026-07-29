@@ -12,18 +12,21 @@ export declare class ContractorsController {
         name: string;
         createdAt: Date;
         updatedAt: Date;
+        linkedPackageNames: string[];
     }[]>;
     create(user: AuthenticatedUser, dto: CreateMasterNameDto): Promise<{
         id: string;
         name: string;
         createdAt: Date;
         updatedAt: Date;
+        linkedPackageNames: string[];
     }>;
     update(user: AuthenticatedUser, id: string, dto: UpdateMasterNameDto): Promise<{
         id: string;
         name: string;
         createdAt: Date;
         updatedAt: Date;
+        linkedPackageNames: string[];
     }>;
     remove(user: AuthenticatedUser, id: string): Promise<{
         success: boolean;

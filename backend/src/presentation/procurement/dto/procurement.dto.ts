@@ -75,9 +75,23 @@ export class CreateProcurementPackageDto {
 
 export class UpdateProcurementPackageDto {
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(520)
+  name?: string;
+
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   budgetAmount?: number;
+
+  @IsOptional()
+  @IsUUID()
+  contractorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  consultantId?: string;
 
   @IsOptional()
   @IsArray()

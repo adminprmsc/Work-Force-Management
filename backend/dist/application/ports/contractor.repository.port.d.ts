@@ -7,5 +7,6 @@ export declare abstract class ContractorRepositoryPort {
     abstract update(id: string, name: string): Promise<Contractor>;
     abstract delete(id: string): Promise<void>;
     abstract isReferencedByPackage(id: string): Promise<boolean>;
+    abstract findLinkedPackageNames(id: string): Promise<string[]>;
 }
 export declare const CONTRACTOR_REPOSITORY: unique symbol;

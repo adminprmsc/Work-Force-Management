@@ -14,6 +14,8 @@ export type ContractorRow = {
   name: string;
   createdAt: Date;
   updatedAt: Date;
+  packages?: Array<{ name: string }>;
+  procurementPackages?: Array<{ name: string }>;
 };
 
 export type ConsultantRow = {
@@ -21,6 +23,8 @@ export type ConsultantRow = {
   name: string;
   createdAt: Date;
   updatedAt: Date;
+  packages?: Array<{ name: string }>;
+  procurementPackages?: Array<{ name: string }>;
 };
 
 export type ProcurementPackageInclude = {
@@ -46,7 +50,15 @@ export type ProcurementPackageInclude = {
 };
 
 type ContractorDelegate = {
-  findMany(args: { orderBy: { name: 'asc' } }): Promise<ContractorRow[]>;
+  findMany(args: {
+    orderBy: { name: 'asc' };
+    include?: {
+      procurementPackages: {
+        select: { name: true };
+        orderBy: { name: 'asc' };
+      };
+    };
+  }): Promise<ContractorRow[]>;
   findUnique(args: { where: { id: string } }): Promise<ContractorRow | null>;
   findUnique(args: { where: { name: string } }): Promise<ContractorRow | null>;
   create(args: { data: { name: string } }): Promise<ContractorRow>;
@@ -58,7 +70,15 @@ type ContractorDelegate = {
 };
 
 type ConsultantDelegate = {
-  findMany(args: { orderBy: { name: 'asc' } }): Promise<ConsultantRow[]>;
+  findMany(args: {
+    orderBy: { name: 'asc' };
+    include?: {
+      procurementPackages: {
+        select: { name: true };
+        orderBy: { name: 'asc' };
+      };
+    };
+  }): Promise<ConsultantRow[]>;
   findUnique(args: { where: { id: string } }): Promise<ConsultantRow | null>;
   findUnique(args: { where: { name: string } }): Promise<ConsultantRow | null>;
   create(args: { data: { name: string } }): Promise<ConsultantRow>;
@@ -66,7 +86,7 @@ type ConsultantDelegate = {
     where: { id: string };
     data: { name: string };
   }): Promise<ConsultantRow>;
-  delete(args: { where: { id: string } }): Promise<ContractorRow>;
+  delete(args: { where: { id: string } }): Promise<ConsultantRow>;
 };
 
 type ProcurementPackageDelegate = {
@@ -75,6 +95,11 @@ type ProcurementPackageDelegate = {
     include: ProcurementPackageInclude;
     orderBy: { createdAt: 'desc' };
   }): Promise<ProcurementPackageRecord[]>;
+  findMany(args: {
+    where: { contractorId: string } | { consultantId: string };
+    select: { name: true };
+    orderBy: { name: 'asc' };
+  }): Promise<Array<{ name: string }>>;
   findUnique(args: {
     where: { id: string };
     include: ProcurementPackageInclude;

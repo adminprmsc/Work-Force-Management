@@ -14,6 +14,12 @@ export class PrismaContractorRepository implements ContractorRepositoryPort {
   async findAll(): Promise<Contractor[]> {
     const records = await asProcurementPrisma(this.prisma).contractor.findMany({
       orderBy: { name: 'asc' },
+      include: {
+        procurementPackages: {
+          select: { name: true },
+          orderBy: { name: 'asc' },
+        },
+      },
     });
     return records.map((record) => this.toDomain(record));
   }
@@ -64,12 +70,24 @@ export class PrismaContractorRepository implements ContractorRepositoryPort {
     return count > 0;
   }
 
+  async findLinkedPackageNames(id: string): Promise<string[]> {
+    const packages = await asProcurementPrisma(
+      this.prisma,
+    ).procurementPackage.findMany({
+      where: { contractorId: id },
+      select: { name: true },
+      orderBy: { name: 'asc' },
+    });
+    return packages.map((pkg) => pkg.name);
+  }
+
   private toDomain(record: ContractorRow): Contractor {
     return new Contractor(
       record.id,
       record.name,
       record.createdAt,
       record.updatedAt,
+      (record.procurementPackages ?? []).map((pkg) => pkg.name),
     );
   }
 }

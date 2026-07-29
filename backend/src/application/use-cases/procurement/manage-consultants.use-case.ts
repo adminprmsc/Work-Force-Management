@@ -100,11 +100,11 @@ export class DeleteConsultantUseCase {
       throw new NotFoundException('Consultant not found');
     }
 
-    const referenced =
-      await this.consultantRepository.isReferencedByPackage(id);
-    if (referenced) {
+    const linkedPackages =
+      await this.consultantRepository.findLinkedPackageNames(id);
+    if (linkedPackages.length > 0) {
       throw new ConflictException(
-        'Consultant is linked to a procurement package and cannot be deleted',
+        `Cannot delete consultant "${consultant.name}" because it is linked to procurement package(s): ${linkedPackages.join(', ')}. Reassign or remove those packages first.`,
       );
     }
 

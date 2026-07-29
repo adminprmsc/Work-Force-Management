@@ -44,7 +44,10 @@ export interface CreateProcurementPackageCommand {
 }
 
 export interface UpdateProcurementPackageCommand {
+  name?: string;
   budgetAmount?: number;
+  contractorId?: string;
+  consultantId?: string;
   villageIds?: string[];
   villageAllocations?: VillageAllocationCommand[];
 }
@@ -299,12 +302,21 @@ export class UpdateProcurementPackageUseCase {
     }
 
     if (
+      command.name === undefined &&
       command.budgetAmount === undefined &&
+      command.contractorId === undefined &&
+      command.consultantId === undefined &&
       command.villageIds === undefined
     ) {
       throw new BadRequestException(
-        'Provide budget amount and/or villages to update',
+        'Provide package name, contractor, consultant, budget amount, and/or villages to update',
       );
+    }
+
+    let nextName: string | undefined;
+    if (command.name !== undefined) {
+      nextName = normalizeName(command.name);
+      await assertUniquePackageName(this.packageRepository, nextName, id);
     }
 
     if (command.budgetAmount !== undefined && command.budgetAmount < 0) {
@@ -313,11 +325,17 @@ export class UpdateProcurementPackageUseCase {
 
     const villageIds =
       command.villageIds ?? existing.villages.map((village) => village.id);
+    const contractorId = command.contractorId ?? existing.contractor.id;
+    const consultantId = command.consultantId ?? existing.consultant.id;
 
-    if (command.villageIds) {
+    if (
+      command.villageIds ||
+      command.contractorId ||
+      command.consultantId
+    ) {
       await this.packageValidator.validate({
-        contractorId: existing.contractor.id,
-        consultantId: existing.consultant.id,
+        contractorId,
+        consultantId,
         tehsilId: existing.tehsil.id,
         villageIds,
       });
@@ -340,10 +358,13 @@ export class UpdateProcurementPackageUseCase {
     }
 
     return this.packageRepository.update(id, {
+      name: nextName,
       budgetAmount:
         command.budgetAmount !== undefined
           ? formatMoney(command.budgetAmount)
           : undefined,
+      contractorId: command.contractorId,
+      consultantId: command.consultantId,
       villageAllocations,
     });
   }

@@ -15,6 +15,7 @@ export function toContractorResponse(contractor: Contractor) {
     name: contractor.name,
     createdAt: contractor.createdAt,
     updatedAt: contractor.updatedAt,
+    linkedPackageNames: contractor.linkedPackageNames,
   };
 }
 
@@ -24,6 +25,7 @@ export function toConsultantResponse(consultant: Consultant) {
     name: consultant.name,
     createdAt: consultant.createdAt,
     updatedAt: consultant.updatedAt,
+    linkedPackageNames: consultant.linkedPackageNames,
   };
 }
 

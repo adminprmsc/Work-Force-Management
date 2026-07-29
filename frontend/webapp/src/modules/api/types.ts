@@ -85,6 +85,7 @@ export type MasterEntity = {
   name: string
   createdAt: string
   updatedAt: string
+  linkedPackageNames?: string[]
 }
 
 export type Contractor = MasterEntity
@@ -155,7 +156,10 @@ export type ProcurementPackageNamePreview = {
 }
 
 export type UpdateProcurementPackageInput = {
+  name?: string
   budgetAmount?: number
+  contractorId?: string
+  consultantId?: string
   villageIds?: string[]
   villageAllocations?: VillageAllocationInput[]
 }

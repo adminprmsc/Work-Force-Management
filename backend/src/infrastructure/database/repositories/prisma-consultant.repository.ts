@@ -14,6 +14,12 @@ export class PrismaConsultantRepository implements ConsultantRepositoryPort {
   async findAll(): Promise<Consultant[]> {
     const records = await asProcurementPrisma(this.prisma).consultant.findMany({
       orderBy: { name: 'asc' },
+      include: {
+        procurementPackages: {
+          select: { name: true },
+          orderBy: { name: 'asc' },
+        },
+      },
     });
     return records.map((record) => this.toDomain(record));
   }
@@ -64,12 +70,24 @@ export class PrismaConsultantRepository implements ConsultantRepositoryPort {
     return count > 0;
   }
 
+  async findLinkedPackageNames(id: string): Promise<string[]> {
+    const packages = await asProcurementPrisma(
+      this.prisma,
+    ).procurementPackage.findMany({
+      where: { consultantId: id },
+      select: { name: true },
+      orderBy: { name: 'asc' },
+    });
+    return packages.map((pkg) => pkg.name);
+  }
+
   private toDomain(record: ConsultantRow): Consultant {
     return new Consultant(
       record.id,
       record.name,
       record.createdAt,
       record.updatedAt,
+      (record.procurementPackages ?? []).map((pkg) => pkg.name),
     );
   }
 }

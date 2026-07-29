@@ -6,11 +6,13 @@ class Consultant {
     name;
     createdAt;
     updatedAt;
-    constructor(id, name, createdAt, updatedAt) {
+    linkedPackageNames;
+    constructor(id, name, createdAt, updatedAt, linkedPackageNames = []) {
         this.id = id;
         this.name = name;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.linkedPackageNames = linkedPackageNames;
     }
 }
 exports.Consultant = Consultant;

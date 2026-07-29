@@ -11,5 +11,6 @@ export declare class PrismaContractorRepository implements ContractorRepositoryP
     update(id: string, name: string): Promise<Contractor>;
     delete(id: string): Promise<void>;
     isReferencedByPackage(id: string): Promise<boolean>;
+    findLinkedPackageNames(id: string): Promise<string[]>;
     private toDomain;
 }

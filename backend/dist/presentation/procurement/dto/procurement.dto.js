@@ -100,17 +100,37 @@ __decorate([
     __metadata("design:type", Array)
 ], CreateProcurementPackageDto.prototype, "villageAllocations", void 0);
 class UpdateProcurementPackageDto {
+    name;
     budgetAmount;
+    contractorId;
+    consultantId;
     villageIds;
     villageAllocations;
 }
 exports.UpdateProcurementPackageDto = UpdateProcurementPackageDto;
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.MaxLength)(520),
+    __metadata("design:type", String)
+], UpdateProcurementPackageDto.prototype, "name", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpdateProcurementPackageDto.prototype, "budgetAmount", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], UpdateProcurementPackageDto.prototype, "contractorId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], UpdateProcurementPackageDto.prototype, "consultantId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),

@@ -22,6 +22,12 @@ let PrismaContractorRepository = class PrismaContractorRepository {
     async findAll() {
         const records = await (0, procurement_prisma_access_1.asProcurementPrisma)(this.prisma).contractor.findMany({
             orderBy: { name: 'asc' },
+            include: {
+                procurementPackages: {
+                    select: { name: true },
+                    orderBy: { name: 'asc' },
+                },
+            },
         });
         return records.map((record) => this.toDomain(record));
     }
@@ -59,8 +65,16 @@ let PrismaContractorRepository = class PrismaContractorRepository {
         });
         return count > 0;
     }
+    async findLinkedPackageNames(id) {
+        const packages = await (0, procurement_prisma_access_1.asProcurementPrisma)(this.prisma).procurementPackage.findMany({
+            where: { contractorId: id },
+            select: { name: true },
+            orderBy: { name: 'asc' },
+        });
+        return packages.map((pkg) => pkg.name);
+    }
     toDomain(record) {
-        return new contractor_entity_1.Contractor(record.id, record.name, record.createdAt, record.updatedAt);
+        return new contractor_entity_1.Contractor(record.id, record.name, record.createdAt, record.updatedAt, (record.procurementPackages ?? []).map((pkg) => pkg.name));
     }
 };
 exports.PrismaContractorRepository = PrismaContractorRepository;

@@ -12,6 +12,7 @@ function toContractorResponse(contractor) {
         name: contractor.name,
         createdAt: contractor.createdAt,
         updatedAt: contractor.updatedAt,
+        linkedPackageNames: contractor.linkedPackageNames,
     };
 }
 function toConsultantResponse(consultant) {
@@ -20,6 +21,7 @@ function toConsultantResponse(consultant) {
         name: consultant.name,
         createdAt: consultant.createdAt,
         updatedAt: consultant.updatedAt,
+        linkedPackageNames: consultant.linkedPackageNames,
     };
 }
 function toProcurementPackageExpenseResponse(expense) {

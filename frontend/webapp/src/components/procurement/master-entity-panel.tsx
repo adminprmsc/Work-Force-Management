@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DataPanel } from "@/components/common/data-panel"
 import { ShimmerContainer, TableRowsShimmer } from "@/components/common/query-shimmer"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -46,6 +47,10 @@ type MasterEntityPanelProps = {
   createMutation: UseMutationResult<MasterEntity, Error, string>
   updateMutation: UseMutationResult<MasterEntity, Error, { id: string; name: string }>
   deleteMutation: UseMutationResult<{ success: boolean }, Error, string>
+}
+
+function linkedPackages(item: MasterEntity): string[] {
+  return item.linkedPackageNames ?? []
 }
 
 export const MasterEntityPanel = memo(function MasterEntityPanel({
@@ -98,6 +103,14 @@ export const MasterEntityPanel = memo(function MasterEntityPanel({
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteItem) return
+    const packages = linkedPackages(deleteItem)
+    if (packages.length > 0) {
+      toast.error(
+        `Cannot delete ${entityLabel.toLowerCase()} "${deleteItem.name}" — linked to: ${packages.join(", ")}`,
+      )
+      setDeleteItem(null)
+      return
+    }
 
     try {
       await deleteMutation.mutateAsync(deleteItem.id)
@@ -107,6 +120,9 @@ export const MasterEntityPanel = memo(function MasterEntityPanel({
       toast.error(err instanceof Error ? err.message : `Failed to delete ${entityLabel.toLowerCase()}`)
     }
   }, [deleteItem, deleteMutation, entityLabel])
+
+  const deletePackages = deleteItem ? linkedPackages(deleteItem) : []
+  const deleteBlocked = deletePackages.length > 0
 
   return (
     <>
@@ -126,21 +142,37 @@ export const MasterEntityPanel = memo(function MasterEntityPanel({
           <ShimmerContainer
             isInitialLoading={view.isInitialLoading}
             isRefreshing={view.isRefreshing}
-            shimmer={<TableRowsShimmer rows={5} columns={3} />}
+            shimmer={<TableRowsShimmer rows={5} columns={4} />}
           >
             <Table className="enterprise-table">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Linked packages</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {items?.length ? (
-                    items.map((item) => (
+                    items.map((item) => {
+                      const packages = linkedPackages(item)
+                      const inUse = packages.length > 0
+                      return (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="max-w-[320px]">
+                          {inUse ? (
+                            <div className="space-y-1">
+                              <Badge variant="secondary">{packages.length} linked</Badge>
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {packages.join(", ")}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">None</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
                           {format(new Date(item.createdAt), "dd MMM yyyy")}
                         </TableCell>
@@ -160,8 +192,12 @@ export const MasterEntityPanel = memo(function MasterEntityPanel({
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              title={`Delete ${entityLabel.toLowerCase()}`}
-                              disabled={deleteMutation.isPending}
+                              title={
+                                inUse
+                                  ? `Cannot delete — linked to ${packages.length} package(s)`
+                                  : `Delete ${entityLabel.toLowerCase()}`
+                              }
+                              disabled={deleteMutation.isPending || inUse}
                               onClick={() => setDeleteItem(item)}
                             >
                               <Trash2 className="size-4" />
@@ -169,10 +205,11 @@ export const MasterEntityPanel = memo(function MasterEntityPanel({
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
+                      )
+                    })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
                         No {entityLabel.toLowerCase()}s yet.
                       </TableCell>
                     </TableRow>
@@ -255,24 +292,46 @@ export const MasterEntityPanel = memo(function MasterEntityPanel({
       <AlertDialog open={Boolean(deleteItem)} onOpenChange={(open) => !open && setDeleteItem(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {entityLabel.toLowerCase()}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deleteBlocked
+                ? `Cannot delete ${entityLabel.toLowerCase()}`
+                : `Delete ${entityLabel.toLowerCase()}?`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes {deleteItem?.name}. Deletion is blocked if linked to a
-              procurement package.
+              {deleteBlocked ? (
+                <>
+                  <span className="font-medium text-foreground">{deleteItem?.name}</span> is linked
+                  to procurement package(s) and cannot be deleted:
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-foreground">
+                    {deletePackages.map((name) => (
+                      <li key={name}>{name}</li>
+                    ))}
+                  </ul>
+                  <span className="mt-2 block">
+                    Reassign those packages to another {entityLabel.toLowerCase()} first.
+                  </span>
+                </>
+              ) : (
+                <>This permanently removes {deleteItem?.name}.</>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleteMutation.isPending}
-              onClick={(event) => {
-                event.preventDefault()
-                void handleConfirmDelete()
-              }}
-            >
-              {deleteMutation.isPending ? "Deleting…" : "Delete"}
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {deleteBlocked ? "Close" : "Cancel"}
+            </AlertDialogCancel>
+            {deleteBlocked ? null : (
+              <AlertDialogAction
+                variant="destructive"
+                disabled={deleteMutation.isPending}
+                onClick={(event) => {
+                  event.preventDefault()
+                  void handleConfirmDelete()
+                }}
+              >
+                {deleteMutation.isPending ? "Deleting…" : "Delete"}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

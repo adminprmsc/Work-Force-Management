@@ -11,5 +11,6 @@ export declare class PrismaConsultantRepository implements ConsultantRepositoryP
     update(id: string, name: string): Promise<Consultant>;
     delete(id: string): Promise<void>;
     isReferencedByPackage(id: string): Promise<boolean>;
+    findLinkedPackageNames(id: string): Promise<string[]>;
     private toDomain;
 }

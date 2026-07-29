@@ -12,12 +12,24 @@ export type ContractorRow = {
     name: string;
     createdAt: Date;
     updatedAt: Date;
+    packages?: Array<{
+        name: string;
+    }>;
+    procurementPackages?: Array<{
+        name: string;
+    }>;
 };
 export type ConsultantRow = {
     id: string;
     name: string;
     createdAt: Date;
     updatedAt: Date;
+    packages?: Array<{
+        name: string;
+    }>;
+    procurementPackages?: Array<{
+        name: string;
+    }>;
 };
 export type ProcurementPackageInclude = {
     contractor: true;
@@ -52,6 +64,16 @@ type ContractorDelegate = {
     findMany(args: {
         orderBy: {
             name: 'asc';
+        };
+        include?: {
+            procurementPackages: {
+                select: {
+                    name: true;
+                };
+                orderBy: {
+                    name: 'asc';
+                };
+            };
         };
     }): Promise<ContractorRow[]>;
     findUnique(args: {
@@ -88,6 +110,16 @@ type ConsultantDelegate = {
         orderBy: {
             name: 'asc';
         };
+        include?: {
+            procurementPackages: {
+                select: {
+                    name: true;
+                };
+                orderBy: {
+                    name: 'asc';
+                };
+            };
+        };
     }): Promise<ConsultantRow[]>;
     findUnique(args: {
         where: {
@@ -116,7 +148,7 @@ type ConsultantDelegate = {
         where: {
             id: string;
         };
-    }): Promise<ContractorRow>;
+    }): Promise<ConsultantRow>;
 };
 type ProcurementPackageDelegate = {
     findMany(args: {
@@ -128,6 +160,21 @@ type ProcurementPackageDelegate = {
             createdAt: 'desc';
         };
     }): Promise<ProcurementPackageRecord[]>;
+    findMany(args: {
+        where: {
+            contractorId: string;
+        } | {
+            consultantId: string;
+        };
+        select: {
+            name: true;
+        };
+        orderBy: {
+            name: 'asc';
+        };
+    }): Promise<Array<{
+        name: string;
+    }>>;
     findUnique(args: {
         where: {
             id: string;

@@ -104,9 +104,9 @@ let DeleteContractorUseCase = class DeleteContractorUseCase {
         if (!contractor) {
             throw new common_1.NotFoundException('Contractor not found');
         }
-        const referenced = await this.contractorRepository.isReferencedByPackage(id);
-        if (referenced) {
-            throw new common_1.ConflictException('Contractor is linked to a procurement package and cannot be deleted');
+        const linkedPackages = await this.contractorRepository.findLinkedPackageNames(id);
+        if (linkedPackages.length > 0) {
+            throw new common_1.ConflictException(`Cannot delete contractor "${contractor.name}" because it is linked to procurement package(s): ${linkedPackages.join(', ')}. Reassign or remove those packages first.`);
         }
         await this.contractorRepository.delete(id);
     }

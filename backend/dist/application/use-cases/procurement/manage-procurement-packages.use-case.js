@@ -228,18 +228,30 @@ let UpdateProcurementPackageUseCase = class UpdateProcurementPackageUseCase {
         if (!existing) {
             throw new common_1.NotFoundException('Procurement package not found');
         }
-        if (command.budgetAmount === undefined &&
+        if (command.name === undefined &&
+            command.budgetAmount === undefined &&
+            command.contractorId === undefined &&
+            command.consultantId === undefined &&
             command.villageIds === undefined) {
-            throw new common_1.BadRequestException('Provide budget amount and/or villages to update');
+            throw new common_1.BadRequestException('Provide package name, contractor, consultant, budget amount, and/or villages to update');
+        }
+        let nextName;
+        if (command.name !== undefined) {
+            nextName = (0, procurement_actor_resolver_1.normalizeName)(command.name);
+            await assertUniquePackageName(this.packageRepository, nextName, id);
         }
         if (command.budgetAmount !== undefined && command.budgetAmount < 0) {
             throw new common_1.BadRequestException('Budget amount cannot be negative');
         }
         const villageIds = command.villageIds ?? existing.villages.map((village) => village.id);
-        if (command.villageIds) {
+        const contractorId = command.contractorId ?? existing.contractor.id;
+        const consultantId = command.consultantId ?? existing.consultant.id;
+        if (command.villageIds ||
+            command.contractorId ||
+            command.consultantId) {
             await this.packageValidator.validate({
-                contractorId: existing.contractor.id,
-                consultantId: existing.consultant.id,
+                contractorId,
+                consultantId,
                 tehsilId: existing.tehsil.id,
                 villageIds,
             });
@@ -252,9 +264,12 @@ let UpdateProcurementPackageUseCase = class UpdateProcurementPackageUseCase {
             villageAllocations = resolveVillageAllocations(budgetAmount, villageIds, command.villageAllocations);
         }
         return this.packageRepository.update(id, {
+            name: nextName,
             budgetAmount: command.budgetAmount !== undefined
                 ? formatMoney(command.budgetAmount)
                 : undefined,
+            contractorId: command.contractorId,
+            consultantId: command.consultantId,
             villageAllocations,
         });
     }

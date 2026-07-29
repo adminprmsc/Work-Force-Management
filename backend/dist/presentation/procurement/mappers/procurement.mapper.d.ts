@@ -7,12 +7,14 @@ export declare function toContractorResponse(contractor: Contractor): {
     name: string;
     createdAt: Date;
     updatedAt: Date;
+    linkedPackageNames: string[];
 };
 export declare function toConsultantResponse(consultant: Consultant): {
     id: string;
     name: string;
     createdAt: Date;
     updatedAt: Date;
+    linkedPackageNames: string[];
 };
 export declare function toProcurementPackageExpenseResponse(expense: ProcurementPackageExpense): {
     id: string;

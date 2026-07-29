@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { Eye, ClipboardCheck, Pencil, Plus, Trash2 } from "lucide-react"
+import { Eye, ClipboardCheck, Copy, Pencil, Plus, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
@@ -71,6 +71,7 @@ import type {
 } from "@/modules/api/types"
 
 type PackageFormState = {
+  name: string
   cluster: string
   code: string
   budgetAmount: string
@@ -82,6 +83,7 @@ type PackageFormState = {
 }
 
 const emptyForm = (): PackageFormState => ({
+  name: "",
   cluster: "",
   code: "",
   budgetAmount: "",
@@ -94,6 +96,7 @@ const emptyForm = (): PackageFormState => ({
 
 function packageToForm(pkg: ProcurementPackage): PackageFormState {
   return {
+    name: pkg.name,
     cluster: "",
     code: "",
     budgetAmount: pkg.budgetAmount,
@@ -300,7 +303,14 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
     const allocationsValid = !manualAllocations || allocationsMatch
 
     if (editingPackage) {
-      return budgetValid && form.villageIds.length > 0 && allocationsValid
+      return (
+        form.name.trim().length > 0 &&
+        form.contractorId.length > 0 &&
+        form.consultantId.length > 0 &&
+        budgetValid &&
+        form.villageIds.length > 0 &&
+        allocationsValid
+      )
     }
 
     return (
@@ -362,7 +372,10 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
         await updateMutation.mutateAsync({
           id: editingPackage.id,
           input: {
+            name: form.name.trim(),
             budgetAmount,
+            contractorId: form.contractorId,
+            consultantId: form.consultantId,
             villageIds: form.villageIds,
             villageAllocations,
           },
@@ -463,7 +476,26 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                   packages.map((pkg) => (
                     <TableRow key={pkg.id}>
                       <TableCell className="max-w-[280px] font-medium">
-                        <span className="line-clamp-2">{pkg.name}</span>
+                        <div className="flex items-start gap-1">
+                          <span className="line-clamp-2 min-w-0 flex-1">{pkg.name}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="shrink-0"
+                            title="Copy package name"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(pkg.name)
+                                toast.success("Package name copied")
+                              } catch {
+                                toast.error("Could not copy package name")
+                              }
+                            }}
+                          >
+                            <Copy className="size-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell>{formatCurrency(pkg.budgetAmount)}</TableCell>
                       <TableCell>{formatCurrency(pkg.totalExpenses)}</TableCell>
@@ -565,30 +597,48 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
               </DialogTitle>
               <DialogDescription>
                 {editingPackage
-                  ? "Only the allocated budget and villages can be changed after a package is created."
+                  ? "Rename the package (must be unique), change contractor/consultant, budget, and villages."
                   : "Select a tehsil, then enter Cluster and Code — the full name is formed as Cluster-Tehsil-Code."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
               {editingPackage ? (
                 <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Package name</p>
-                    <p className="font-medium">{editingPackage.name}</p>
+                  <div className="grid gap-2">
+                    <Label htmlFor="package-name">Package name</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="package-name"
+                        value={form.name}
+                        onChange={(e) =>
+                          setForm((current) => ({ ...current, name: e.target.value }))
+                        }
+                        placeholder="Unique package name"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        title="Copy package name"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(form.name.trim())
+                            toast.success("Package name copied")
+                          } catch {
+                            toast.error("Could not copy package name")
+                          }
+                        }}
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Name must be unique across all procurement packages.
+                    </p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-muted-foreground">Tehsil</p>
-                      <p className="font-medium">{editingPackage.tehsil.displayName}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Contractor</p>
-                      <p className="font-medium">{editingPackage.contractor.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Consultant</p>
-                      <p className="font-medium">{editingPackage.consultant.name}</p>
-                    </div>
+                  <div>
+                    <p className="text-muted-foreground">Tehsil</p>
+                    <p className="font-medium">{editingPackage.tehsil.displayName}</p>
                   </div>
                 </div>
               ) : (
@@ -688,8 +738,6 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                 />
               </div>
 
-              {!editingPackage ? (
-                <>
               <MasterEntitySelect
                 id="package-contractor"
                 label="Contractor"
@@ -723,8 +771,6 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                   return { id: consultant.id }
                 }}
               />
-                </>
-              ) : null}
 
               <div className="grid gap-2">
                 <Label>Villages</Label>
