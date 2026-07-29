@@ -31,6 +31,7 @@ import {
   SaveSurveyResponseDto,
   StartSurveyResponseDto,
   SubmitSurveyResponseDto,
+  ListSurveyResponsesQueryDto,
 } from './dto/survey.dto';
 import {
   parseReviewSurveyResponseCommand,
@@ -38,6 +39,7 @@ import {
   toSaveSurveyResponseCommand,
 } from './mappers/survey-response-request.mapper';
 import { toSurveyResponseResponse } from './mappers/survey.mapper';
+import { resolvePagination } from '../common/pagination';
 
 const SURVEY_READERS = [
   UserRole.SENIOR_MANAGER_ES,
@@ -69,18 +71,23 @@ export class SurveyResponsesController {
   @Roles(...SURVEY_READERS)
   async list(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('formId') formId?: string,
-    @Query('tehsilId') tehsilId?: string,
-    @Query('assignmentId') assignmentId?: string,
-    @Query('status') status?: string,
+    @Query() query: ListSurveyResponsesQueryDto,
   ) {
-    const responses = await this.listResponses.execute(user, {
-      formId,
-      tehsilId,
-      assignmentId,
-      status,
+    const pagination = resolvePagination(query);
+    const result = await this.listResponses.execute(user, {
+      formId: query.formId,
+      tehsilId: query.tehsilId,
+      assignmentId: query.assignmentId,
+      status: query.status,
+      page: pagination.page,
+      limit: pagination.limit,
     });
-    return responses.map(toSurveyResponseResponse);
+    return {
+      items: result.items.map(toSurveyResponseResponse),
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    };
   }
 
   @Post()

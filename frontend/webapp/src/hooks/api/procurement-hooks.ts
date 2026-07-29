@@ -26,6 +26,7 @@ import {
 import type {
   CreateProcurementPackageExpenseInput,
   CreateProcurementPackageInput,
+  PaginationParams,
   ProcurementPackageNamePreview,
   SavePackageBaselineInput,
   UpdateProcurementPackageInput,
@@ -129,12 +130,15 @@ export function useDeleteConsultantMutation() {
   })
 }
 
-export function useProcurementPackagesQuery(enabled = true) {
+export function useProcurementPackagesQuery(
+  params: PaginationParams = { page: 1, limit: 25 },
+  enabled = true,
+) {
   const token = useAuthToken()
 
   return useQuery({
-    queryKey: queryKeys.procurementPackages.list(),
-    queryFn: () => listProcurementPackages(token!),
+    queryKey: queryKeys.procurementPackages.list(params),
+    queryFn: () => listProcurementPackages(token!, params),
     enabled: Boolean(token) && enabled,
     placeholderData: keepPreviousData,
   })

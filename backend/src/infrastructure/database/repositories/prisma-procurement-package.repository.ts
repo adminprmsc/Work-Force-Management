@@ -39,14 +39,27 @@ export class PrismaProcurementPackageRepository implements ProcurementPackageRep
   };
 
   async findAll(filter?: ListProcurementPackagesFilter) {
-    const records = await asProcurementPrisma(
-      this.prisma,
-    ).procurementPackage.findMany({
-      where: filter?.tehsilId ? { tehsilId: filter.tehsilId } : undefined,
-      include: this.include,
-      orderBy: { createdAt: 'desc' },
-    });
-    return records.map((record) => mapPackageRecord(record));
+    const page = Math.max(1, filter?.page ?? 1);
+    const limit = filter?.limit ?? 25;
+    const skip = (page - 1) * limit;
+    const where = filter?.tehsilId ? { tehsilId: filter.tehsilId } : undefined;
+    const client = asProcurementPrisma(this.prisma);
+
+    const [records, total] = await Promise.all([
+      client.procurementPackage.findMany({
+        where,
+        include: this.include,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      client.procurementPackage.count({ where }),
+    ]);
+
+    return {
+      items: records.map((record) => mapPackageRecord(record)),
+      total,
+    };
   }
 
   async findById(id: string) {

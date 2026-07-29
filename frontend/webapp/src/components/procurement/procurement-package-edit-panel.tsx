@@ -466,45 +466,49 @@ export const ProcurementPackageEditPanel = memo(function ProcurementPackageEditP
                   <Separator />
 
                   <div className="grid gap-5 sm:grid-cols-2">
-                    <MasterEntitySelect
-                      id="package-contractor"
-                      label="Contractor"
-                      placeholder="Select contractor"
-                      entityLabel="Contractor"
-                      value={form.contractorId}
-                      onValueChange={(contractorId) =>
-                        setForm((current) =>
-                          current ? { ...current, contractorId } : current,
-                        )
-                      }
-                      items={contractors}
-                      isCreating={createContractorMutation.isPending}
-                      onCreate={async (name) => {
-                        const contractor =
-                          await createContractorMutation.mutateAsync(name)
-                        return { id: contractor.id }
-                      }}
-                    />
+                    <div className="min-w-0">
+                      <MasterEntitySelect
+                        id="package-contractor"
+                        label="Contractor"
+                        placeholder="Select contractor"
+                        entityLabel="Contractor"
+                        value={form.contractorId}
+                        onValueChange={(contractorId) =>
+                          setForm((current) =>
+                            current ? { ...current, contractorId } : current,
+                          )
+                        }
+                        items={contractors}
+                        isCreating={createContractorMutation.isPending}
+                        onCreate={async (name) => {
+                          const contractor =
+                            await createContractorMutation.mutateAsync(name)
+                          return { id: contractor.id }
+                        }}
+                      />
+                    </div>
 
-                    <MasterEntitySelect
-                      id="package-consultant"
-                      label="Consultant"
-                      placeholder="Select consultant"
-                      entityLabel="Consultant"
-                      value={form.consultantId}
-                      onValueChange={(consultantId) =>
-                        setForm((current) =>
-                          current ? { ...current, consultantId } : current,
-                        )
-                      }
-                      items={consultants}
-                      isCreating={createConsultantMutation.isPending}
-                      onCreate={async (name) => {
-                        const consultant =
-                          await createConsultantMutation.mutateAsync(name)
-                        return { id: consultant.id }
-                      }}
-                    />
+                    <div className="min-w-0">
+                      <MasterEntitySelect
+                        id="package-consultant"
+                        label="Consultant"
+                        placeholder="Select consultant"
+                        entityLabel="Consultant"
+                        value={form.consultantId}
+                        onValueChange={(consultantId) =>
+                          setForm((current) =>
+                            current ? { ...current, consultantId } : current,
+                          )
+                        }
+                        items={consultants}
+                        isCreating={createConsultantMutation.isPending}
+                        onCreate={async (name) => {
+                          const consultant =
+                            await createConsultantMutation.mutateAsync(name)
+                          return { id: consultant.id }
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               </DataPanel>

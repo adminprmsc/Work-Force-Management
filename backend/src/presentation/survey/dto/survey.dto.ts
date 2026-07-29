@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -237,4 +238,34 @@ export class ReviewSurveyResponseDto implements ReviewSurveyResponseBody {
   @IsString()
   @MaxLength(2000)
   remarks?: string | null;
+}
+
+export class ListSurveyResponsesQueryDto {
+  @IsOptional()
+  @IsUUID()
+  formId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  tehsilId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  assignmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsIn([25, 50, 100])
+  limit?: number;
 }

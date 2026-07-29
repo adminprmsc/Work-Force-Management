@@ -159,6 +159,8 @@ type ProcurementPackageDelegate = {
         orderBy: {
             createdAt: 'desc';
         };
+        skip?: number;
+        take?: number;
     }): Promise<ProcurementPackageRecord[]>;
     findMany(args: {
         where: {
@@ -214,6 +216,11 @@ type ProcurementPackageDelegate = {
             id: string;
         };
     }): Promise<ProcurementPackageRecord>;
+    count(args?: {
+        where?: {
+            tehsilId?: string;
+        };
+    }): Promise<number>;
     count(args: {
         where: {
             contractorId: string;

@@ -94,6 +94,8 @@ type ProcurementPackageDelegate = {
     where?: { tehsilId: string };
     include: ProcurementPackageInclude;
     orderBy: { createdAt: 'desc' };
+    skip?: number;
+    take?: number;
   }): Promise<ProcurementPackageRecord[]>;
   findMany(args: {
     where: { contractorId: string } | { consultantId: string };
@@ -125,6 +127,7 @@ type ProcurementPackageDelegate = {
     include: ProcurementPackageInclude;
   }): Promise<ProcurementPackageRecord>;
   delete(args: { where: { id: string } }): Promise<ProcurementPackageRecord>;
+  count(args?: { where?: { tehsilId?: string } }): Promise<number>;
   count(args: { where: { contractorId: string } }): Promise<number>;
   count(args: { where: { consultantId: string } }): Promise<number>;
 };

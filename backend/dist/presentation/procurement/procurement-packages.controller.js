@@ -24,6 +24,7 @@ const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const procurement_dto_1 = require("./dto/procurement.dto");
+const pagination_1 = require("../common/pagination");
 const procurement_mapper_1 = require("./mappers/procurement.mapper");
 const PROCUREMENT_READERS = [
     user_entity_1.UserRole.SENIOR_MANAGER_ES,
@@ -69,9 +70,15 @@ let ProcurementPackagesController = class ProcurementPackagesController {
         this.savePackageBaselineUseCase = savePackageBaselineUseCase;
         this.listPackageBaselineFormsUseCase = listPackageBaselineFormsUseCase;
     }
-    async list(user) {
-        const packages = await this.listPackagesUseCase.execute(user);
-        return packages.map(procurement_mapper_1.toProcurementPackageResponse);
+    async list(user, query) {
+        const pagination = (0, pagination_1.resolvePagination)(query);
+        const result = await this.listPackagesUseCase.execute(user, pagination);
+        return {
+            items: result.items.map(procurement_mapper_1.toProcurementPackageResponse),
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
+        };
     }
     async previewName(user, tehsilId) {
         return this.previewNameUseCase.execute(user, tehsilId);
@@ -126,8 +133,9 @@ __decorate([
     (0, common_1.Get)(),
     (0, roles_decorator_1.Roles)(...PROCUREMENT_READERS),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, pagination_1.PaginationQueryDto]),
     __metadata("design:returntype", Promise)
 ], ProcurementPackagesController.prototype, "list", null);
 __decorate([

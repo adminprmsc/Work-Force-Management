@@ -41,12 +41,25 @@ let PrismaProcurementPackageRepository = class PrismaProcurementPackageRepositor
         },
     };
     async findAll(filter) {
-        const records = await (0, procurement_prisma_access_1.asProcurementPrisma)(this.prisma).procurementPackage.findMany({
-            where: filter?.tehsilId ? { tehsilId: filter.tehsilId } : undefined,
-            include: this.include,
-            orderBy: { createdAt: 'desc' },
-        });
-        return records.map((record) => (0, procurement_package_mapper_1.mapPackageRecord)(record));
+        const page = Math.max(1, filter?.page ?? 1);
+        const limit = filter?.limit ?? 25;
+        const skip = (page - 1) * limit;
+        const where = filter?.tehsilId ? { tehsilId: filter.tehsilId } : undefined;
+        const client = (0, procurement_prisma_access_1.asProcurementPrisma)(this.prisma);
+        const [records, total] = await Promise.all([
+            client.procurementPackage.findMany({
+                where,
+                include: this.include,
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+            }),
+            client.procurementPackage.count({ where }),
+        ]);
+        return {
+            items: records.map((record) => (0, procurement_package_mapper_1.mapPackageRecord)(record)),
+            total,
+        };
     }
     async findById(id) {
         const record = await (0, procurement_prisma_access_1.asProcurementPrisma)(this.prisma).procurementPackage.findUnique({

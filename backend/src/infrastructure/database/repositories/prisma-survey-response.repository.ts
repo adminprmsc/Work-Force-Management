@@ -223,21 +223,37 @@ export class PrismaSurveyResponseRepository implements SurveyResponseRepositoryP
     },
   };
 
-  async findAll(filter?: ListSurveyResponsesFilter): Promise<SurveyResponse[]> {
-    const records = await this.prisma.surveyResponse.findMany({
-      where: {
-        ...(filter?.tehsilId ? { tehsilId: filter.tehsilId } : {}),
-        ...(filter?.formId ? { formId: filter.formId } : {}),
-        ...(filter?.assignmentId ? { assignmentId: filter.assignmentId } : {}),
-        ...(filter?.respondentId ? { respondentId: filter.respondentId } : {}),
-        ...(filter?.status
-          ? { status: filter.status as SurveyResponseStatus }
-          : {}),
-      },
-      include: this.include,
-      orderBy: { createdAt: 'desc' },
-    });
-    return records.map((r) => mapResponse(r as ResponseRecord));
+  async findAll(
+    filter?: ListSurveyResponsesFilter,
+  ): Promise<{ items: SurveyResponse[]; total: number }> {
+    const page = Math.max(1, filter?.page ?? 1);
+    const limit = filter?.limit ?? 25;
+    const skip = (page - 1) * limit;
+    const where = {
+      ...(filter?.tehsilId ? { tehsilId: filter.tehsilId } : {}),
+      ...(filter?.formId ? { formId: filter.formId } : {}),
+      ...(filter?.assignmentId ? { assignmentId: filter.assignmentId } : {}),
+      ...(filter?.respondentId ? { respondentId: filter.respondentId } : {}),
+      ...(filter?.status
+        ? { status: filter.status as SurveyResponseStatus }
+        : {}),
+    };
+
+    const [records, total] = await Promise.all([
+      this.prisma.surveyResponse.findMany({
+        where,
+        include: this.include,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.surveyResponse.count({ where }),
+    ]);
+
+    return {
+      items: records.map((r) => mapResponse(r as ResponseRecord)),
+      total,
+    };
   }
 
   async findById(id: string): Promise<SurveyResponse | null> {

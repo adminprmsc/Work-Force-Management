@@ -26,6 +26,8 @@ export interface ListSurveyResponsesFilter {
   assignmentId?: string;
   respondentId?: string;
   status?: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface FindResponseForSlotParams {
@@ -55,7 +57,7 @@ export interface SurveySubmissionLocation {
 export abstract class SurveyResponseRepositoryPort {
   abstract findAll(
     filter?: ListSurveyResponsesFilter,
-  ): Promise<SurveyResponse[]>;
+  ): Promise<{ items: SurveyResponse[]; total: number }>;
   abstract findById(id: string): Promise<SurveyResponse | null>;
   /**
    * Find the most recent response occupying a village/settlement slot for an

@@ -148,19 +148,39 @@ export class ListProcurementPackagesUseCase {
     private readonly budgetEnricher: ProcurementPackageBudgetEnricher,
   ) {}
 
-  async execute(user: AuthenticatedUser): Promise<ProcurementPackage[]> {
+  async execute(
+    user: AuthenticatedUser,
+    query?: { page?: number; limit?: number },
+  ): Promise<{
+    items: ProcurementPackage[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const actor = await this.actorResolver.resolve(user);
     if (!canReadProcurementPackages(actor.role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    const filter =
-      actor.role === UserRole.RA_ES_TEHSIL && actor.tehsilId
-        ? { tehsilId: actor.tehsilId }
-        : undefined;
+    const page = Math.max(1, query?.page ?? 1);
+    const limit = query?.limit ?? 25;
 
-    const packages = await this.packageRepository.findAll(filter);
-    return this.budgetEnricher.enrich(packages);
+    const filter = {
+      page,
+      limit,
+      ...(actor.role === UserRole.RA_ES_TEHSIL && actor.tehsilId
+        ? { tehsilId: actor.tehsilId }
+        : {}),
+    };
+
+    const result = await this.packageRepository.findAll(filter);
+    const items = await this.budgetEnricher.enrich(result.items);
+    return {
+      items,
+      total: result.total,
+      page,
+      limit,
+    };
   }
 }
 

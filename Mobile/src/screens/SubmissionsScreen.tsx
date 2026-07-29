@@ -38,7 +38,7 @@ export function SubmissionsScreen() {
     }
     try {
       const data = await listSurveyResponses(token);
-      setResponses(data);
+      setResponses(data.items);
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load submissions');
     } finally {

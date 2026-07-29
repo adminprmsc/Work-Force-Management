@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils"
 import type {
   SurveyAssignment,
   SurveyResponse,
+  SurveyResponsesListResponse,
 } from "@/modules/api/survey-types"
 
 type WindowState = "upcoming" | "open" | "closed"
@@ -288,9 +289,9 @@ export function SurveyMyAssignmentsPanel() {
     [assignmentsView.data],
   )
 
-  const responsesQuery = useSurveyResponsesQuery({})
-  const responsesView = getQueryViewState<SurveyResponse[]>(responsesQuery)
-  const responses = responsesView.data ?? []
+  const responsesQuery = useSurveyResponsesQuery({ page: 1, limit: 100 })
+  const responsesView = getQueryViewState<SurveyResponsesListResponse>(responsesQuery)
+  const responses = responsesView.data?.items ?? []
 
   const [startAssignment, setStartAssignment] = useState<SurveyAssignment | null>(
     null,

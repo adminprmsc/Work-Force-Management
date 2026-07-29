@@ -32,7 +32,15 @@ export const queryKeys = {
   },
   procurementPackages: {
     all: ["procurement-packages"] as const,
-    list: () => ["procurement-packages", "list"] as const,
+    list: (params: { page?: number; limit?: number } = {}) =>
+      [
+        "procurement-packages",
+        "list",
+        {
+          page: params.page ?? 1,
+          limit: params.limit ?? 25,
+        },
+      ] as const,
     detail: (id: string) => ["procurement-packages", id] as const,
     baseline: (packageId: string, formId: string) =>
       ["procurement-packages", packageId, "baseline", formId] as const,
@@ -76,6 +84,8 @@ export const queryKeys = {
       tehsilId?: string
       assignmentId?: string
       status?: string
+      page?: number
+      limit?: number
     } = {}) =>
       [
         "survey-responses",
@@ -85,6 +95,8 @@ export const queryKeys = {
           tehsilId: filter.tehsilId ?? null,
           assignmentId: filter.assignmentId ?? null,
           status: filter.status ?? null,
+          page: filter.page ?? 1,
+          limit: filter.limit ?? 25,
         },
       ] as const,
     detail: (id: string) => ["survey-responses", id] as const,

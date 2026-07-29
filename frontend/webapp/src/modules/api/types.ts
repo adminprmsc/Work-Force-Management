@@ -80,6 +80,18 @@ export type AuditLogsResponse = {
   limit: number
 }
 
+export type PaginatedResponse<T> = {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+}
+
+export type PaginationParams = {
+  page?: number
+  limit?: 25 | 50 | 100
+}
+
 export type MasterEntity = {
   id: string
   name: string

@@ -1,9 +1,14 @@
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { format } from "date-fns"
 import { MapPin, X } from "lucide-react"
 
 import { DataPanel } from "@/components/common/data-panel"
+import { ListPagination } from "@/components/common/list-pagination"
+import {
+  DEFAULT_PAGE_SIZE,
+  type PageSizeOption,
+} from "@/lib/list-pagination"
 import {
   ShimmerContainer,
   TableRowsShimmer,
@@ -35,7 +40,10 @@ import {
   surveyResponsePath,
 } from "@/lib/survey"
 import { useAuth } from "@/modules/auth/use-auth"
-import type { SurveyResponse } from "@/modules/api/survey-types"
+import type {
+  SurveyResponse,
+  SurveyResponsesListResponse,
+} from "@/modules/api/survey-types"
 
 function siteLabel(response: SurveyResponse): string {
   return response.settlement
@@ -47,25 +55,38 @@ export function SurveyResponsesPanel() {
   const { user } = useAuth()
   const [formFilter, setFormFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE)
   const [mapResponse, setMapResponse] = useState<SurveyResponse | null>(null)
   const formsQuery = useSurveyFormsQuery()
-  const query = useSurveyResponsesQuery(
-    {
-      ...(formFilter ? { formId: formFilter } : {}),
-      ...(statusFilter
-        ? { status: statusFilter as SurveyResponse["status"] }
-        : {}),
-    },
-  )
-  const view = getQueryViewState<SurveyResponse[]>(query)
+  const query = useSurveyResponsesQuery({
+    ...(formFilter ? { formId: formFilter } : {}),
+    ...(statusFilter
+      ? { status: statusFilter as SurveyResponse["status"] }
+      : {}),
+    page,
+    limit: pageSize,
+  })
+  const view = getQueryViewState<SurveyResponsesListResponse>(query)
 
-  const visibleResponses = useMemo(() => {
-    const responses = view.data ?? []
-    if (statusFilter) return responses
-    return responses.filter((response) => response.status !== "DRAFT")
-  }, [view.data, statusFilter])
+  const responses = useMemo(() => {
+    const items = view.data?.items ?? []
+    if (statusFilter) return items
+    return items.filter((response) => response.status !== "DRAFT")
+  }, [view.data?.items, statusFilter])
+
+  const total = view.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  if (page > totalPages) {
+    setPage(totalPages)
+  }
 
   const forms = useMemo(() => formsQuery.data ?? [], [formsQuery.data])
+
+  const handlePageSizeChange = useCallback((next: PageSizeOption) => {
+    setPageSize(next)
+    setPage(1)
+  }, [])
 
   const toggleMapResponse = (response: SurveyResponse) => {
     if (!response.submittedLocation) return
@@ -80,7 +101,10 @@ export function SurveyResponsesPanel() {
         <NativeSelect
           className="w-full sm:w-64"
           value={formFilter}
-          onChange={(e) => setFormFilter(e.target.value)}
+          onChange={(e) => {
+            setFormFilter(e.target.value)
+            setPage(1)
+          }}
         >
           <NativeSelectOption value="">All forms</NativeSelectOption>
           {forms.map((form) => (
@@ -92,7 +116,10 @@ export function SurveyResponsesPanel() {
         <NativeSelect
           className="w-full sm:w-48"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value)
+            setPage(1)
+          }}
         >
           <NativeSelectOption value="">All statuses</NativeSelectOption>
           <NativeSelectOption value="SUBMITTED">Pending review</NativeSelectOption>
@@ -170,8 +197,8 @@ export function SurveyResponsesPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleResponses.length ? (
-                  visibleResponses.map((response) => {
+                {responses.length ? (
+                  responses.map((response) => {
                     const isMapSelected = mapResponse?.id === response.id
 
                     return (
@@ -240,6 +267,15 @@ export function SurveyResponsesPanel() {
             </Table>
           </ShimmerContainer>
         )}
+        <ListPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+          label="responses"
+        />
       </DataPanel>
     </div>
   )

@@ -344,8 +344,12 @@ export function ResponseScreen() {
     if (isOnline && token) {
       setChecking(true);
       try {
-        const responses = await listSurveyResponses(token, { assignmentId: assignment.id });
-        const blocking = findBlockingResponse(responses, {
+        const result = await listSurveyResponses(token, {
+          assignmentId: assignment.id,
+          page: 1,
+          limit: 100,
+        });
+        const blocking = findBlockingResponse(result.items, {
           assignmentId: assignment.id,
           villageId,
           settlementId,

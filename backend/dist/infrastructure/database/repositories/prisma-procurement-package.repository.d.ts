@@ -4,7 +4,10 @@ export declare class PrismaProcurementPackageRepository implements ProcurementPa
     private readonly prisma;
     constructor(prisma: PrismaService);
     private readonly include;
-    findAll(filter?: ListProcurementPackagesFilter): Promise<import("../../../domain/entities/procurement-package.entity").ProcurementPackage[]>;
+    findAll(filter?: ListProcurementPackagesFilter): Promise<{
+        items: import("../../../domain/entities/procurement-package.entity").ProcurementPackage[];
+        total: number;
+    }>;
     findById(id: string): Promise<import("../../../domain/entities/procurement-package.entity").ProcurementPackage | null>;
     findByName(name: string): Promise<import("../../../domain/entities/procurement-package.entity").ProcurementPackage | null>;
     create(data: CreateProcurementPackageData): Promise<import("../../../domain/entities/procurement-package.entity").ProcurementPackage>;

@@ -77,29 +77,27 @@ export const MasterEntitySelect = memo(function MasterEntitySelect({
   }, [createName, entityLabel, onCreate, onValueChange])
 
   return (
-    <>
-      <div className="grid gap-2">
-        <Label htmlFor={id}>{label}</Label>
-        <Select value={value || undefined} onValueChange={handleSelect}>
-          <SelectTrigger id={id} className="w-full">
-            <SelectValue placeholder={placeholder} />
-          </SelectTrigger>
-          <SelectContent>
-            {items?.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.name}
-              </SelectItem>
-            ))}
-            <SelectSeparator />
-            <SelectItem value={CREATE_NEW_VALUE} className="text-primary">
-              <span className="flex items-center gap-2">
-                <Plus className="size-4" />
-                Create new {entityLabel.toLowerCase()}
-              </span>
+    <div className="grid min-w-0 gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Select value={value || undefined} onValueChange={handleSelect}>
+        <SelectTrigger id={id} className="w-full min-w-0">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {items?.map((item) => (
+            <SelectItem key={item.id} value={item.id}>
+              {item.name}
             </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          ))}
+          <SelectSeparator />
+          <SelectItem value={CREATE_NEW_VALUE} className="text-primary">
+            <span className="flex items-center gap-2">
+              <Plus className="size-4" />
+              Create new {entityLabel.toLowerCase()}
+            </span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
 
       <Dialog
         open={createOpen}
@@ -138,6 +136,6 @@ export const MasterEntitySelect = memo(function MasterEntitySelect({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 })

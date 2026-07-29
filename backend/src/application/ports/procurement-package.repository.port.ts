@@ -25,12 +25,14 @@ export interface UpdateProcurementPackageData {
 
 export interface ListProcurementPackagesFilter {
   tehsilId?: string;
+  page?: number;
+  limit?: number;
 }
 
 export abstract class ProcurementPackageRepositoryPort {
   abstract findAll(
     filter?: ListProcurementPackagesFilter,
-  ): Promise<ProcurementPackage[]>;
+  ): Promise<{ items: ProcurementPackage[]; total: number }>;
   abstract findById(id: string): Promise<ProcurementPackage | null>;
   abstract findByName(name: string): Promise<ProcurementPackage | null>;
   abstract create(

@@ -44,7 +44,7 @@ export function SurveyAssignDialog({
   form,
 }: SurveyAssignDialogProps) {
   const assignmentsQuery = useSurveyFormAssignmentsQuery(form?.id ?? null, open)
-  const packagesQuery = useProcurementPackagesQuery(open)
+  const packagesQuery = useProcurementPackagesQuery({ page: 1, limit: 100 }, open)
   const createMutation = useCreateSurveyAssignmentsMutation()
   const deleteMutation = useDeleteSurveyAssignmentMutation()
 
@@ -62,7 +62,7 @@ export function SurveyAssignDialog({
     () => new Set(assignments.map((a) => a.procurementPackage.id)),
     [assignments],
   )
-  const packages = packagesQuery.data ?? []
+  const packages = packagesQuery.data?.items ?? []
   const availablePackages = packages.filter((pkg) => !assignedPackageIds.has(pkg.id))
 
   const toggle = (id: string) => {

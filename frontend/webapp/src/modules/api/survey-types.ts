@@ -273,6 +273,15 @@ export type SurveyResponsesFilter = {
   tehsilId?: string
   assignmentId?: string
   status?: SurveyResponseStatus
+  page?: number
+  limit?: 25 | 50 | 100
+}
+
+export type SurveyResponsesListResponse = {
+  items: SurveyResponse[]
+  total: number
+  page: number
+  limit: number
 }
 
 export type SurveyFormAnalyticsSummary = {

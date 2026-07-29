@@ -4,6 +4,8 @@ import type {
   Contractor,
   CreateProcurementPackageExpenseInput,
   CreateProcurementPackageInput,
+  PaginatedResponse,
+  PaginationParams,
   ProcurementPackage,
   ProcurementPackageExpense,
   ProcurementPackageNamePreview,
@@ -92,11 +94,21 @@ export function previewProcurementPackageName(
   )
 }
 
-export function listProcurementPackages(token: string): Promise<ProcurementPackage[]> {
-  return apiRequest<ProcurementPackage[]>("/procurement-packages", {
-    method: "GET",
-    token,
-  })
+export function listProcurementPackages(
+  token: string,
+  params: PaginationParams = {},
+): Promise<PaginatedResponse<ProcurementPackage>> {
+  const search = new URLSearchParams()
+  if (params.page) search.set("page", String(params.page))
+  if (params.limit) search.set("limit", String(params.limit))
+  const qs = search.toString()
+  return apiRequest<PaginatedResponse<ProcurementPackage>>(
+    `/procurement-packages${qs ? `?${qs}` : ""}`,
+    {
+      method: "GET",
+      token,
+    },
+  )
 }
 
 export function getProcurementPackage(

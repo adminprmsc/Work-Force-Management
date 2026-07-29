@@ -32,7 +32,15 @@ export declare class ListProcurementPackagesUseCase {
     private readonly actorResolver;
     private readonly budgetEnricher;
     constructor(packageRepository: ProcurementPackageRepositoryPort, actorResolver: ProcurementActorResolver, budgetEnricher: ProcurementPackageBudgetEnricher);
-    execute(user: AuthenticatedUser): Promise<ProcurementPackage[]>;
+    execute(user: AuthenticatedUser, query?: {
+        page?: number;
+        limit?: number;
+    }): Promise<{
+        items: ProcurementPackage[];
+        total: number;
+        page: number;
+        limit: number;
+    }>;
 }
 export declare class GetProcurementPackageUseCase {
     private readonly packageRepository;

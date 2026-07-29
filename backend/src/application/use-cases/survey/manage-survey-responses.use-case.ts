@@ -215,28 +215,48 @@ export class ListSurveyResponsesUseCase {
       tehsilId?: string;
       assignmentId?: string;
       status?: string;
+      page?: number;
+      limit?: number;
     },
-  ): Promise<SurveyResponse[]> {
+  ): Promise<{
+    items: SurveyResponse[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const actor = await this.scopeResolver.resolve(user);
     if (!canReadSurveys(actor.role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
+    const page = Math.max(1, query.page ?? 1);
+    const limit = query.limit ?? 25;
+
     const filter: ListSurveyResponsesFilter = {
       formId: query.formId,
       assignmentId: query.assignmentId,
       status: query.status,
+      page,
+      limit,
     };
 
     if (actor.role === UserRole.RA_ES_TEHSIL) {
-      if (!actor.tehsilId) return [];
+      if (!actor.tehsilId) {
+        return { items: [], total: 0, page, limit };
+      }
       filter.tehsilId = actor.tehsilId;
       filter.respondentId = actor.id;
     } else if (query.tehsilId) {
       filter.tehsilId = query.tehsilId;
     }
 
-    return this.responseRepository.findAll(filter);
+    const result = await this.responseRepository.findAll(filter);
+    return {
+      items: result.items,
+      total: result.total,
+      page,
+      limit,
+    };
   }
 }
 

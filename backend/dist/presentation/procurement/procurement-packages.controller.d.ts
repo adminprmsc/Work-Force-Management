@@ -4,6 +4,7 @@ import { GetPackageFormBaselineUseCase, SavePackageFormBaselineUseCase } from '.
 import { CreateProcurementPackageUseCase, DeleteProcurementPackageUseCase, GetProcurementPackageUseCase, ListProcurementPackagesUseCase, PreviewProcurementPackageNameUseCase, UpdateProcurementPackageUseCase } from '../../application/use-cases/procurement/manage-procurement-packages.use-case';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { CreateProcurementPackageDto, CreateProcurementPackageExpenseDto, UpdateProcurementPackageDto, UpdateProcurementPackageExpenseDto, SavePackageBaselineDto } from './dto/procurement.dto';
+import { PaginationQueryDto } from '../common/pagination';
 export declare class ProcurementPackagesController {
     private readonly listPackagesUseCase;
     private readonly getPackageUseCase;
@@ -19,49 +20,54 @@ export declare class ProcurementPackagesController {
     private readonly savePackageBaselineUseCase;
     private readonly listPackageBaselineFormsUseCase;
     constructor(listPackagesUseCase: ListProcurementPackagesUseCase, getPackageUseCase: GetProcurementPackageUseCase, previewNameUseCase: PreviewProcurementPackageNameUseCase, createPackageUseCase: CreateProcurementPackageUseCase, updatePackageUseCase: UpdateProcurementPackageUseCase, deletePackageUseCase: DeleteProcurementPackageUseCase, listExpensesUseCase: ListProcurementPackageExpensesUseCase, createExpenseUseCase: CreateProcurementPackageExpenseUseCase, updateExpenseUseCase: UpdateProcurementPackageExpenseUseCase, deleteExpenseUseCase: DeleteProcurementPackageExpenseUseCase, getPackageBaselineUseCase: GetPackageFormBaselineUseCase, savePackageBaselineUseCase: SavePackageFormBaselineUseCase, listPackageBaselineFormsUseCase: ListPackageBaselineFormsUseCase);
-    list(user: AuthenticatedUser): Promise<{
-        id: string;
-        name: string;
-        budgetAmount: string;
-        totalExpenses: string;
-        remainingBudget: string;
-        contractor: {
+    list(user: AuthenticatedUser, query: PaginationQueryDto): Promise<{
+        items: {
             id: string;
             name: string;
-        };
-        consultant: {
-            id: string;
-            name: string;
-        };
-        tehsil: {
-            id: string;
-            name: string;
-            displayName: string;
-        };
-        villages: {
-            id: string;
-            name: string;
-            allocatedBudget: string;
-            spent: string;
-            remaining: string;
-        }[];
-        expenses: {
-            id: string;
-            packageId: string;
-            amount: string;
-            description: string | null;
-            expenseDate: Date;
-            createdBy: {
+            budgetAmount: string;
+            totalExpenses: string;
+            remainingBudget: string;
+            contractor: {
                 id: string;
-                username: string;
-                email: string;
+                name: string;
             };
+            consultant: {
+                id: string;
+                name: string;
+            };
+            tehsil: {
+                id: string;
+                name: string;
+                displayName: string;
+            };
+            villages: {
+                id: string;
+                name: string;
+                allocatedBudget: string;
+                spent: string;
+                remaining: string;
+            }[];
+            expenses: {
+                id: string;
+                packageId: string;
+                amount: string;
+                description: string | null;
+                expenseDate: Date;
+                createdBy: {
+                    id: string;
+                    username: string;
+                    email: string;
+                };
+                createdAt: Date;
+                updatedAt: Date;
+            }[];
             createdAt: Date;
             updatedAt: Date;
         }[];
-        createdAt: Date;
-        updatedAt: Date;
-    }[]>;
+        total: number;
+        page: number;
+        limit: number;
+    }>;
     previewName(user: AuthenticatedUser, tehsilId: string): Promise<import("../../application/services/procurement-package-naming.service").TehsilNamingPreview>;
     listExpenses(user: AuthenticatedUser, id: string): Promise<{
         id: string;

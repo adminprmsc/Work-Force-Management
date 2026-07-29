@@ -12,6 +12,7 @@ import type {
   SurveyFormAnalyticsFilter,
   SurveyResponse,
   SurveyResponsesFilter,
+  SurveyResponsesListResponse,
   UpdateSurveyFormInput,
 } from "./survey-types"
 
@@ -137,17 +138,22 @@ export function listMySurveyAssignments(token: string): Promise<SurveyAssignment
 export function listSurveyResponses(
   token: string,
   filter: SurveyResponsesFilter = {},
-): Promise<SurveyResponse[]> {
+): Promise<SurveyResponsesListResponse> {
   const params = new URLSearchParams()
   if (filter.formId) params.set("formId", filter.formId)
   if (filter.tehsilId) params.set("tehsilId", filter.tehsilId)
   if (filter.assignmentId) params.set("assignmentId", filter.assignmentId)
   if (filter.status) params.set("status", filter.status)
+  if (filter.page) params.set("page", String(filter.page))
+  if (filter.limit) params.set("limit", String(filter.limit))
   const qs = params.toString()
-  return apiRequest<SurveyResponse[]>(`/survey-responses${qs ? `?${qs}` : ""}`, {
-    method: "GET",
-    token,
-  })
+  return apiRequest<SurveyResponsesListResponse>(
+    `/survey-responses${qs ? `?${qs}` : ""}`,
+    {
+      method: "GET",
+      token,
+    },
+  )
 }
 
 export function getSurveyResponse(

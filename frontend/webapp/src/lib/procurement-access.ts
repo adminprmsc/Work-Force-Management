@@ -28,3 +28,7 @@ export function procurementPackagesPath(role: RoleType): string {
 export function procurementPackageEditPath(role: RoleType, packageId: string): string {
   return `${procurementPackagesPath(role)}/${packageId}`
 }
+
+export function procurementPackageCreatePath(role: RoleType): string {
+  return `${procurementPackagesPath(role)}/new`
+}

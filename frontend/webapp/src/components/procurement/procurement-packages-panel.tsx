@@ -15,30 +15,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { DataPanel } from "@/components/common/data-panel"
+import { ListPagination } from "@/components/common/list-pagination"
+import {
+  DEFAULT_PAGE_SIZE,
+  type PageSizeOption,
+} from "@/lib/list-pagination"
 import { ShimmerContainer, TableRowsShimmer } from "@/components/common/query-shimmer"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { PackageBaselineRequirements } from "@/components/compliance/package-baseline-requirements"
-import { MasterEntitySelect } from "@/components/procurement/master-entity-select"
 import { PackageBaselineDialog } from "@/components/procurement/package-baseline-dialog"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -48,33 +40,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  useConsultantsQuery,
-  useContractorsQuery,
-  useCreateConsultantMutation,
-  useCreateContractorMutation,
-  useCreateProcurementPackageMutation,
   useDeleteProcurementPackageMutation,
-  useProcurementPackageNamePreviewQuery,
   useProcurementPackagesQuery,
   useTehsilsQuery,
-  useVillagesQuery,
 } from "@/hooks/api"
 import { getQueryViewState, mergeQueryViewStates } from "@/lib/query-view-state"
+import { formatCurrency } from "@/lib/procurement-package-name"
 import {
-  emptyPackageForm,
-  equalSplitAllocations,
-  type PackageFormState,
-} from "@/lib/procurement-package-form"
-import { formatCurrency, composePackageNameFromParts } from "@/lib/procurement-package-name"
-import { procurementPackageEditPath } from "@/lib/procurement-access"
+  procurementPackageCreatePath,
+  procurementPackageEditPath,
+} from "@/lib/procurement-access"
 import { useAuth } from "@/modules/auth/use-auth"
 import type {
-  Consultant,
-  Contractor,
+  PaginatedResponse,
   ProcurementPackage,
-  ProcurementPackageNamePreview,
   Tehsil,
-  Village,
 } from "@/modules/api/types"
 
 type ProcurementPackagesPanelProps = {
@@ -88,27 +68,16 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
 }: ProcurementPackagesPanelProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const packagesQuery = useProcurementPackagesQuery()
-  const contractorsQuery = useContractorsQuery(canManage)
-  const consultantsQuery = useConsultantsQuery(canManage)
-  const tehsilsQuery = useTehsilsQuery()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE)
 
-  const createMutation = useCreateProcurementPackageMutation()
+  const packagesQuery = useProcurementPackagesQuery({ page, limit: pageSize })
+  const tehsilsQuery = useTehsilsQuery()
   const deleteMutation = useDeleteProcurementPackageMutation()
-  const createContractorMutation = useCreateContractorMutation()
-  const createConsultantMutation = useCreateConsultantMutation()
 
   const packagesView = useMemo(
-    () => getQueryViewState<ProcurementPackage[]>(packagesQuery),
+    () => getQueryViewState<PaginatedResponse<ProcurementPackage>>(packagesQuery),
     [packagesQuery],
-  )
-  const contractorsView = useMemo(
-    () => getQueryViewState<Contractor[]>(contractorsQuery),
-    [contractorsQuery],
-  )
-  const consultantsView = useMemo(
-    () => getQueryViewState<Consultant[]>(consultantsQuery),
-    [consultantsQuery],
   )
   const tehsilsView = useMemo(
     () => getQueryViewState<Tehsil[]>(tehsilsQuery),
@@ -116,152 +85,34 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   )
 
   const viewState = useMemo(
-    () =>
-      mergeQueryViewStates([
-        packagesView,
-        tehsilsView,
-        ...(canManage ? [contractorsView, consultantsView] : []),
-      ]),
-    [canManage, consultantsView, contractorsView, packagesView, tehsilsView],
+    () => mergeQueryViewStates([packagesView, tehsilsView]),
+    [packagesView, tehsilsView],
   )
 
-  const packages = packagesView.data
-  const contractors = contractorsView.data
-  const consultants = consultantsView.data
+  const packages = useMemo(
+    () => packagesView.data?.items ?? [],
+    [packagesView.data?.items],
+  )
+  const total = packagesView.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  if (page > totalPages) {
+    setPage(totalPages)
+  }
   const tehsils = tehsilsView.data
 
-  const [formOpen, setFormOpen] = useState(false)
-  const [form, setForm] = useState<PackageFormState>(emptyPackageForm)
-  // When false, per-village allocations follow an automatic equal split.
-  const [manualAllocations, setManualAllocations] = useState(false)
+  const handlePageSizeChange = useCallback((next: PageSizeOption) => {
+    setPageSize(next)
+    setPage(1)
+  }, [])
 
   const [detailPackage, setDetailPackage] = useState<ProcurementPackage | null>(null)
   const [compliancePackage, setCompliancePackage] = useState<ProcurementPackage | null>(null)
   const [deletePackage, setDeletePackage] = useState<ProcurementPackage | null>(null)
 
-  const villagesQuery = useVillagesQuery(form.tehsilId || null)
-  const namePreviewQuery = useProcurementPackageNamePreviewQuery(
-    form.tehsilId || null,
-    canManage && formOpen,
-  )
-  const namePreviewView = useMemo(
-    () => getQueryViewState<ProcurementPackageNamePreview>(namePreviewQuery),
-    [namePreviewQuery],
-  )
-  const villagesView = useMemo(
-    () => getQueryViewState<Village[]>(villagesQuery),
-    [villagesQuery],
-  )
-  const villages = villagesView.data
-
-  const tehsilDisplayName = namePreviewView.data?.tehsilDisplayName ?? ""
-
-  const composedName = useMemo(
-    () => composePackageNameFromParts(form.cluster, tehsilDisplayName, form.code),
-    [form.cluster, form.code, tehsilDisplayName],
-  )
-
-  const budgetNum = Number.parseFloat(form.budgetAmount)
-
-  const autoAllocations = useMemo(
-    () => equalSplitAllocations(budgetNum, form.villageIds),
-    [budgetNum, form.villageIds],
-  )
-
-  const effectiveAllocations = useMemo(
-    () =>
-      manualAllocations
-        ? Object.fromEntries(
-            form.villageIds.map((id) => [id, form.allocations[id] ?? "0.00"]),
-          )
-        : autoAllocations,
-    [manualAllocations, form.villageIds, form.allocations, autoAllocations],
-  )
-
-  const allocationSum = useMemo(
-    () =>
-      form.villageIds.reduce(
-        (sum, id) => sum + (Number.parseFloat(effectiveAllocations[id]) || 0),
-        0,
-      ),
-    [form.villageIds, effectiveAllocations],
-  )
-
-  const allocationsMatch =
-    !Number.isNaN(budgetNum) && Math.abs(allocationSum - budgetNum) <= 0.01
-
-  const setVillageAllocation = useCallback(
-    (villageId: string, value: string) => {
-      setManualAllocations(true)
-      setForm((current) => ({
-        ...current,
-        allocations: {
-          ...(manualAllocations
-            ? current.allocations
-            : equalSplitAllocations(
-                Number.parseFloat(current.budgetAmount),
-                current.villageIds,
-              )),
-          [villageId]: value,
-        },
-      }))
-    },
-    [manualAllocations],
-  )
-
-  const resetToEqualSplit = useCallback(() => {
-    setManualAllocations(false)
-  }, [])
-
-  // Only prune village selections once the tehsil's villages have actually loaded.
-  // Skipping this guard wiped checked villages while the query was still empty.
-  useEffect(() => {
-    if (!form.tehsilId) return
-    if (villagesQuery.isPlaceholderData) return
-    if (!villages) return
-    setForm((current) => {
-      const allowed = new Set(villages.map((village) => village.id))
-      const nextVillageIds = current.villageIds.filter((id) => allowed.has(id))
-      if (nextVillageIds.length === current.villageIds.length) {
-        return current
-      }
-      return { ...current, villageIds: nextVillageIds }
-    })
-  }, [form.tehsilId, villages, villagesQuery.isPlaceholderData])
-
-  useEffect(() => {
-    if (!formOpen || !namePreviewView.data?.suggestedZoneLabel) return
-    setForm((current) => {
-      if (current.cluster.trim()) return current
-      return { ...current, cluster: namePreviewView.data!.suggestedZoneLabel! }
-    })
-  }, [formOpen, namePreviewView.data])
-
-  const canSubmit = useMemo(() => {
-    const budget = Number.parseFloat(form.budgetAmount)
-    const budgetValid = !Number.isNaN(budget) && budget >= 0
-    const allocationsValid = !manualAllocations || allocationsMatch
-
-    return (
-      form.cluster.trim().length > 0 &&
-      form.code.trim().length > 0 &&
-      budgetValid &&
-      form.contractorId.length > 0 &&
-      form.consultantId.length > 0 &&
-      form.tehsilId.length > 0 &&
-      form.villageIds.length > 0 &&
-      allocationsValid
-    )
-  }, [form, manualAllocations, allocationsMatch])
-
   const openCreate = useCallback(() => {
-    setManualAllocations(false)
-    setForm({
-      ...emptyPackageForm(),
-      tehsilId: tehsils?.[0]?.id ?? "",
-    })
-    setFormOpen(true)
-  }, [tehsils])
+    if (!user) return
+    void navigate(procurementPackageCreatePath(user.role))
+  }, [navigate, user])
 
   const openEdit = useCallback(
     (pkg: ProcurementPackage) => {
@@ -270,50 +121,6 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
     },
     [navigate, user],
   )
-
-  const toggleVillage = useCallback((villageId: string, checked: boolean) => {
-    setForm((current) => {
-      const villageIds = checked
-        ? [...current.villageIds, villageId]
-        : current.villageIds.filter((id) => id !== villageId)
-      const allocations = { ...current.allocations }
-      if (checked) {
-        allocations[villageId] = allocations[villageId] ?? "0.00"
-      } else {
-        delete allocations[villageId]
-      }
-      return { ...current, villageIds, allocations }
-    })
-  }, [])
-
-  const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return
-
-    const budgetAmount = Number.parseFloat(form.budgetAmount)
-    const villageAllocations = form.villageIds.map((villageId) => ({
-      villageId,
-      allocatedBudget: Number.parseFloat(effectiveAllocations[villageId]) || 0,
-    }))
-
-    try {
-      await createMutation.mutateAsync({
-        cluster: form.cluster.trim(),
-        code: form.code.trim(),
-        budgetAmount,
-        contractorId: form.contractorId,
-        consultantId: form.consultantId,
-        tehsilId: form.tehsilId,
-        villageIds: form.villageIds,
-        villageAllocations,
-      })
-      toast.success("Procurement package created")
-      setFormOpen(false)
-      setForm(emptyPackageForm())
-      setManualAllocations(false)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save package")
-    }
-  }, [canSubmit, createMutation, form, effectiveAllocations])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deletePackage) return
@@ -383,7 +190,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {packages?.length ? (
+                {packages.length ? (
                   packages.map((pkg) => (
                     <TableRow key={pkg.id}>
                       <TableCell className="max-w-[280px] font-medium">
@@ -478,7 +285,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
                       No procurement packages yet.
                     </TableCell>
                   </TableRow>
@@ -487,283 +294,16 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
             </Table>
           </ShimmerContainer>
         )}
+        <ListPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+          label="packages"
+        />
       </DataPanel>
-
-      {canManage ? (
-        <Dialog
-          open={formOpen}
-          onOpenChange={(open) => {
-            setFormOpen(open)
-            if (!open) {
-              setForm(emptyPackageForm())
-              setManualAllocations(false)
-            }
-          }}
-        >
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Create procurement package</DialogTitle>
-              <DialogDescription>
-                Select a tehsil, then enter Cluster and Code — the full name is formed as
-                Cluster-Tehsil-Code.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-2">
-                <Label htmlFor="package-tehsil">Tehsil</Label>
-                <Select
-                  value={form.tehsilId}
-                  onValueChange={(value) =>
-                    setForm((current) => ({
-                      ...current,
-                      tehsilId: value,
-                      villageIds: [],
-                      cluster: "",
-                    }))
-                  }
-                >
-                  <SelectTrigger id="package-tehsil" className="w-full">
-                    <SelectValue placeholder="Select tehsil" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tehsils?.map((tehsil) => (
-                      <SelectItem key={tehsil.id} value={tehsil.id}>
-                        {tehsil.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {tehsilDisplayName ? (
-                  <p className="text-xs text-muted-foreground">
-                    Tehsil in package name:{" "}
-                    <span className="font-medium text-foreground">{tehsilDisplayName}</span>
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="package-cluster">Cluster</Label>
-                  <Input
-                    id="package-cluster"
-                    placeholder="e.g. South-I"
-                    value={form.cluster}
-                    onChange={(e) =>
-                      setForm((current) => ({ ...current, cluster: e.target.value }))
-                    }
-                    disabled={!form.tehsilId}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Zone or cluster prefix (auto-suggested from tehsil).
-                  </p>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="package-code">Code</Label>
-                  <Input
-                    id="package-code"
-                    placeholder="e.g. PK-LG& CD-349521-CW-RFB"
-                    value={form.code}
-                    onChange={(e) =>
-                      setForm((current) => ({ ...current, code: e.target.value }))
-                    }
-                    disabled={!form.tehsilId}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Contract or package reference code.
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-md border bg-muted/30 px-3 py-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Full package name
-                </p>
-                <p className="mt-1 font-mono text-sm leading-relaxed">
-                  {composedName || "Select a tehsil and enter Cluster and Code."}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Format: {"{Cluster}-{tehsil}-{Code}"}
-                </p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="budget-amount">Allocated budget (PKR)</Label>
-                <Input
-                  id="budget-amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.budgetAmount}
-                  onChange={(e) =>
-                    setForm((current) => ({ ...current, budgetAmount: e.target.value }))
-                  }
-                />
-              </div>
-
-              <MasterEntitySelect
-                id="package-contractor"
-                label="Contractor"
-                placeholder="Select contractor"
-                entityLabel="Contractor"
-                value={form.contractorId}
-                onValueChange={(contractorId) =>
-                  setForm((current) => ({ ...current, contractorId }))
-                }
-                items={contractors}
-                isCreating={createContractorMutation.isPending}
-                onCreate={async (name) => {
-                  const contractor = await createContractorMutation.mutateAsync(name)
-                  return { id: contractor.id }
-                }}
-              />
-
-              <MasterEntitySelect
-                id="package-consultant"
-                label="Consultant"
-                placeholder="Select consultant"
-                entityLabel="Consultant"
-                value={form.consultantId}
-                onValueChange={(consultantId) =>
-                  setForm((current) => ({ ...current, consultantId }))
-                }
-                items={consultants}
-                isCreating={createConsultantMutation.isPending}
-                onCreate={async (name) => {
-                  const consultant = await createConsultantMutation.mutateAsync(name)
-                  return { id: consultant.id }
-                }}
-              />
-
-              <div className="grid gap-2">
-                <Label>Villages</Label>
-                {!form.tehsilId ? (
-                  <p className="text-sm text-muted-foreground">No tehsil linked to this package.</p>
-                ) : villagesView.isInitialLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading villages…</p>
-                ) : villages?.length ? (
-                  <ScrollArea className="h-40 rounded-md border p-3">
-                    <div className="grid gap-2">
-                      {villages.map((village) => {
-                        const checked = form.villageIds.includes(village.id)
-                        return (
-                          <label
-                            key={village.id}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 hover:bg-muted/50"
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(value) =>
-                                toggleVillage(village.id, value === true)
-                              }
-                            />
-                            <span className="text-sm">{village.name}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No villages found for this tehsil.</p>
-                )}
-              </div>
-
-              {form.villageIds.length > 0 ? (
-                <div className="grid gap-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label>Per-village budget allocation</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={resetToEqualSplit}
-                      disabled={!manualAllocations}
-                    >
-                      Reset to equal split
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Budget is split equally by default. Edit individual village amounts — they
-                    must sum to the allocated package budget.
-                  </p>
-                  <div className="overflow-hidden rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Village</TableHead>
-                          <TableHead className="text-right">Allocated (PKR)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {form.villageIds.map((villageId) => {
-                          const villageName =
-                            villages?.find((village) => village.id === villageId)?.name ??
-                            villageId
-                          return (
-                            <TableRow key={villageId}>
-                              <TableCell>{villageName}</TableCell>
-                              <TableCell className="text-right">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  className="ml-auto w-36 text-right"
-                                  value={effectiveAllocations[villageId] ?? "0.00"}
-                                  onChange={(e) =>
-                                    setVillageAllocation(villageId, e.target.value)
-                                  }
-                                />
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="text-muted-foreground">
-                      Allocated total:{" "}
-                      <span className="font-medium text-foreground">
-                        {formatCurrency(String(allocationSum))}
-                      </span>
-                      {" / "}
-                      {formatCurrency(form.budgetAmount || "0")}
-                    </span>
-                    {manualAllocations && !allocationsMatch ? (
-                      <span className="font-medium text-destructive">
-                        Village allocations must sum to the package budget
-                        {Number.isFinite(budgetNum)
-                          ? ` (remainder ${formatCurrency(String(budgetNum - allocationSum))})`
-                          : ""}
-                      </span>
-                    ) : (
-                      <span className="text-emerald-700">Allocations match package budget</span>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              <PackageBaselineRequirements
-                variant="compact"
-                title="Package baseline is form-defined"
-                description="When you assign a village monitoring survey to this package, the tehsil RA completes whatever one-time baseline fields you define on that survey form."
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setFormOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => void handleSubmit()}
-                disabled={createMutation.isPending || !canSubmit}
-              >
-                {createMutation.isPending ? "Saving…" : "Create package"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
 
       <Dialog
         open={Boolean(detailPackage)}
@@ -783,11 +323,15 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
               <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-3">
                 <div>
                   <p className="text-muted-foreground">Allocated budget</p>
-                  <p className="text-lg font-semibold">{formatCurrency(detailPackage.budgetAmount)}</p>
+                  <p className="text-lg font-semibold">
+                    {formatCurrency(detailPackage.budgetAmount)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Total expenses</p>
-                  <p className="text-lg font-semibold">{formatCurrency(detailPackage.totalExpenses)}</p>
+                  <p className="text-lg font-semibold">
+                    {formatCurrency(detailPackage.totalExpenses)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Remaining</p>

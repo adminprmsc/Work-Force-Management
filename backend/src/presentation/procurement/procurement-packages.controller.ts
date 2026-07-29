@@ -44,6 +44,10 @@ import {
   SavePackageBaselineDto,
 } from './dto/procurement.dto';
 import {
+  PaginationQueryDto,
+  resolvePagination,
+} from '../common/pagination';
+import {
   toPackageBaselineFormSummaryResponse,
   toPackageFormBaselineResponse,
   toProcurementPackageExpenseResponse,
@@ -89,9 +93,18 @@ export class ProcurementPackagesController {
 
   @Get()
   @Roles(...PROCUREMENT_READERS)
-  async list(@CurrentUser() user: AuthenticatedUser) {
-    const packages = await this.listPackagesUseCase.execute(user);
-    return packages.map(toProcurementPackageResponse);
+  async list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    const pagination = resolvePagination(query);
+    const result = await this.listPackagesUseCase.execute(user, pagination);
+    return {
+      items: result.items.map(toProcurementPackageResponse),
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    };
   }
 
   @Get('naming-preview')

@@ -82,16 +82,28 @@ let ListProcurementPackagesUseCase = class ListProcurementPackagesUseCase {
         this.actorResolver = actorResolver;
         this.budgetEnricher = budgetEnricher;
     }
-    async execute(user) {
+    async execute(user, query) {
         const actor = await this.actorResolver.resolve(user);
         if (!(0, procurement_access_policy_1.canReadProcurementPackages)(actor.role)) {
             throw new common_1.ForbiddenException('Insufficient permissions');
         }
-        const filter = actor.role === user_entity_1.UserRole.RA_ES_TEHSIL && actor.tehsilId
-            ? { tehsilId: actor.tehsilId }
-            : undefined;
-        const packages = await this.packageRepository.findAll(filter);
-        return this.budgetEnricher.enrich(packages);
+        const page = Math.max(1, query?.page ?? 1);
+        const limit = query?.limit ?? 25;
+        const filter = {
+            page,
+            limit,
+            ...(actor.role === user_entity_1.UserRole.RA_ES_TEHSIL && actor.tehsilId
+                ? { tehsilId: actor.tehsilId }
+                : {}),
+        };
+        const result = await this.packageRepository.findAll(filter);
+        const items = await this.budgetEnricher.enrich(result.items);
+        return {
+            items,
+            total: result.total,
+            page,
+            limit,
+        };
     }
 };
 exports.ListProcurementPackagesUseCase = ListProcurementPackagesUseCase;

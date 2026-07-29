@@ -10,6 +10,7 @@ import { RoleOverviewPage } from "@/pages/overview/role-overview-page"
 import { OfficesPage } from "@/pages/offices/offices-page"
 import { ConsultantsPage } from "@/pages/procurement/consultants-page"
 import { ContractorsPage } from "@/pages/procurement/contractors-page"
+import { ProcurementPackageCreatePage } from "@/pages/procurement/package-create-page"
 import { ProcurementPackageEditPage } from "@/pages/procurement/package-edit-page"
 import { ProcurementPackagesPage } from "@/pages/procurement/packages-page"
 import { ProfilePage } from "@/pages/profile/profile-page"
@@ -41,6 +42,10 @@ export function DashboardRoutes() {
         <Route path="geography-admin" element={<GeographyAdminPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
         <Route
+          path="procurement/packages/new"
+          element={<ProcurementPackageCreatePage />}
+        />
+        <Route
           path="procurement/packages/:packageId"
           element={<ProcurementPackageEditPage />}
         />
@@ -66,6 +71,10 @@ export function DashboardRoutes() {
       >
         <Route index element={<RoleOverviewPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
+        <Route
+          path="procurement/packages/new"
+          element={<ProcurementPackageCreatePage />}
+        />
         <Route
           path="procurement/packages/:packageId"
           element={<ProcurementPackageEditPage />}
