@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Eye, ClipboardCheck, Copy, Pencil, Plus, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
@@ -56,11 +57,17 @@ import {
   useProcurementPackageNamePreviewQuery,
   useProcurementPackagesQuery,
   useTehsilsQuery,
-  useUpdateProcurementPackageMutation,
   useVillagesQuery,
 } from "@/hooks/api"
 import { getQueryViewState, mergeQueryViewStates } from "@/lib/query-view-state"
+import {
+  emptyPackageForm,
+  equalSplitAllocations,
+  type PackageFormState,
+} from "@/lib/procurement-package-form"
 import { formatCurrency, composePackageNameFromParts } from "@/lib/procurement-package-name"
+import { procurementPackageEditPath } from "@/lib/procurement-access"
+import { useAuth } from "@/modules/auth/use-auth"
 import type {
   Consultant,
   Contractor,
@@ -69,72 +76,6 @@ import type {
   Tehsil,
   Village,
 } from "@/modules/api/types"
-
-type PackageFormState = {
-  name: string
-  cluster: string
-  code: string
-  budgetAmount: string
-  contractorId: string
-  consultantId: string
-  tehsilId: string
-  villageIds: string[]
-  allocations: Record<string, string>
-}
-
-const emptyForm = (): PackageFormState => ({
-  name: "",
-  cluster: "",
-  code: "",
-  budgetAmount: "",
-  contractorId: "",
-  consultantId: "",
-  tehsilId: "",
-  villageIds: [],
-  allocations: {},
-})
-
-function packageToForm(pkg: ProcurementPackage): PackageFormState {
-  return {
-    name: pkg.name,
-    cluster: "",
-    code: "",
-    budgetAmount: pkg.budgetAmount,
-    contractorId: pkg.contractor.id,
-    consultantId: pkg.consultant.id,
-    tehsilId: pkg.tehsil.id,
-    villageIds: pkg.villages.map((village) => village.id),
-    allocations: Object.fromEntries(
-      pkg.villages.map((village) => [village.id, village.allocatedBudget]),
-    ),
-  }
-}
-
-/**
- * Split a budget equally across villages (in whole cents), distributing the
- * remainder cents onto the first villages so the parts sum exactly to the total.
- * Mirrors the backend equal-split logic.
- */
-function equalSplitAllocations(
-  budget: number,
-  villageIds: string[],
-): Record<string, string> {
-  const result: Record<string, string> = {}
-  const n = villageIds.length
-  if (n === 0) return result
-  if (!Number.isFinite(budget) || budget < 0) {
-    for (const id of villageIds) result[id] = "0.00"
-    return result
-  }
-  const totalCents = Math.round(budget * 100)
-  const base = Math.floor(totalCents / n)
-  const remainder = totalCents - base * n
-  villageIds.forEach((id, index) => {
-    const cents = base + (index < remainder ? 1 : 0)
-    result[id] = (cents / 100).toFixed(2)
-  })
-  return result
-}
 
 type ProcurementPackagesPanelProps = {
   canManage: boolean
@@ -145,13 +86,14 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   canManage,
   canEditCompliance,
 }: ProcurementPackagesPanelProps) {
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const packagesQuery = useProcurementPackagesQuery()
   const contractorsQuery = useContractorsQuery(canManage)
   const consultantsQuery = useConsultantsQuery(canManage)
   const tehsilsQuery = useTehsilsQuery()
 
   const createMutation = useCreateProcurementPackageMutation()
-  const updateMutation = useUpdateProcurementPackageMutation()
   const deleteMutation = useDeleteProcurementPackageMutation()
   const createContractorMutation = useCreateContractorMutation()
   const createConsultantMutation = useCreateConsultantMutation()
@@ -189,8 +131,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   const tehsils = tehsilsView.data
 
   const [formOpen, setFormOpen] = useState(false)
-  const [editingPackage, setEditingPackage] = useState<ProcurementPackage | null>(null)
-  const [form, setForm] = useState<PackageFormState>(emptyForm)
+  const [form, setForm] = useState<PackageFormState>(emptyPackageForm)
   // When false, per-village allocations follow an automatic equal split.
   const [manualAllocations, setManualAllocations] = useState(false)
 
@@ -201,7 +142,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   const villagesQuery = useVillagesQuery(form.tehsilId || null)
   const namePreviewQuery = useProcurementPackageNamePreviewQuery(
     form.tehsilId || null,
-    canManage && formOpen && !editingPackage,
+    canManage && formOpen,
   )
   const namePreviewView = useMemo(
     () => getQueryViewState<ProcurementPackageNamePreview>(namePreviewQuery),
@@ -213,10 +154,7 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   )
   const villages = villagesView.data
 
-  const tehsilDisplayName =
-    namePreviewView.data?.tehsilDisplayName ??
-    editingPackage?.tehsil.displayName ??
-    ""
+  const tehsilDisplayName = namePreviewView.data?.tehsilDisplayName ?? ""
 
   const composedName = useMemo(
     () => composePackageNameFromParts(form.cluster, tehsilDisplayName, form.code),
@@ -275,11 +213,14 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
     setManualAllocations(false)
   }, [])
 
+  // Only prune village selections once the tehsil's villages have actually loaded.
+  // Skipping this guard wiped checked villages while the query was still empty.
   useEffect(() => {
     if (!form.tehsilId) return
     if (villagesQuery.isPlaceholderData) return
+    if (!villages) return
     setForm((current) => {
-      const allowed = new Set(villages?.map((village) => village.id) ?? [])
+      const allowed = new Set(villages.map((village) => village.id))
       const nextVillageIds = current.villageIds.filter((id) => allowed.has(id))
       if (nextVillageIds.length === current.villageIds.length) {
         return current
@@ -289,29 +230,17 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
   }, [form.tehsilId, villages, villagesQuery.isPlaceholderData])
 
   useEffect(() => {
-    if (!formOpen || editingPackage || !namePreviewView.data?.suggestedZoneLabel) return
+    if (!formOpen || !namePreviewView.data?.suggestedZoneLabel) return
     setForm((current) => {
       if (current.cluster.trim()) return current
       return { ...current, cluster: namePreviewView.data!.suggestedZoneLabel! }
     })
-  }, [editingPackage, formOpen, namePreviewView.data])
+  }, [formOpen, namePreviewView.data])
 
   const canSubmit = useMemo(() => {
     const budget = Number.parseFloat(form.budgetAmount)
     const budgetValid = !Number.isNaN(budget) && budget >= 0
-
     const allocationsValid = !manualAllocations || allocationsMatch
-
-    if (editingPackage) {
-      return (
-        form.name.trim().length > 0 &&
-        form.contractorId.length > 0 &&
-        form.consultantId.length > 0 &&
-        budgetValid &&
-        form.villageIds.length > 0 &&
-        allocationsValid
-      )
-    }
 
     return (
       form.cluster.trim().length > 0 &&
@@ -323,25 +252,24 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
       form.villageIds.length > 0 &&
       allocationsValid
     )
-  }, [editingPackage, form, manualAllocations, allocationsMatch])
+  }, [form, manualAllocations, allocationsMatch])
 
   const openCreate = useCallback(() => {
-    setEditingPackage(null)
     setManualAllocations(false)
     setForm({
-      ...emptyForm(),
+      ...emptyPackageForm(),
       tehsilId: tehsils?.[0]?.id ?? "",
     })
     setFormOpen(true)
   }, [tehsils])
 
-  const openEdit = useCallback((pkg: ProcurementPackage) => {
-    setEditingPackage(pkg)
-    // Preserve the package's saved per-village allocations as manual values.
-    setManualAllocations(true)
-    setForm(packageToForm(pkg))
-    setFormOpen(true)
-  }, [])
+  const openEdit = useCallback(
+    (pkg: ProcurementPackage) => {
+      if (!user) return
+      void navigate(procurementPackageEditPath(user.role, pkg.id))
+    },
+    [navigate, user],
+  )
 
   const toggleVillage = useCallback((villageId: string, checked: boolean) => {
     setForm((current) => {
@@ -368,41 +296,24 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
     }))
 
     try {
-      if (editingPackage) {
-        await updateMutation.mutateAsync({
-          id: editingPackage.id,
-          input: {
-            name: form.name.trim(),
-            budgetAmount,
-            contractorId: form.contractorId,
-            consultantId: form.consultantId,
-            villageIds: form.villageIds,
-            villageAllocations,
-          },
-        })
-        toast.success("Procurement package updated")
-      } else {
-        const payload = {
-          cluster: form.cluster.trim(),
-          code: form.code.trim(),
-          budgetAmount,
-          contractorId: form.contractorId,
-          consultantId: form.consultantId,
-          tehsilId: form.tehsilId,
-          villageIds: form.villageIds,
-          villageAllocations,
-        }
-        await createMutation.mutateAsync(payload)
-        toast.success("Procurement package created")
-      }
+      await createMutation.mutateAsync({
+        cluster: form.cluster.trim(),
+        code: form.code.trim(),
+        budgetAmount,
+        contractorId: form.contractorId,
+        consultantId: form.consultantId,
+        tehsilId: form.tehsilId,
+        villageIds: form.villageIds,
+        villageAllocations,
+      })
+      toast.success("Procurement package created")
       setFormOpen(false)
-      setEditingPackage(null)
-      setForm(emptyForm())
+      setForm(emptyPackageForm())
       setManualAllocations(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save package")
     }
-  }, [canSubmit, createMutation, editingPackage, form, effectiveAllocations, updateMutation])
+  }, [canSubmit, createMutation, form, effectiveAllocations])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deletePackage) return
@@ -584,65 +495,20 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
           onOpenChange={(open) => {
             setFormOpen(open)
             if (!open) {
-              setEditingPackage(null)
-              setForm(emptyForm())
+              setForm(emptyPackageForm())
               setManualAllocations(false)
             }
           }}
         >
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
             <DialogHeader>
-              <DialogTitle>
-                {editingPackage ? "Edit procurement package" : "Create procurement package"}
-              </DialogTitle>
+              <DialogTitle>Create procurement package</DialogTitle>
               <DialogDescription>
-                {editingPackage
-                  ? "Rename the package (must be unique), change contractor/consultant, budget, and villages."
-                  : "Select a tehsil, then enter Cluster and Code — the full name is formed as Cluster-Tehsil-Code."}
+                Select a tehsil, then enter Cluster and Code — the full name is formed as
+                Cluster-Tehsil-Code.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
-              {editingPackage ? (
-                <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm">
-                  <div className="grid gap-2">
-                    <Label htmlFor="package-name">Package name</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="package-name"
-                        value={form.name}
-                        onChange={(e) =>
-                          setForm((current) => ({ ...current, name: e.target.value }))
-                        }
-                        placeholder="Unique package name"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        title="Copy package name"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(form.name.trim())
-                            toast.success("Package name copied")
-                          } catch {
-                            toast.error("Could not copy package name")
-                          }
-                        }}
-                      >
-                        <Copy className="size-4" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Name must be unique across all procurement packages.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Tehsil</p>
-                    <p className="font-medium">{editingPackage.tehsil.displayName}</p>
-                  </div>
-                </div>
-              ) : (
-                <>
               <div className="grid gap-2">
                 <Label htmlFor="package-tehsil">Tehsil</Label>
                 <Select
@@ -720,8 +586,6 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                   Format: {"{Cluster}-{tehsil}-{Code}"}
                 </p>
               </div>
-                </>
-              )}
 
               <div className="grid gap-2">
                 <Label htmlFor="budget-amount">Allocated budget (PKR)</Label>
@@ -835,8 +699,6 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                         {form.villageIds.map((villageId) => {
                           const villageName =
                             villages?.find((village) => village.id === villageId)?.name ??
-                            editingPackage?.villages.find((village) => village.id === villageId)
-                              ?.name ??
                             villageId
                           return (
                             <TableRow key={villageId}>
@@ -882,13 +744,11 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
                 </div>
               ) : null}
 
-              {!editingPackage ? (
-                <PackageBaselineRequirements
-                  variant="compact"
-                  title="Package baseline is form-defined"
-                  description="When you assign a village monitoring survey to this package, the tehsil RA completes whatever one-time baseline fields you define on that survey form."
-                />
-              ) : null}
+              <PackageBaselineRequirements
+                variant="compact"
+                title="Package baseline is form-defined"
+                description="When you assign a village monitoring survey to this package, the tehsil RA completes whatever one-time baseline fields you define on that survey form."
+              />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setFormOpen(false)}>
@@ -896,15 +756,9 @@ export const ProcurementPackagesPanel = memo(function ProcurementPackagesPanel({
               </Button>
               <Button
                 onClick={() => void handleSubmit()}
-                disabled={
-                  createMutation.isPending || updateMutation.isPending || !canSubmit
-                }
+                disabled={createMutation.isPending || !canSubmit}
               >
-                {createMutation.isPending || updateMutation.isPending
-                  ? "Saving…"
-                  : editingPackage
-                    ? "Save changes"
-                    : "Create package"}
+                {createMutation.isPending ? "Saving…" : "Create package"}
               </Button>
             </DialogFooter>
           </DialogContent>

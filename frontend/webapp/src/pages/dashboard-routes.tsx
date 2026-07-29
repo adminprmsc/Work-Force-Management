@@ -10,6 +10,7 @@ import { RoleOverviewPage } from "@/pages/overview/role-overview-page"
 import { OfficesPage } from "@/pages/offices/offices-page"
 import { ConsultantsPage } from "@/pages/procurement/consultants-page"
 import { ContractorsPage } from "@/pages/procurement/contractors-page"
+import { ProcurementPackageEditPage } from "@/pages/procurement/package-edit-page"
 import { ProcurementPackagesPage } from "@/pages/procurement/packages-page"
 import { ProfilePage } from "@/pages/profile/profile-page"
 import { SeniorManagerOverviewPage } from "@/pages/senior-manager/overview-page"
@@ -39,6 +40,10 @@ export function DashboardRoutes() {
         <Route path="geography" element={<GeographyPage />} />
         <Route path="geography-admin" element={<GeographyAdminPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
+        <Route
+          path="procurement/packages/:packageId"
+          element={<ProcurementPackageEditPage />}
+        />
         <Route path="procurement/contractors" element={<ContractorsPage />} />
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
         <Route path="surveys" element={<SurveyFormsPage />} />
@@ -61,6 +66,10 @@ export function DashboardRoutes() {
       >
         <Route index element={<RoleOverviewPage />} />
         <Route path="procurement/packages" element={<ProcurementPackagesPage />} />
+        <Route
+          path="procurement/packages/:packageId"
+          element={<ProcurementPackageEditPage />}
+        />
         <Route path="procurement/contractors" element={<ContractorsPage />} />
         <Route path="procurement/consultants" element={<ConsultantsPage />} />
         <Route path="surveys" element={<SurveyFormsPage />} />

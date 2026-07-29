@@ -1,4 +1,4 @@
-import { Role, type Role as RoleType } from "@/modules/auth/roles"
+import { Role, type Role as RoleType, roleToDashboardPath } from "@/modules/auth/roles"
 
 const PROCUREMENT_MANAGERS: RoleType[] = [Role.SENIOR_MANAGER_ES, Role.RA_ENVIRONMENT_HO]
 
@@ -19,4 +19,12 @@ export function canReadProcurementPackages(role: RoleType): boolean {
 
 export function canManagePackageCompliance(role: RoleType): boolean {
   return canManageProcurement(role) || role === Role.RA_ES_TEHSIL
+}
+
+export function procurementPackagesPath(role: RoleType): string {
+  return `${roleToDashboardPath(role)}/procurement/packages`
+}
+
+export function procurementPackageEditPath(role: RoleType, packageId: string): string {
+  return `${procurementPackagesPath(role)}/${packageId}`
 }
