@@ -5,10 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  Settlement,
-  Village,
-} from '../../../domain/entities/location.entity';
+import { Settlement, Village } from '../../../domain/entities/location.entity';
 import {
   TEHSIL_REPOSITORY,
   TehsilRepositoryPort,
@@ -126,11 +123,10 @@ export class CreateSettlementUseCase {
     }
 
     const normalized = normalizeName(name);
-    const existing =
-      await this.tehsilRepository.findSettlementByVillageAndName(
-        villageId,
-        normalized,
-      );
+    const existing = await this.tehsilRepository.findSettlementByVillageAndName(
+      villageId,
+      normalized,
+    );
     if (existing) {
       throw new ConflictException(
         'A settlement with this name already exists in this village',
@@ -155,11 +151,10 @@ export class UpdateSettlementUseCase {
     }
 
     const normalized = normalizeName(name);
-    const existing =
-      await this.tehsilRepository.findSettlementByVillageAndName(
-        settlement.villageId,
-        normalized,
-      );
+    const existing = await this.tehsilRepository.findSettlementByVillageAndName(
+      settlement.villageId,
+      normalized,
+    );
     if (existing && existing.id !== id) {
       throw new ConflictException(
         'A settlement with this name already exists in this village',

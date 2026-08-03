@@ -2,6 +2,7 @@ import { apiRequest } from "@/lib/api-client"
 import type {
   CreateSurveyAssignmentsInput,
   CreateSurveyFormInput,
+  UpdateSurveyAssignmentInput,
   SaveSurveyResponseInput,
   SubmitSurveyResponseInput,
   ReviewSurveyResponseInput,
@@ -113,6 +114,18 @@ export function createSurveyAssignments(
 ): Promise<SurveyAssignment[]> {
   return apiRequest<SurveyAssignment[]>(`/survey-forms/${formId}/assignments`, {
     method: "POST",
+    token,
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateSurveyAssignment(
+  token: string,
+  assignmentId: string,
+  input: UpdateSurveyAssignmentInput,
+): Promise<SurveyAssignment> {
+  return apiRequest<SurveyAssignment>(`/survey-assignments/${assignmentId}`, {
+    method: "PATCH",
     token,
     body: JSON.stringify(input),
   })

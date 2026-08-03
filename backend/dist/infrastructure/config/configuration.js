@@ -22,6 +22,7 @@ exports.default = () => ({
             (process.env.NODE_ENV === 'production' ? 'PROD' : 'LOCAL'),
         signedUrlTtlSeconds: parseInt(process.env.SUPABASE_SIGNED_URL_TTL_SECONDS ?? '3600', 10),
         uploadMaxMb: parseInt(process.env.SUPABASE_UPLOAD_MAX_MB ?? '10', 10),
+        apkUploadMaxMb: parseInt(process.env.SUPABASE_APK_UPLOAD_MAX_MB ?? '200', 10),
     },
 });
 //# sourceMappingURL=configuration.js.map

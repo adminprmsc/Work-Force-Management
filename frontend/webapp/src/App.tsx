@@ -4,12 +4,14 @@ import { ChangePasswordPage } from "@/pages/change-password-page"
 import { LoginPage } from "@/pages/login-page"
 import { DashboardRouter } from "@/pages/dashboard-router"
 import { DashboardRoutes } from "@/pages/dashboard-routes"
+import { MobileAppDownloadPage } from "@/pages/app/mobile-app-download-page"
 
 function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
+      <Route path="/download/android" element={<MobileAppDownloadPage />} />
 
       <Route
         path="/"

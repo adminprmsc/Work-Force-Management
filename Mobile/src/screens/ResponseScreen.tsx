@@ -349,7 +349,10 @@ export function ResponseScreen() {
           page: 1,
           limit: 100,
         });
-        const blocking = findBlockingResponse(result.items, {
+        const items = Array.isArray(result)
+          ? result
+          : (result?.items ?? []);
+        const blocking = findBlockingResponse(items, {
           assignmentId: assignment.id,
           villageId,
           settlementId,

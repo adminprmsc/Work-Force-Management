@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { format } from "date-fns"
-import { Trash2 } from "lucide-react"
+import { CalendarRange, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { PackageBaselineRequirements } from "@/components/compliance/package-baseline-requirements"
@@ -24,12 +24,21 @@ import {
   useCreateSurveyAssignmentsMutation,
   useDeleteSurveyAssignmentMutation,
   useSurveyFormAssignmentsQuery,
+  useUpdateSurveyAssignmentMutation,
 } from "@/hooks/api/survey-hooks"
 import { SURVEY_FREQUENCY_OPTIONS, frequencyLabel } from "@/lib/survey"
-import type { SurveyForm, SurveyFrequency } from "@/modules/api/survey-types"
+import type {
+  SurveyAssignment,
+  SurveyForm,
+  SurveyFrequency,
+} from "@/modules/api/survey-types"
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+function toDateInputValue(iso: string): string {
+  return iso.slice(0, 10)
 }
 
 type SurveyAssignDialogProps = {
@@ -46,6 +55,7 @@ export function SurveyAssignDialog({
   const assignmentsQuery = useSurveyFormAssignmentsQuery(form?.id ?? null, open)
   const packagesQuery = useProcurementPackagesQuery({ page: 1, limit: 100 }, open)
   const createMutation = useCreateSurveyAssignmentsMutation()
+  const updateMutation = useUpdateSurveyAssignmentMutation()
   const deleteMutation = useDeleteSurveyAssignmentMutation()
 
   const [selected, setSelected] = useState<string[]>([])
@@ -53,6 +63,11 @@ export function SurveyAssignDialog({
   const [startDate, setStartDate] = useState(todayIso())
   const [endDate, setEndDate] = useState(todayIso())
   const [instructions, setInstructions] = useState("")
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editStartDate, setEditStartDate] = useState("")
+  const [editEndDate, setEditEndDate] = useState("")
+  const [editInstructions, setEditInstructions] = useState("")
 
   const assignments = useMemo(
     () => assignmentsQuery.data ?? [],
@@ -69,6 +84,20 @@ export function SurveyAssignDialog({
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
+  }
+
+  const beginEdit = (assignment: SurveyAssignment) => {
+    setEditingId(assignment.id)
+    setEditStartDate(toDateInputValue(assignment.startDate))
+    setEditEndDate(toDateInputValue(assignment.endDate))
+    setEditInstructions(assignment.instructions ?? "")
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditStartDate("")
+    setEditEndDate("")
+    setEditInstructions("")
   }
 
   const handleAssign = async () => {
@@ -100,17 +129,44 @@ export function SurveyAssignDialog({
     }
   }
 
+  const handleUpdate = async (assignmentId: string) => {
+    if (!form) return
+    if (new Date(editEndDate) < new Date(editStartDate)) {
+      toast.error("End date must be on or after the start date")
+      return
+    }
+    try {
+      await updateMutation.mutateAsync({
+        assignmentId,
+        formId: form.id,
+        input: {
+          startDate: editStartDate,
+          endDate: editEndDate,
+          instructions: editInstructions.trim() || null,
+        },
+      })
+      toast.success("Assignment timeline updated")
+      cancelEdit()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update assignment",
+      )
+    }
+  }
+
   const handleDelete = async (assignmentId: string) => {
     if (!form) return
     try {
       await deleteMutation.mutateAsync({ assignmentId, formId: form.id })
       toast.success("Assignment removed")
+      if (editingId === assignmentId) cancelEdit()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove assignment")
     }
   }
 
   const canAssign = form?.status === "PUBLISHED"
+  const isUpdating = updateMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,7 +175,8 @@ export function SurveyAssignDialog({
           <DialogTitle>Assign “{form?.title}”</DialogTitle>
           <DialogDescription>
             Assign this survey to procurement packages. Each package’s tehsil RA will be
-            asked to submit it on the schedule you set.
+            asked to submit it on the schedule you set. You can extend an existing
+            assignment’s timeline at any time.
           </DialogDescription>
         </DialogHeader>
 
@@ -137,53 +194,126 @@ export function SurveyAssignDialog({
             <div className="space-y-2">
               <p className="text-sm font-medium">Current assignments</p>
               <div className="divide-y rounded-lg border">
-                {assignments.map((assignment) => (
-                  <div
-                    key={assignment.id}
-                    className="flex items-center gap-3 px-3 py-2 text-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {assignment.procurementPackage.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {assignment.tehsil.name} · {frequencyLabel(assignment.frequency)} ·{" "}
-                        {format(new Date(assignment.startDate), "dd MMM yyyy")} –{" "}
-                        {format(new Date(assignment.endDate), "dd MMM yyyy")}
-                      </p>
-                      {form?.requiresPackageBaseline ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Baseline:{" "}
-                          {assignment.procurementPackage.isBaselineComplete ? (
-                            <span className="text-emerald-700 dark:text-emerald-400">
-                              complete
-                            </span>
-                          ) : (
-                            <span className="text-amber-700 dark:text-amber-400">
-                              pending on package
-                            </span>
-                          )}
-                        </p>
+                {assignments.map((assignment) => {
+                  const isEditing = editingId === assignment.id
+                  return (
+                    <div key={assignment.id} className="space-y-3 px-3 py-2.5 text-sm">
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">
+                            {assignment.procurementPackage.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {assignment.tehsil.name} ·{" "}
+                            {frequencyLabel(assignment.frequency)} ·{" "}
+                            {format(new Date(assignment.startDate), "dd MMM yyyy")} –{" "}
+                            {format(new Date(assignment.endDate), "dd MMM yyyy")}
+                          </p>
+                          {form?.requiresPackageBaseline ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Baseline:{" "}
+                              {assignment.procurementPackage.isBaselineComplete ? (
+                                <span className="text-emerald-700 dark:text-emerald-400">
+                                  complete
+                                </span>
+                              ) : (
+                                <span className="text-amber-700 dark:text-amber-400">
+                                  pending on package
+                                </span>
+                              )}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Badge variant="secondary">
+                          {assignment.responseCount} responses
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={isUpdating || deleteMutation.isPending}
+                          title="Extend or edit timeline"
+                          onClick={() =>
+                            isEditing ? cancelEdit() : beginEdit(assignment)
+                          }
+                        >
+                          <CalendarRange className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={
+                            deleteMutation.isPending || assignment.responseCount > 0
+                          }
+                          title={
+                            assignment.responseCount > 0
+                              ? "Has responses — cannot remove"
+                              : "Remove assignment"
+                          }
+                          onClick={() => void handleDelete(assignment.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+
+                      {isEditing ? (
+                        <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="grid gap-1.5">
+                              <Label htmlFor={`edit-start-${assignment.id}`}>
+                                Start date
+                              </Label>
+                              <Input
+                                id={`edit-start-${assignment.id}`}
+                                type="date"
+                                value={editStartDate}
+                                onChange={(e) => setEditStartDate(e.target.value)}
+                              />
+                            </div>
+                            <div className="grid gap-1.5">
+                              <Label htmlFor={`edit-end-${assignment.id}`}>
+                                End date
+                              </Label>
+                              <Input
+                                id={`edit-end-${assignment.id}`}
+                                type="date"
+                                value={editEndDate}
+                                onChange={(e) => setEditEndDate(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label htmlFor={`edit-instructions-${assignment.id}`}>
+                              Instructions (optional)
+                            </Label>
+                            <Textarea
+                              id={`edit-instructions-${assignment.id}`}
+                              rows={2}
+                              value={editInstructions}
+                              onChange={(e) => setEditInstructions(e.target.value)}
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isUpdating}
+                              onClick={cancelEdit}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={isUpdating || !editStartDate || !editEndDate}
+                              onClick={() => void handleUpdate(assignment.id)}
+                            >
+                              {isUpdating ? "Saving…" : "Save timeline"}
+                            </Button>
+                          </div>
+                        </div>
                       ) : null}
                     </div>
-                    <Badge variant="secondary">{assignment.responseCount} responses</Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={
-                        deleteMutation.isPending || assignment.responseCount > 0
-                      }
-                      title={
-                        assignment.responseCount > 0
-                          ? "Has responses — cannot remove"
-                          : "Remove assignment"
-                      }
-                      onClick={() => void handleDelete(assignment.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
               <Separator className="mt-4" />
             </div>

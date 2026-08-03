@@ -8,6 +8,7 @@ import {
   MapPinned,
   Package,
   ScrollText,
+  Smartphone,
   UserCircle,
   Users,
   UserSquare2,
@@ -86,6 +87,16 @@ export const NAV_GROUPS: NavGroup[] = [
           description: "Tehsil overview — procurement and geography",
         },
       },
+      {
+        label: "Download app",
+        path: "/download/android",
+        icon: Smartphone,
+        roles: [Role.RA_ES_TEHSIL],
+        meta: {
+          title: "Download app",
+          description: "Get the latest RA Android APK for field submissions",
+        },
+      },
     ],
   },
   {
@@ -100,6 +111,16 @@ export const NAV_GROUPS: NavGroup[] = [
         meta: {
           title: "Users",
           description: "Accounts by role — create, manage status, and jump to per-user audit activity",
+        },
+      },
+      {
+        label: "App management",
+        path: "/dashboard/app-management",
+        icon: Smartphone,
+        roles: [Role.SENIOR_MANAGER_ES, Role.RA_ENVIRONMENT_HO],
+        meta: {
+          title: "App management",
+          description: "Upload the latest RA mobile APK and share a public download link",
         },
       },
       {

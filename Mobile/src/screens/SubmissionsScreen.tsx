@@ -20,7 +20,21 @@ import { layout } from '@/lib/layout';
 import { colors, layoutPadding, spacing } from '@/lib/theme';
 import { useAuth } from '@/modules/auth/auth-context';
 import { listSurveyResponses } from '@/modules/api/survey-api';
-import type { SurveyResponse } from '@/modules/api/types';
+import type { SurveyResponse, SurveyResponsesListResponse } from '@/modules/api/types';
+
+function extractResponseItems(data: unknown): SurveyResponse[] {
+  if (Array.isArray(data)) {
+    return data as SurveyResponse[];
+  }
+  if (
+    data &&
+    typeof data === 'object' &&
+    Array.isArray((data as SurveyResponsesListResponse).items)
+  ) {
+    return (data as SurveyResponsesListResponse).items;
+  }
+  return [];
+}
 
 export function SubmissionsScreen() {
   const navigation = useNavigation<AppNavigationProp>();
@@ -32,15 +46,20 @@ export function SubmissionsScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     if (!isOnline) {
+      setResponses([]);
       setLoading(false);
       setRefreshing(false);
       return;
     }
     try {
-      const data = await listSurveyResponses(token);
-      setResponses(data.items);
+      const data = await listSurveyResponses(token, { page: 1, limit: 100 });
+      setResponses(extractResponseItems(data));
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load submissions');
+      setResponses([]);
+      Alert.alert(
+        'Error',
+        err instanceof Error ? err.message : 'Failed to load submissions',
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -50,13 +69,13 @@ export function SubmissionsScreen() {
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      void load();
+      load().catch(() => undefined);
     }, [load]),
   );
 
   const onRefresh = () => {
     setRefreshing(true);
-    void load();
+    load().catch(() => undefined);
   };
 
   const revertedResponses = useMemo(

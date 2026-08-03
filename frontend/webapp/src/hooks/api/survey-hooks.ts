@@ -14,6 +14,7 @@ import {
   createSurveyForm,
   deleteSurveyAssignment,
   deleteSurveyForm,
+  updateSurveyAssignment,
   getSurveyForm,
   getSurveyFormAnalytics,
   getSurveyResponse,
@@ -32,6 +33,7 @@ import {
 import type {
   CreateSurveyAssignmentsInput,
   CreateSurveyFormInput,
+  UpdateSurveyAssignmentInput,
   ReviewSurveyResponseInput,
   SaveSurveyResponseInput,
   SubmitSurveyResponseInput,
@@ -160,6 +162,26 @@ export function useCreateSurveyAssignmentsMutation() {
   return useMutation({
     mutationFn: (params: { formId: string; input: CreateSurveyAssignmentsInput }) =>
       createSurveyAssignments(token!, params.formId, params.input),
+    onSuccess: async (_data, params) => {
+      await qc.invalidateQueries({
+        queryKey: queryKeys.surveyForms.assignments(params.formId),
+      })
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyForms.all })
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyAssignments.all })
+    },
+  })
+}
+
+export function useUpdateSurveyAssignmentMutation() {
+  const token = useAuthToken()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (params: {
+      assignmentId: string
+      formId: string
+      input: UpdateSurveyAssignmentInput
+    }) => updateSurveyAssignment(token!, params.assignmentId, params.input),
     onSuccess: async (_data, params) => {
       await qc.invalidateQueries({
         queryKey: queryKeys.surveyForms.assignments(params.formId),

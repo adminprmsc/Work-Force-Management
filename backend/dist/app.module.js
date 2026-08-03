@@ -18,6 +18,7 @@ const prisma_module_1 = require("./infrastructure/database/prisma/prisma.module"
 const auth_module_1 = require("./presentation/auth/auth.module");
 const procurement_module_1 = require("./presentation/procurement/procurement.module");
 const rbac_module_1 = require("./presentation/rbac/rbac.module");
+const mobile_app_module_1 = require("./presentation/mobile-app/mobile-app.module");
 const storage_module_1 = require("./presentation/storage/storage.module");
 const survey_module_1 = require("./presentation/survey/survey.module");
 const app_controller_1 = require("./app.controller");
@@ -38,6 +39,7 @@ exports.AppModule = AppModule = __decorate([
             procurement_module_1.ProcurementModule,
             survey_module_1.SurveyModule,
             storage_module_1.StorageModule,
+            mobile_app_module_1.MobileAppModule,
         ],
         controllers: [app_controller_1.AppController],
     })

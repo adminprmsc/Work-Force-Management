@@ -38,7 +38,10 @@ import {
   parseSubmitSurveyResponseCommand,
   toSaveSurveyResponseCommand,
 } from './mappers/survey-response-request.mapper';
-import { toSurveyResponseResponse } from './mappers/survey.mapper';
+import {
+  toSurveyResponseListItemResponse,
+  toSurveyResponseResponse,
+} from './mappers/survey.mapper';
 import { resolvePagination } from '../common/pagination';
 
 const SURVEY_READERS = [
@@ -83,7 +86,7 @@ export class SurveyResponsesController {
       limit: pagination.limit,
     });
     return {
-      items: result.items.map(toSurveyResponseResponse),
+      items: result.items.map(toSurveyResponseListItemResponse),
       total: result.total,
       page: result.page,
       limit: result.limit,

@@ -32,9 +32,10 @@ export type PaginatedResult<T> = {
   limit: number;
 };
 
-export function resolvePagination(
-  query?: { page?: number; limit?: number },
-): PaginationParams {
+export function resolvePagination(query?: {
+  page?: number;
+  limit?: number;
+}): PaginationParams {
   const page = Math.max(1, query?.page ?? 1);
   const requested = query?.limit ?? DEFAULT_PAGE_SIZE;
   const limit = (PAGINATION_PAGE_SIZES as readonly number[]).includes(requested)

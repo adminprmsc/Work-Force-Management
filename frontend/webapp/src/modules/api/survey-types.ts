@@ -198,6 +198,12 @@ export type CreateSurveyAssignmentsInput = {
   instructions?: string | null
 }
 
+export type UpdateSurveyAssignmentInput = {
+  startDate?: string
+  endDate?: string
+  instructions?: string | null
+}
+
 export type SurveyAnswer = {
   fieldId: string
   value: unknown

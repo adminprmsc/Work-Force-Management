@@ -23,6 +23,7 @@ import {
   DeleteSurveyAssignmentUseCase,
   ListMyAssignmentsUseCase,
   ListSurveyAssignmentsUseCase,
+  UpdateSurveyAssignmentUseCase,
 } from '../../application/use-cases/survey/manage-survey-assignments.use-case';
 import {
   ArchiveSurveyFormUseCase,
@@ -88,6 +89,7 @@ import { SurveyResponsesController } from './survey-responses.controller';
     GetSurveyFormAnalyticsUseCase,
     ListSurveyAssignmentsUseCase,
     CreateSurveyAssignmentsUseCase,
+    UpdateSurveyAssignmentUseCase,
     DeleteSurveyAssignmentUseCase,
     ListMyAssignmentsUseCase,
     ListSurveyResponsesUseCase,

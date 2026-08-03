@@ -87,7 +87,7 @@ export declare class ProcurementPackagesController {
         }[];
         total: number;
         page: number;
-        limit: 100 | 25 | 50;
+        limit: 50 | 100 | 25;
     }>;
     listExpenses(user: AuthenticatedUser, id: string): Promise<{
         id: string;

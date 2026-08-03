@@ -50,7 +50,7 @@ type ResponseRecord = {
   formRevision: {
     id: string;
     version: number;
-    fields: unknown;
+    fields?: unknown;
     publishedAt: Date;
   };
   tehsil: { id: string; name: string };
@@ -60,8 +60,8 @@ type ResponseRecord = {
   acceptedBy: UserRef | null;
   rejectedBy: UserRef | null;
   revertedBy: UserRef | null;
-  answers: { fieldId: string; value: unknown }[];
-  reviewEvents: {
+  answers?: { fieldId: string; value: unknown }[];
+  reviewEvents?: {
     id: string;
     action: string;
     remarks: string | null;
@@ -107,7 +107,7 @@ function mapResponse(record: ResponseRecord): SurveyResponse {
       record.respondent.username,
       record.respondent.email,
     ),
-    record.answers.map((a) => new SurveyAnswer(a.fieldId, a.value)),
+    record.answers?.map((a) => new SurveyAnswer(a.fieldId, a.value)) ?? [],
     record.visitDate,
     record.submittedAt,
     record.lastEditedAt,
@@ -123,7 +123,7 @@ function mapResponse(record: ResponseRecord): SurveyResponse {
     record.submittedLongitude,
     record.submittedLocationAccuracy,
     record.submittedLocationCapturedAt,
-    record.reviewEvents.map(
+    record.reviewEvents?.map(
       (event) =>
         new SurveyResponseReviewEvent(
           event.id,
@@ -136,7 +136,7 @@ function mapResponse(record: ResponseRecord): SurveyResponse {
           event.remarks,
           event.createdAt,
         ),
-    ),
+    ) ?? [],
     record.createdAt,
     record.updatedAt,
   );
@@ -223,6 +223,26 @@ export class PrismaSurveyResponseRepository implements SurveyResponseRepositoryP
     },
   };
 
+  /** Lean include for paginated lists — avoids shipping form schemas + answers. */
+  private readonly listInclude = {
+    form: { select: { id: true, title: true } },
+    assignment: {
+      select: {
+        procurementPackage: { select: { id: true, name: true } },
+      },
+    },
+    formRevision: {
+      select: { id: true, version: true, publishedAt: true },
+    },
+    tehsil: { select: { id: true, name: true } },
+    village: { select: { id: true, name: true } },
+    settlement: { select: { id: true, name: true } },
+    respondent: { select: userSelect },
+    acceptedBy: { select: userSelect },
+    rejectedBy: { select: userSelect },
+    revertedBy: { select: userSelect },
+  };
+
   async findAll(
     filter?: ListSurveyResponsesFilter,
   ): Promise<{ items: SurveyResponse[]; total: number }> {
@@ -242,7 +262,7 @@ export class PrismaSurveyResponseRepository implements SurveyResponseRepositoryP
     const [records, total] = await Promise.all([
       this.prisma.surveyResponse.findMany({
         where,
-        include: this.include,
+        include: this.listInclude,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,

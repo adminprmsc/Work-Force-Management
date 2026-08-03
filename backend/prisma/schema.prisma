@@ -40,10 +40,12 @@ enum AuditAction {
   PACKAGE_BASELINE_SAVED
   SURVEY_ASSIGNMENT_CREATED
   SURVEY_ASSIGNMENT_DELETED
+  SURVEY_ASSIGNMENT_UPDATED
   SURVEY_RESPONSE_SUBMITTED
   SURVEY_RESPONSE_ACCEPTED
   SURVEY_RESPONSE_REJECTED
   SURVEY_RESPONSE_REVERTED
+  MOBILE_APP_UPLOADED
 }
 
 enum SurveyStatus {
@@ -121,6 +123,7 @@ model User {
   surveyResponseReviewEvents SurveyResponseReviewEvent[] @relation("SurveyResponseReviewActor")
   baselineAnswers     ProcurementPackageBaselineAnswer[] @relation("BaselineAnswerSubmittedBy")
   surveyAttachmentsUploaded SurveyAttachment[] @relation("SurveyAttachmentUploadedBy")
+  mobileAppReleasesUploaded MobileAppRelease[] @relation("MobileAppReleaseUploadedBy")
 
   @@map("users")
 }
@@ -512,4 +515,29 @@ model SurveyAttachment {
   @@index([uploadedById])
   @@index([assignmentId])
   @@map("survey_attachments")
+}
+
+// Published Android APK builds for RA tehsil field users.
+// Binary lives in Supabase; this row tracks the latest public downloadable version.
+model MobileAppRelease {
+  id           String   @id @default(uuid())
+  versionName  String   @map("version_name")
+  versionCode  Int      @map("version_code")
+  fileName     String   @map("file_name")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  bucket       String
+  storagePath  String   @map("storage_path")
+  releaseNotes String?  @map("release_notes")
+  isLatest     Boolean  @default(false) @map("is_latest")
+  uploadedById String   @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  uploadedBy User @relation("MobileAppReleaseUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@unique([versionCode])
+  @@index([isLatest])
+  @@index([createdAt])
+  @@index([uploadedById])
+  @@map("mobile_app_releases")
 }

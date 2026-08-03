@@ -15,9 +15,10 @@ import { colors, spacing } from '@/lib/theme';
 import type { SurveyResponse } from '@/modules/api/types';
 
 function siteLabel(response: SurveyResponse): string {
-  return response.settlement
-    ? `${response.village.name} · ${response.settlement.name}`
-    : response.village.name;
+  const villageName = response.village?.name ?? 'Unknown village';
+  return response.settlement?.name
+    ? `${villageName} · ${response.settlement.name}`
+    : villageName;
 }
 
 type SubmissionCardProps = {
@@ -27,12 +28,15 @@ type SubmissionCardProps = {
 };
 
 export function SubmissionCard({ response, onOpen, showRemarks = false }: SubmissionCardProps) {
+  const formTitle = response.form?.title ?? 'Survey';
+  const packageName = response.procurementPackage?.name ?? 'Package';
+
   return (
     <Card>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <CardTitle style={styles.title}>{response.form.title}</CardTitle>
-          <CardDescription style={layout.mtSm}>{response.procurementPackage.name}</CardDescription>
+          <CardTitle style={styles.title}>{formTitle}</CardTitle>
+          <CardDescription style={layout.mtSm}>{packageName}</CardDescription>
         </View>
         <Badge
           label={responseStatusLabel(response.status)}

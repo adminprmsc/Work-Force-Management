@@ -16,6 +16,7 @@ declare const _default: () => {
         storageBucket: string;
         signedUrlTtlSeconds: number;
         uploadMaxMb: number;
+        apkUploadMaxMb: number;
     };
 };
 export default _default;

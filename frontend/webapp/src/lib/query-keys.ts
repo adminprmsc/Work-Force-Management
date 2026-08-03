@@ -134,5 +134,10 @@ export const queryKeys = {
   storage: {
     attachmentUrl: (id: string) => ["storage", "attachment-url", id] as const,
   },
+  mobileApp: {
+    all: ["mobile-app"] as const,
+    releases: () => ["mobile-app", "releases"] as const,
+    publicLatest: () => ["mobile-app", "public-latest"] as const,
+  },
 }
 

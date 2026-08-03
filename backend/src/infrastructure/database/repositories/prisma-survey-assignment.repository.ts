@@ -8,6 +8,7 @@ import {
 import {
   CreateSurveyAssignmentData,
   SurveyAssignmentRepositoryPort,
+  UpdateSurveyAssignmentData,
 } from '../../../application/ports/survey-assignment.repository.port';
 import { parseRevisionFields } from '../../../application/services/survey-revision.serializer';
 import { PrismaService } from '../prisma/prisma.service';
@@ -155,6 +156,24 @@ export class PrismaSurveyAssignmentRepository implements SurveyAssignmentReposit
         startDate: data.startDate,
         endDate: data.endDate,
         instructions: data.instructions ?? null,
+      },
+      include: this.include,
+    });
+    return mapAssignment(record as AssignmentRecord);
+  }
+
+  async update(
+    id: string,
+    data: UpdateSurveyAssignmentData,
+  ): Promise<SurveyAssignment> {
+    const record = await this.prisma.surveyAssignment.update({
+      where: { id },
+      data: {
+        ...(data.startDate !== undefined ? { startDate: data.startDate } : {}),
+        ...(data.endDate !== undefined ? { endDate: data.endDate } : {}),
+        ...(data.instructions !== undefined
+          ? { instructions: data.instructions }
+          : {}),
       },
       include: this.include,
     });

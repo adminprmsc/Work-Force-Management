@@ -10,7 +10,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { SurveyFieldConfig } from '../../domain/entities/survey.entity';
 import { UserRole } from '../../domain/entities/user.entity';
 import { SurveyFieldInput } from '../../application/ports/survey-form.repository.port';
 import type { SurveyFormBaselineFieldInput } from '../../application/ports/survey-form.repository.port';
@@ -71,7 +70,7 @@ function toFieldInputs(fields: SurveyFieldDto[]): SurveyFieldInput[] {
       helpText: field.helpText ?? null,
       required: field.required ?? false,
       order: field.order,
-      config: (field.config as SurveyFieldConfig | null | undefined) ?? null,
+      config: field.config ?? null,
     };
     if (typeof field.id === 'string') {
       input.id = field.id;

@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/app/dashboard-layout"
 import { ProtectedRoute } from "@/modules/auth/protected-route"
 import { Role } from "@/modules/auth/roles"
 import { AuditLogsPage } from "@/pages/audit/audit-logs-page"
+import { AppManagementPage } from "@/pages/app/app-management-page"
 import { GeographyPage } from "@/pages/geography/geography-page"
 import { GeographyAdminPage } from "@/pages/geography/geography-admin-page"
 import { RoleOverviewPage } from "@/pages/overview/role-overview-page"
@@ -41,6 +42,19 @@ export function DashboardRoutes() {
         <Route index element={<UsersPage />} />
         <Route path="create" element={<UserCreatePage />} />
         <Route path=":userId/edit" element={<UserEditPage />} />
+      </Route>
+
+      <Route
+        path="app-management"
+        element={
+          <ProtectedRoute
+            allowedRoles={[Role.SENIOR_MANAGER_ES, Role.RA_ENVIRONMENT_HO]}
+          >
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AppManagementPage />} />
       </Route>
 
       <Route

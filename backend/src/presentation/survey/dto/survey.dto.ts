@@ -158,6 +158,21 @@ export class CreateSurveyAssignmentsDto {
   instructions?: string | null;
 }
 
+export class UpdateSurveyAssignmentDto {
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  instructions?: string | null;
+}
+
 export class StartSurveyResponseDto {
   @IsUUID()
   assignmentId!: string;

@@ -26,5 +26,9 @@ export default () => ({
       10,
     ),
     uploadMaxMb: parseInt(process.env.SUPABASE_UPLOAD_MAX_MB ?? '10', 10),
+    apkUploadMaxMb: parseInt(
+      process.env.SUPABASE_APK_UPLOAD_MAX_MB ?? '200',
+      10,
+    ),
   },
 });

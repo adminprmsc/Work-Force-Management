@@ -19,11 +19,13 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   PACKAGE_EXPENSE_DELETED: "Expense deleted",
   PACKAGE_BASELINE_SAVED: "Baseline saved",
   SURVEY_ASSIGNMENT_CREATED: "Survey assigned",
+  SURVEY_ASSIGNMENT_UPDATED: "Survey timeline updated",
   SURVEY_ASSIGNMENT_DELETED: "Survey unassigned",
   SURVEY_RESPONSE_SUBMITTED: "Survey submitted",
   SURVEY_RESPONSE_ACCEPTED: "Survey accepted",
   SURVEY_RESPONSE_REJECTED: "Survey rejected",
   SURVEY_RESPONSE_REVERTED: "Survey reverted",
+  MOBILE_APP_UPLOADED: "Mobile app uploaded",
 }
 
 export const ALL_AUDIT_ACTIONS: AuditAction[] = Object.keys(
@@ -48,6 +50,7 @@ export const PACKAGE_AUDIT_ACTIONS: AuditAction[] = [
   "PACKAGE_EXPENSE_DELETED",
   "PACKAGE_BASELINE_SAVED",
   "SURVEY_ASSIGNMENT_CREATED",
+  "SURVEY_ASSIGNMENT_UPDATED",
   "SURVEY_ASSIGNMENT_DELETED",
   "SURVEY_RESPONSE_SUBMITTED",
   "SURVEY_RESPONSE_ACCEPTED",
@@ -64,9 +67,11 @@ export function getAuditActionTone(action: AuditAction): AuditActionTone {
     case "PACKAGE_CREATED":
     case "PACKAGE_EXPENSE_CREATED":
     case "SURVEY_ASSIGNMENT_CREATED":
+    case "SURVEY_ASSIGNMENT_UPDATED":
     case "SURVEY_RESPONSE_SUBMITTED":
     case "SURVEY_RESPONSE_ACCEPTED":
     case "PACKAGE_BASELINE_SAVED":
+    case "MOBILE_APP_UPLOADED":
       return "success"
     case "USER_DELETED":
     case "PACKAGE_DELETED":
@@ -181,6 +186,8 @@ export function formatAuditSummary(log: AuditLog): string {
       return `${actor} saved baseline${formTitle ? ` for ${formTitle}` : ""} on ${packageName}`
     case "SURVEY_ASSIGNMENT_CREATED":
       return `${actor} assigned ${formTitle ?? "a survey"} to ${packageName}`
+    case "SURVEY_ASSIGNMENT_UPDATED":
+      return `${actor} updated the timeline for ${formTitle ?? "a survey"} on ${packageName}`
     case "SURVEY_ASSIGNMENT_DELETED":
       return `${actor} removed ${formTitle ?? "a survey"} from ${packageName}`
     case "SURVEY_RESPONSE_SUBMITTED":
@@ -191,6 +198,10 @@ export function formatAuditSummary(log: AuditLog): string {
       return `${actor} rejected a survey on ${packageName}`
     case "SURVEY_RESPONSE_REVERTED":
       return `${actor} reverted a survey on ${packageName}`
+    case "MOBILE_APP_UPLOADED": {
+      const versionName = metaString(log.metadata, "versionName")
+      return `${actor} published mobile app${versionName ? ` v${versionName}` : ""}`
+    }
     default:
       return `${actor} performed ${log.action}`
   }
@@ -278,6 +289,25 @@ export function formatAuditDetails(log: AuditLog): string | null {
       const frequency = metaString(metadata, "frequency")
       return [formTitle, frequency].filter(Boolean).join(" · ") || null
     }
+    case "SURVEY_ASSIGNMENT_UPDATED": {
+      const formTitle = metaString(metadata, "formTitle")
+      const after = metadata?.after
+      const parts: string[] = []
+      if (formTitle) parts.push(formTitle)
+      if (after && typeof after === "object") {
+        const afterObj = after as Record<string, unknown>
+        if (typeof afterObj.startDate === "string" && typeof afterObj.endDate === "string") {
+          try {
+            parts.push(
+              `${format(new Date(afterObj.startDate), "dd MMM yyyy")} – ${format(new Date(afterObj.endDate), "dd MMM yyyy")}`,
+            )
+          } catch {
+            /* ignore bad dates */
+          }
+        }
+      }
+      return parts.length > 0 ? parts.join(" · ") : null
+    }
     case "SURVEY_RESPONSE_SUBMITTED":
     case "SURVEY_RESPONSE_ACCEPTED":
     case "SURVEY_RESPONSE_REJECTED":
@@ -289,6 +319,16 @@ export function formatAuditDetails(log: AuditLog): string | null {
       if (formTitle) parts.push(formTitle)
       if (villageName) parts.push(villageName)
       if (remarks) parts.push(remarks)
+      return parts.length > 0 ? parts.join(" · ") : null
+    }
+    case "MOBILE_APP_UPLOADED": {
+      const parts: string[] = []
+      const versionName = metaString(metadata, "versionName")
+      const versionCode = metadata?.versionCode
+      const fileName = metaString(metadata, "fileName")
+      if (versionName) parts.push(`v${versionName}`)
+      if (typeof versionCode === "number") parts.push(`code ${versionCode}`)
+      if (fileName) parts.push(fileName)
       return parts.length > 0 ? parts.join(" · ") : null
     }
     default:

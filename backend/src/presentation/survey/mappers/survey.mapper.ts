@@ -157,3 +157,19 @@ export function toSurveyResponseResponse(response: SurveyResponse) {
     updatedAt: response.updatedAt,
   };
 }
+
+/** Compact shape for list endpoints (no answers / review history / field schemas). */
+export function toSurveyResponseListItemResponse(response: SurveyResponse) {
+  const full = toSurveyResponseResponse(response);
+  return {
+    ...full,
+    formRevision: {
+      id: response.formRevision.id,
+      version: response.formRevision.version,
+      fields: [] as ReturnType<typeof toFieldResponse>[],
+      publishedAt: response.formRevision.publishedAt,
+    },
+    answers: [] as { fieldId: string; value: unknown }[],
+    reviewEvents: [] as typeof full.reviewEvents,
+  };
+}

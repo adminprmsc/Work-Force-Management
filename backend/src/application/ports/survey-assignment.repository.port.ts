@@ -15,6 +15,12 @@ export interface CreateSurveyAssignmentData {
   instructions?: string | null;
 }
 
+export interface UpdateSurveyAssignmentData {
+  startDate?: Date;
+  endDate?: Date;
+  instructions?: string | null;
+}
+
 export abstract class SurveyAssignmentRepositoryPort {
   abstract findByForm(formId: string): Promise<SurveyAssignment[]>;
   abstract findById(id: string): Promise<SurveyAssignment | null>;
@@ -31,6 +37,10 @@ export abstract class SurveyAssignmentRepositoryPort {
     procurementPackageId: string,
   ): Promise<SurveyAssignment[]>;
   abstract create(data: CreateSurveyAssignmentData): Promise<SurveyAssignment>;
+  abstract update(
+    id: string,
+    data: UpdateSurveyAssignmentData,
+  ): Promise<SurveyAssignment>;
   /**
    * Repoint every assignment of a form to a new form revision. Used when a form
    * is re-published so tehsil RAs always fill the latest version.

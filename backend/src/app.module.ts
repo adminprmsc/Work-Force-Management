@@ -6,6 +6,7 @@ import { PrismaModule } from './infrastructure/database/prisma/prisma.module';
 import { AuthModule } from './presentation/auth/auth.module';
 import { ProcurementModule } from './presentation/procurement/procurement.module';
 import { RbacModule } from './presentation/rbac/rbac.module';
+import { MobileAppModule } from './presentation/mobile-app/mobile-app.module';
 import { StorageModule } from './presentation/storage/storage.module';
 import { SurveyModule } from './presentation/survey/survey.module';
 import { AppController } from './app.controller';
@@ -23,6 +24,7 @@ import { AppController } from './app.controller';
     ProcurementModule,
     SurveyModule,
     StorageModule,
+    MobileAppModule,
   ],
   controllers: [AppController],
 })

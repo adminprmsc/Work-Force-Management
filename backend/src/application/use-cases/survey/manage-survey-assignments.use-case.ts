@@ -228,6 +228,109 @@ export class DeleteSurveyAssignmentUseCase {
   }
 }
 
+export interface UpdateSurveyAssignmentCommand {
+  startDate?: string;
+  endDate?: string;
+  instructions?: string | null;
+}
+
+@Injectable()
+export class UpdateSurveyAssignmentUseCase {
+  constructor(
+    @Inject(SURVEY_ASSIGNMENT_REPOSITORY)
+    private readonly assignmentRepository: SurveyAssignmentRepositoryPort,
+    private readonly scopeResolver: SurveyScopeResolver,
+    private readonly baselineEnricher: AssignmentBaselineEnricher,
+    private readonly auditService: AuditService,
+  ) {}
+
+  async execute(
+    user: AuthenticatedUser,
+    assignmentId: string,
+    command: UpdateSurveyAssignmentCommand,
+  ): Promise<SurveyAssignment> {
+    const actor = await this.scopeResolver.resolve(user);
+    if (!canManageSurveyForms(actor.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+
+    const assignment = await this.assignmentRepository.findById(assignmentId);
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const hasStart = command.startDate !== undefined;
+    const hasEnd = command.endDate !== undefined;
+    const hasInstructions = command.instructions !== undefined;
+    if (!hasStart && !hasEnd && !hasInstructions) {
+      throw new BadRequestException(
+        'Provide a start date, end date, and/or instructions to update',
+      );
+    }
+
+    let nextStart = assignment.startDate;
+    let nextEnd = assignment.endDate;
+
+    if (hasStart) {
+      nextStart = new Date(command.startDate!);
+      if (Number.isNaN(nextStart.getTime())) {
+        throw new BadRequestException('Invalid start date');
+      }
+    }
+
+    if (hasEnd) {
+      nextEnd = new Date(command.endDate!);
+      if (Number.isNaN(nextEnd.getTime())) {
+        throw new BadRequestException('Invalid end date');
+      }
+    }
+
+    if (nextEnd < nextStart) {
+      throw new BadRequestException('End date must be on or after start date');
+    }
+
+    const nextInstructions = hasInstructions
+      ? command.instructions?.trim() || null
+      : undefined;
+
+    const updated = await this.assignmentRepository.update(assignmentId, {
+      ...(hasStart ? { startDate: nextStart } : {}),
+      ...(hasEnd ? { endDate: nextEnd } : {}),
+      ...(hasInstructions ? { instructions: nextInstructions } : {}),
+    });
+
+    await this.auditService.logPackageAction(
+      user.id,
+      AuditAction.SURVEY_ASSIGNMENT_UPDATED,
+      assignment.procurementPackage.id,
+      {
+        packageName: assignment.procurementPackage.name,
+        assignmentId: assignment.id,
+        formId: assignment.formId,
+        formTitle: assignment.formTitle,
+        before: {
+          startDate: assignment.startDate.toISOString(),
+          endDate: assignment.endDate.toISOString(),
+          instructions: assignment.instructions,
+        },
+        after: {
+          startDate: updated.startDate.toISOString(),
+          endDate: updated.endDate.toISOString(),
+          instructions: updated.instructions,
+        },
+        changes: {
+          startDate: hasStart,
+          endDate: hasEnd,
+          instructions: hasInstructions,
+        },
+      },
+    );
+
+    const [enriched] = await this.baselineEnricher.enrich([updated]);
+    return enriched ?? updated;
+  }
+}
+
 @Injectable()
 export class ListMyAssignmentsUseCase {
   constructor(

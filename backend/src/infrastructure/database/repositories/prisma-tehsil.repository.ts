@@ -61,7 +61,12 @@ export class PrismaTehsilRepository implements TehsilRepositoryPort {
   async findSettlementById(id: string): Promise<Settlement | null> {
     const record = await this.prisma.settlement.findUnique({ where: { id } });
     return record
-      ? new Settlement(record.id, record.name, record.villageId, record.createdAt)
+      ? new Settlement(
+          record.id,
+          record.name,
+          record.villageId,
+          record.createdAt,
+        )
       : null;
   }
 
@@ -84,7 +89,12 @@ export class PrismaTehsilRepository implements TehsilRepositoryPort {
       where: { villageId, name },
     });
     return record
-      ? new Settlement(record.id, record.name, record.villageId, record.createdAt)
+      ? new Settlement(
+          record.id,
+          record.name,
+          record.villageId,
+          record.createdAt,
+        )
       : null;
   }
 
@@ -121,10 +131,7 @@ export class PrismaTehsilRepository implements TehsilRepositoryPort {
     return { settlementCount, packageLinkCount, surveyResponseCount };
   }
 
-  async createSettlement(
-    villageId: string,
-    name: string,
-  ): Promise<Settlement> {
+  async createSettlement(villageId: string, name: string): Promise<Settlement> {
     const record = await this.prisma.settlement.create({
       data: { villageId, name },
     });

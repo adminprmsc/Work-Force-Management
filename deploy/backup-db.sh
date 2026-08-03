@@ -1,3 +1,7 @@
+# Copy the backup from the VM to the local machine.
+# WFM_SSH_HOST=101.50.84.209 ./deploy/backup-db.sh
+
+
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
 # Production DB backup: create on the VM first, then copy to this Mac.
