@@ -293,7 +293,8 @@ export function AppManagementPanel() {
         </CardHeader>
         <CardContent>
           <ShimmerContainer
-            isLoading={queryView.isInitialLoading}
+            isInitialLoading={queryView.isInitialLoading}
+            isRefreshing={queryView.isRefreshing}
             shimmer={<TableRowsShimmer rows={4} columns={5} />}
           >
             {releases.length === 0 ? (
