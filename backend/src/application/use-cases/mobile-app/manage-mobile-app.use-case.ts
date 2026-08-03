@@ -25,13 +25,29 @@ import { MobileAppPathService } from '../../services/mobile-app-path.service';
 import type { AuthenticatedUser } from '../../types/authenticated-user.type';
 import type { UploadedFilePayload } from '../../types/uploaded-file.type';
 
-const APK_MIME_TYPES = new Set([
+const ACCEPTED_RELEASE_MIME_TYPES = new Set([
   'application/vnd.android.package-archive',
   'application/octet-stream',
   'application/java-archive',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-zip',
+  'multipart/x-zip',
 ]);
 
 const DEFAULT_APK_MAX_MB = 200;
+
+function isAcceptedReleaseFileName(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  return lower.endsWith('.apk') || lower.endsWith('.zip');
+}
+
+function defaultMimeForFileName(fileName: string): string {
+  if (fileName.toLowerCase().endsWith('.zip')) {
+    return 'application/zip';
+  }
+  return 'application/vnd.android.package-archive';
+}
 
 export interface UploadMobileAppReleaseCommand {
   versionName: string;
@@ -97,17 +113,17 @@ export class UploadMobileAppReleaseUseCase {
 
     const file = command.file;
     const lowerName = file.originalname.toLowerCase();
-    if (!lowerName.endsWith('.apk')) {
-      throw new BadRequestException('Only .apk files are accepted');
+    if (!isAcceptedReleaseFileName(file.originalname)) {
+      throw new BadRequestException('Only .apk or .zip files are accepted');
     }
-    if (file.mimetype && !APK_MIME_TYPES.has(file.mimetype)) {
-      // Browsers often send generic types for APK — allow when extension is .apk.
+    if (file.mimetype && !ACCEPTED_RELEASE_MIME_TYPES.has(file.mimetype)) {
+      // Browsers often send generic types — allow when extension is .apk/.zip.
       if (
         !file.mimetype.includes('android') &&
         !file.mimetype.includes('octet') &&
         !file.mimetype.includes('zip')
       ) {
-        throw new BadRequestException('Invalid APK file type');
+        throw new BadRequestException('Invalid app package file type');
       }
     }
 
@@ -116,10 +132,10 @@ export class UploadMobileAppReleaseUseCase {
       DEFAULT_APK_MAX_MB;
     const maxBytes = maxMb * 1024 * 1024;
     if (file.size > maxBytes) {
-      throw new BadRequestException(`APK exceeds maximum size of ${maxMb} MB`);
+      throw new BadRequestException(`File exceeds maximum size of ${maxMb} MB`);
     }
     if (file.size <= 0) {
-      throw new BadRequestException('APK file is empty');
+      throw new BadRequestException('File is empty');
     }
 
     const bucket =
@@ -131,7 +147,7 @@ export class UploadMobileAppReleaseUseCase {
     const mimeType =
       file.mimetype && file.mimetype !== 'application/octet-stream'
         ? file.mimetype
-        : 'application/vnd.android.package-archive';
+        : defaultMimeForFileName(lowerName);
 
     await this.objectStorage.upload({
       bucket,

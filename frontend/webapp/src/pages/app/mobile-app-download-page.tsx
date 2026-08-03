@@ -42,7 +42,7 @@ export function MobileAppDownloadPage() {
               </p>
             ) : latestQuery.isError || !release ? (
               <p className="text-center text-sm text-muted-foreground">
-                No app release is available yet. Ask Head Office to publish an APK
+                No app release is available yet. Ask Head Office to publish a package
                 from App management.
               </p>
             ) : (
@@ -63,7 +63,7 @@ export function MobileAppDownloadPage() {
                 <Button className="w-full" size="lg" asChild>
                   <a href={downloadUrl}>
                     <Download className="size-4" />
-                    Download APK
+                    Download app
                   </a>
                 </Button>
 

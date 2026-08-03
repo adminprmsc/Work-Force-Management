@@ -74,7 +74,7 @@ export function AppManagementPanel() {
 
   const handleUpload = async () => {
     if (!file) {
-      toast.error("Select an .apk file")
+      toast.error("Select an .apk or .zip file")
       return
     }
     if (!versionName.trim()) {
@@ -86,8 +86,9 @@ export function AppManagementPanel() {
       toast.error("Enter a positive integer version code")
       return
     }
-    if (!file.name.toLowerCase().endsWith(".apk")) {
-      toast.error("Only .apk files are accepted")
+    const lowerName = file.name.toLowerCase()
+    if (!lowerName.endsWith(".apk") && !lowerName.endsWith(".zip")) {
+      toast.error("Only .apk or .zip files are accepted")
       return
     }
 
@@ -113,8 +114,8 @@ export function AppManagementPanel() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">App management</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload the latest RA mobile APK and share a public download link with tehsil
-          field users. No login is required to download.
+          Upload the latest RA mobile package (.apk or .zip) and share a public
+          download link with tehsil field users. No login is required to download.
         </p>
       </div>
 
@@ -196,7 +197,7 @@ export function AppManagementPanel() {
                       variant="outline"
                       size="icon"
                       asChild
-                      title="Download latest APK"
+                      title="Download latest package"
                     >
                       <a href={apiDownloadUrl}>
                         <Download className="size-4" />
@@ -207,7 +208,7 @@ export function AppManagementPanel() {
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No APK published yet. Upload the first release to generate shareable
+                No package published yet. Upload the first release to generate shareable
                 links.
               </p>
             )}
@@ -218,11 +219,11 @@ export function AppManagementPanel() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Upload className="size-4" />
-              Publish new APK
+              Publish new package
             </CardTitle>
             <CardDescription>
               Each upload becomes the current latest. Use a higher version code than
-              previous builds.
+              previous builds. Accepts .apk or .zip.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -251,11 +252,11 @@ export function AppManagementPanel() {
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="apk-file">APK file</Label>
+              <Label htmlFor="apk-file">Package file (.apk or .zip)</Label>
               <Input
                 id="apk-file"
                 type="file"
-                accept=".apk,application/vnd.android.package-archive"
+                accept=".apk,.zip,application/vnd.android.package-archive,application/zip"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
               {file ? (
