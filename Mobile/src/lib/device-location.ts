@@ -19,7 +19,8 @@ async function requestAndroidPermission(): Promise<boolean> {
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     {
       title: 'Location required',
-      message: 'We need your live GPS location to verify you submitted from the visit site.',
+      message:
+        'We need your live GPS location to verify you submitted from the visit site.',
       buttonPositive: 'Allow',
       buttonNegative: 'Deny',
     },
@@ -27,14 +28,11 @@ async function requestAndroidPermission(): Promise<boolean> {
   return granted === PermissionsAndroid.RESULTS.GRANTED;
 }
 
-export async function getSubmissionLocation(): Promise<SubmissionLocationReading> {
-  if (Platform.OS === 'android') {
-    const allowed = await requestAndroidPermission();
-    if (!allowed) {
-      throw new GeolocationError('Location permission is required to submit a site visit');
-    }
-  }
-
+function readPosition(options: {
+  enableHighAccuracy: boolean;
+  timeout: number;
+  maximumAge: number;
+}): Promise<SubmissionLocationReading> {
   return new Promise((resolve, reject) => {
     Geolocation.getCurrentPosition(
       (position) => {
@@ -55,11 +53,48 @@ export async function getSubmissionLocation(): Promise<SubmissionLocationReading
                 : 'Failed to capture GPS location';
         reject(new GeolocationError(message));
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 20_000,
-        maximumAge: 0,
-      },
+      options,
     );
   });
+}
+
+/**
+ * Site-visit GPS: try high-accuracy first, then a longer low-accuracy pass
+ * so indoor / weak GPS devices can still submit.
+ */
+export async function getSubmissionLocation(): Promise<SubmissionLocationReading> {
+  if (Platform.OS === 'android') {
+    const allowed = await requestAndroidPermission();
+    if (!allowed) {
+      throw new GeolocationError(
+        'Location permission is required to submit a site visit',
+      );
+    }
+  }
+
+  try {
+    return await readPosition({
+      enableHighAccuracy: true,
+      timeout: 35_000,
+      maximumAge: 15_000,
+    });
+  } catch (firstError) {
+    if (
+      firstError instanceof GeolocationError &&
+      firstError.message.includes('permission')
+    ) {
+      throw firstError;
+    }
+    try {
+      return await readPosition({
+        enableHighAccuracy: false,
+        timeout: 45_000,
+        maximumAge: 60_000,
+      });
+    } catch {
+      throw firstError instanceof Error
+        ? firstError
+        : new GeolocationError('Timed out while waiting for GPS location');
+    }
+  }
 }

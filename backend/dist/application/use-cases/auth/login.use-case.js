@@ -25,7 +25,8 @@ let LoginUseCase = class LoginUseCase {
         this.hashingService = hashingService;
     }
     async execute(input) {
-        const user = await this.userRepository.findByEmail(input.email);
+        const email = input.email.trim().toLowerCase();
+        const user = await this.userRepository.findByEmail(email);
         if (!user) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }

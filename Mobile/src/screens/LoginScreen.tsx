@@ -16,6 +16,7 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label, Muted, Text } from '@/components/ui/text';
 import { APP_BRAND } from '@/lib/branding';
+import { ApiError, apiBaseUrl } from '@/lib/api-client';
 import { layout } from '@/lib/layout';
 import { colors, layoutPadding, radius, spacing } from '@/lib/theme';
 import { useAuth } from '@/modules/auth/auth-context';
@@ -36,7 +37,16 @@ export function LoginScreen() {
     try {
       await login(email.trim().toLowerCase(), password);
     } catch (err) {
-      Alert.alert('Login failed', err instanceof Error ? err.message : 'Unable to sign in');
+      let message = err instanceof Error ? err.message : 'Unable to sign in';
+      if (err instanceof ApiError && err.status === 401) {
+        message =
+          err.message === 'Account is inactive'
+            ? 'This account is inactive. Contact Head Office.'
+            : 'Invalid email or password. Use your RA tehsil account (same credentials as the web app).';
+      } else if (message.includes('Cannot reach API')) {
+        message = `${message}\n\nCurrent API: ${apiBaseUrl()}`;
+      }
+      Alert.alert('Login failed', message);
     } finally {
       setLoading(false);
     }

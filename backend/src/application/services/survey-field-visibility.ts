@@ -76,6 +76,41 @@ export function sectionToggleKey(sectionFieldId: string): string {
   return `__section_toggle__${sectionFieldId}`;
 }
 
+/** Prefix for optional section toggle answer keys. */
+export const SECTION_TOGGLE_PREFIX = '__section_toggle__';
+
+/**
+ * fieldId may be either:
+ * - a normal field UUID
+ * - `__section_toggle__` + section field UUID (optional SECTION_BREAK yes/no)
+ *
+ * Loosely validates UUID shape so class-validator and domain rules stay aligned.
+ */
+export const SECTION_TOGGLE_FIELD_ID_PATTERN =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|__section_toggle__[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+export function isSectionToggleFieldId(fieldId: string): boolean {
+  return fieldId.startsWith(SECTION_TOGGLE_PREFIX);
+}
+
+export function sectionIdFromToggleKey(fieldId: string): string | null {
+  if (!isSectionToggleFieldId(fieldId)) return null;
+  return fieldId.slice(SECTION_TOGGLE_PREFIX.length);
+}
+
+/**
+ * Whether an answer fieldId is a real form field UUID or a valid section toggle
+ * for one of the given form field IDs.
+ */
+export function isAllowedSurveyAnswerFieldId(
+  fieldId: string,
+  validFieldIds: Set<string>,
+): boolean {
+  if (validFieldIds.has(fieldId)) return true;
+  const sectionId = sectionIdFromToggleKey(fieldId);
+  return sectionId !== null && validFieldIds.has(sectionId);
+}
+
 /**
  * Resolves which fields are visible given the current answers.
  *

@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { Label, Muted, Text } from '@/components/ui/text';
-import { isConflictError } from '@/lib/api-client';
+import { isConflictError, ApiError } from '@/lib/api-client';
 import { getSubmissionLocation, GeolocationError } from '@/lib/device-location';
+import type { SubmissionLocationReading } from '@/lib/device-location';
 import { buildAnswers } from '@/lib/survey-answers';
 import { buildPackageFieldAnswers } from '@/lib/package-field-reference';
 import { layout } from '@/lib/layout';
@@ -453,8 +454,16 @@ export function ResponseScreen() {
     if (readOnly || (!assignment && !serverResponse)) return;
     setSaving(true);
     const payload = buildAnswers(fields, displayAnswers);
+    let location: SubmissionLocationReading | null = null;
     try {
-      const location = await getSubmissionLocation();
+      location = await getSubmissionLocation();
+      const pendingLocation = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracyMeters: location.accuracyMeters ?? null,
+        capturedAt: new Date().toISOString(),
+      };
+
       if (isOnline && token) {
         const id = await ensureServerResponse();
         const submitted = await submitSurveyResponse(token, id, {
@@ -464,6 +473,11 @@ export function ResponseScreen() {
           locationAccuracyMeters: location.accuracyMeters ?? null,
         });
         setServerResponse(submitted);
+        if (draftLocalId) {
+          await removeOfflineDraft(draftLocalId);
+          setDraftLocalId(null);
+          await refreshPendingCount();
+        }
         Alert.alert(
           isResubmit ? 'Resubmitted' : 'Submitted',
           isResubmit
@@ -472,12 +486,7 @@ export function ResponseScreen() {
           [{ text: 'OK', onPress: () => navigation.goBack() }],
         );
       } else {
-        await persistOffline(true, {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracyMeters: location.accuracyMeters ?? null,
-          capturedAt: new Date().toISOString(),
-        });
+        await persistOffline(true, pendingLocation);
         Alert.alert(
           'Queued for submit',
           'You are offline. The survey will submit automatically when connected.',
@@ -491,7 +500,10 @@ export function ResponseScreen() {
       }
     } catch (err) {
       if (err instanceof GeolocationError) {
-        Alert.alert('Location required', err.message);
+        Alert.alert(
+          'Location required',
+          `${err.message}\n\nMove outdoors if needed, enable GPS/Location, then try Submit again.`,
+        );
         return;
       }
       if (isConflictError(err)) {
@@ -502,8 +514,47 @@ export function ResponseScreen() {
         );
         return;
       }
-      await persistOffline(true);
-      Alert.alert('Queued', err instanceof Error ? err.message : 'Queued for sync when online.');
+      if (err instanceof ApiError && err.status === 401) {
+        Alert.alert(
+          'Session expired',
+          'Your login expired. Sign in again, then submit this survey.',
+        );
+        return;
+      }
+      // Validation / client errors — do not queue a payload the server will reject.
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+        await persistOffline(false);
+        Alert.alert(
+          'Cannot submit',
+          err.message ||
+            'The server rejected this survey. Your answers were saved as a draft — fix and try again.',
+        );
+        return;
+      }
+
+      // Network / server errors: queue for sync if we already have GPS.
+      if (location) {
+        await persistOffline(true, {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracyMeters: location.accuracyMeters ?? null,
+          capturedAt: new Date().toISOString(),
+        });
+        Alert.alert(
+          'Queued for submit',
+          err instanceof Error
+            ? `${err.message}\n\nStored on this device and will submit when the connection is stable.`
+            : 'Stored on this device for later submit.',
+        );
+      } else {
+        await persistOffline(false);
+        Alert.alert(
+          'Saved draft',
+          err instanceof Error
+            ? `${err.message}\n\nDraft saved on device. Try Submit again with GPS online.`
+            : 'Draft saved. Try Submit again.',
+        );
+      }
     } finally {
       setSaving(false);
     }

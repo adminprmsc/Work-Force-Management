@@ -7,7 +7,12 @@ import {
 } from '../../domain/entities/survey.entity';
 import { SurveyAnswerInput } from '../ports/survey-response.repository.port';
 import { PackageFieldReferenceResolver } from './package-field-reference.resolver';
-import { resolveVisibleFieldIds } from './survey-field-visibility';
+import {
+  isSectionToggleFieldId,
+  resolveVisibleFieldIds,
+  sectionIdFromToggleKey,
+  sectionToggleKey,
+} from './survey-field-visibility';
 
 const CNIC_REGEX = /^\d{5}-\d{7}-\d$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,8 +65,35 @@ export class SurveyAnswerValidator {
     const errors: string[] = [];
     const fieldById = new Map(fields.map((field) => [field.id, field]));
     const answerByField = new Map<string, unknown>();
+    const sectionToggles: SurveyAnswerInput[] = [];
 
     for (const answer of prepared) {
+      if (isSectionToggleFieldId(answer.fieldId)) {
+        const sectionId = sectionIdFromToggleKey(answer.fieldId);
+        const sectionField = sectionId ? fieldById.get(sectionId) : undefined;
+        if (
+          !sectionField ||
+          sectionField.type !== SurveyFieldType.SECTION_BREAK
+        ) {
+          errors.push(
+            `Answer references an unknown section toggle (${answer.fieldId}).`,
+          );
+          continue;
+        }
+        if (answer.value !== 'yes' && answer.value !== 'no') {
+          errors.push(
+            `Optional section "${sectionField.label}" must be Yes or No.`,
+          );
+          continue;
+        }
+        answerByField.set(answer.fieldId, answer.value);
+        sectionToggles.push({
+          fieldId: sectionToggleKey(sectionField.id),
+          value: answer.value,
+        });
+        continue;
+      }
+
       const field = fieldById.get(answer.fieldId);
       if (!field) {
         errors.push(`Answer references an unknown field (${answer.fieldId}).`);
@@ -74,7 +106,7 @@ export class SurveyAnswerValidator {
     }
 
     const visibleIds = resolveVisibleFieldIds(fields, answerByField);
-    const cleaned: SurveyAnswerInput[] = [];
+    const cleaned: SurveyAnswerInput[] = [...sectionToggles];
 
     for (const field of fields) {
       if (PRESENTATION_FIELD_TYPES.includes(field.type)) continue;

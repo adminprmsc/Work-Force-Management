@@ -34,6 +34,7 @@ import {
   TEHSIL_REPOSITORY,
   TehsilRepositoryPort,
 } from '../../ports/tehsil.repository.port';
+import { isAllowedSurveyAnswerFieldId } from '../../services/survey-field-visibility';
 import {
   SURVEY_ASSIGNMENT_REPOSITORY,
   SurveyAssignmentRepositoryPort,
@@ -463,7 +464,7 @@ export class SaveSurveyResponseUseCase {
     const fields = response.formRevision.fields;
     const validFieldIds = new Set(fields.map((f) => f.id));
     let answers = (command.answers ?? []).filter((answer) =>
-      validFieldIds.has(answer.fieldId),
+      isAllowedSurveyAnswerFieldId(answer.fieldId, validFieldIds),
     );
 
     const pkg = await loadPackageForAssignment(

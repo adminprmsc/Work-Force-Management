@@ -1,7 +1,7 @@
 export type SubmissionLocationReading = {
   latitude: number
-  longitude: number
   accuracyMeters?: number
+  longitude: number
 }
 
 export class GeolocationError extends Error {
@@ -11,7 +11,7 @@ export class GeolocationError extends Error {
   }
 }
 
-export function getSubmissionLocation(): Promise<SubmissionLocationReading> {
+function readPosition(options: PositionOptions): Promise<SubmissionLocationReading> {
   return new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) {
       reject(new GeolocationError("This device does not support GPS location"))
@@ -37,11 +37,36 @@ export function getSubmissionLocation(): Promise<SubmissionLocationReading> {
                 : "Failed to capture GPS location"
         reject(new GeolocationError(message))
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 20_000,
-        maximumAge: 0,
-      },
+      options,
     )
   })
+}
+
+/** High-accuracy first, then a longer low-accuracy pass for weaker GPS. */
+export async function getSubmissionLocation(): Promise<SubmissionLocationReading> {
+  try {
+    return await readPosition({
+      enableHighAccuracy: true,
+      timeout: 35_000,
+      maximumAge: 15_000,
+    })
+  } catch (firstError) {
+    if (
+      firstError instanceof GeolocationError &&
+      firstError.message.includes("permission")
+    ) {
+      throw firstError
+    }
+    try {
+      return await readPosition({
+        enableHighAccuracy: false,
+        timeout: 45_000,
+        maximumAge: 60_000,
+      })
+    } catch {
+      throw firstError instanceof Error
+        ? firstError
+        : new GeolocationError("Timed out while waiting for GPS location")
+    }
+  }
 }

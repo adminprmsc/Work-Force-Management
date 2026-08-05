@@ -14,6 +14,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -23,6 +24,10 @@ import {
   SurveyFieldType,
   SurveyFrequency,
 } from '../../../domain/entities/survey.entity';
+
+/** Matches field UUID or optional-section toggle (`__section_toggle__` + UUID). */
+const SURVEY_ANSWER_FIELD_ID_PATTERN =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|__section_toggle__[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 export class SurveyFieldDto {
   @IsOptional()
@@ -209,7 +214,15 @@ export type ReviewSurveyResponseBody = {
 };
 
 export class SurveyAnswerDto implements SurveyAnswerBody {
-  @IsUUID()
+  /**
+   * Form field UUID, or optional-section toggle key
+   * (`__section_toggle__{sectionFieldUuid}`) used for SECTION_BREAK visibility.
+   */
+  @IsString()
+  @Matches(SURVEY_ANSWER_FIELD_ID_PATTERN, {
+    message:
+      'fieldId must be a UUID or a section toggle key (__section_toggle__<uuid>)',
+  })
   fieldId!: string;
 
   @Allow()

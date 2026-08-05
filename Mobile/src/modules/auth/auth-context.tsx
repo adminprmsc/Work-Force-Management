@@ -93,9 +93,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const result = await loginApi({ email, password });
+      const result = await loginApi({
+        email: email.trim().toLowerCase(),
+        password,
+      });
       if (!isRaTehsilRole(result.user.role)) {
-        throw new Error('This app is only for RA E&S Tehsil field users.');
+        throw new Error(
+          'This app is only for RA E&S Tehsil field users. Use a tehsil RA account.',
+        );
       }
       await setStoredToken(result.accessToken);
       setToken(result.accessToken);
