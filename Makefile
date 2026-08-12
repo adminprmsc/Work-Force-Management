@@ -15,7 +15,7 @@ ENV_FILE := .env
 BACKUP_DIR := backups
 
 .DEFAULT_GOAL := help
-.PHONY: help check-env up down restart deploy build migrate seed logs logs-api ps health db-shell db-backup prune
+.PHONY: help check-env up down restart deploy build migrate seed logs logs-api ps health db-shell db-backup restore-db prune
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -87,6 +87,12 @@ db-backup: check-env ## Dump Postgres into ./backups/ (run on the VM)
 	fi; \
 	echo "==> Backup written: $$out ($$bytes bytes)"; \
 	echo "CREATED:$$out"
+
+# Restore from a gzipped pg_dump (destructive). Example:
+#   make restore-db BACKUP=backups/wfm-20260810-073821.sql.gz
+restore-db: check-env ## Restore DB from backup file (see deploy/restore-db.sh)
+	@test -n "$(BACKUP)" || { echo "ERROR: pass BACKUP=backups/wfm-....sql.gz"; exit 1; }
+	./deploy/restore-db.sh "$(BACKUP)"
 
 prune: ## Remove dangling images to reclaim disk
 	docker image prune -f

@@ -270,7 +270,110 @@ backup (Section 7) **before** deploying so you can restore if needed.
 
 ---
 
-## 10. Security Notes
+## 10. Disaster Recovery (new VM / lost instance)
+
+Use this when the VM is replaced (e.g. Nayatel IAAS reprovisioned) and you
+have a `backups/wfm-*.sql.gz` dump from the old server.
+
+### What you need before starting
+
+| Item | Where to get it |
+| ---- | --------------- |
+| Latest DB backup | Local `./backups/` (e.g. `wfm-20260810-073821.sql.gz`) or a teammate |
+| Production `.env` secrets | Old VM `.env`, password manager, or recreate from `.env.prod.example` |
+| Supabase keys | [Supabase dashboard](https://supabase.com/dashboard) → Project → Settings → API |
+| Git repo access | `https://github.com/adminprmsc/Work-Force-Management.git` |
+| SSH key | `~/.ssh/wfm_instance` (or generate a new key pair for the new VM) |
+
+> **Important:** Use the **same** `JWT_SECRET` and `POSTGRES_PASSWORD` as the
+> old environment if you want existing mobile sessions to keep working and the
+> backup to restore cleanly. Supabase credentials must match the project that
+> holds uploaded evidence photos.
+
+### Step 1 — Provision the new VM (Ubuntu 22.04)
+
+SSH in as your sudo user, then:
+
+```bash
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install -y ca-certificates curl git make ufw
+
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker "$USER"    # log out and back in
+docker compose version
+
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+Add your SSH public key to `~/.ssh/authorized_keys` on the new VM.
+
+### Step 2 — Clone and configure
+
+```bash
+git clone https://github.com/adminprmsc/Work-Force-Management.git wfm
+cd wfm
+cp .env.prod.example .env
+nano .env   # fill POSTGRES_PASSWORD, JWT_SECRET, Supabase keys, seed passwords
+```
+
+Set `RUN_SEED=false` in `.env` when restoring from backup (seed is only for
+empty databases).
+
+### Step 3 — Copy the backup to the VM
+
+From your Mac (replace `<NEW_VM_IP>`):
+
+```bash
+scp -i ~/.ssh/wfm_instance \
+  "backups/wfm-20260810-073821.sql.gz" \
+  adminprms98@<NEW_VM_IP>:~/wfm/backups/
+```
+
+### Step 4 — Restore database + start the stack
+
+On the VM:
+
+```bash
+cd ~/wfm
+chmod +x deploy/restore-db.sh
+./deploy/restore-db.sh backups/wfm-20260810-073821.sql.gz
+```
+
+This script: starts Postgres → drops/recreates the DB → restores the dump →
+runs pending migrations (no seed) → starts API + web.
+
+Verify:
+
+```bash
+make health
+curl -sS http://localhost/api/health
+```
+
+### Step 5 — Update clients to the new IP
+
+If the public IP changed, update:
+
+- **Mobile** `Mobile/.env` → `API_BASE_URL=http://<NEW_VM_IP>/api`, rebuild APK
+- **iOS ATS** / **Android network security config** if the IP changed
+- Any bookmarks or shared links you gave to RA tehsil users
+
+App URL: `http://<NEW_VM_IP>/`
+
+### Step 6 — Post-restore checklist
+
+- [ ] Log in as Senior Manager on the webapp
+- [ ] Confirm procurement packages and survey data are present
+- [ ] Upload a test evidence photo (Supabase storage)
+- [ ] Test mobile login + survey submit on a real device
+- [ ] Run `make db-backup` on the new VM to create a fresh baseline backup
+- [ ] (Recommended) Put TLS/HTTPS in front of the edge (Section 6)
+
+---
+
+## 11. Security Notes
 
 - **Never commit `.env`** — it is git-ignored. Rotate `JWT_SECRET` and DB
   credentials if they ever leak.
