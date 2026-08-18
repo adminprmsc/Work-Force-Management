@@ -1180,12 +1180,26 @@ function NumericFieldBreakdown({ field }: { field: SurveyFormAnalyticsFieldBreak
         </div>
         <Hash className="size-4 text-muted-foreground" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-        <ChartContainer config={config} className="h-[160px] w-full">
-          <BarChart data={gaugeData} margin={{ left: 4, right: 4 }}>
+      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+        <ChartContainer
+          config={config}
+          className="h-[180px] min-w-0 w-full overflow-visible"
+        >
+          <BarChart data={gaugeData} margin={{ left: 12, right: 12, top: 8, bottom: 4 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-            <YAxis allowDecimals tickLine={false} axisLine={false} width={40} />
+            <XAxis
+              dataKey="name"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11 }}
+            />
+            <YAxis
+              allowDecimals
+              tickLine={false}
+              axisLine={false}
+              width={52}
+              tick={{ fontSize: 10 }}
+            />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
               {gaugeData.map((d, i) => <Cell key={i} fill={d.fill} />)}
