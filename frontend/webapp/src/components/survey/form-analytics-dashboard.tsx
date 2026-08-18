@@ -109,8 +109,19 @@ type TehsilAlert = {
   tehsilName: string;
   accepted: number;
   sharePct: number;
+  acceptanceRate: number;
+  pendingReview: number;
+  rejected: number;
   tone: ImpactTone;
   issue: string;
+};
+
+type ExecutiveFinding = {
+  id: string;
+  title: string;
+  metric: string;
+  detail: string;
+  tone: ImpactTone;
 };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -121,19 +132,162 @@ function fmt(n: number) {
 
 function deriveTehsilAlerts(
   byTehsil: SurveyFormAnalyticsTehsilRow[],
+  packages: SurveyFormAnalyticsPackageRow[],
   total: number,
 ): TehsilAlert[] {
   if (byTehsil.length === 0 || total === 0) return [];
   const avgShare = 100 / byTehsil.length;
   return byTehsil.map((row) => {
     const sharePct = Math.round((row.accepted / total) * 100);
-    const tone = impactToneForCoverageShare(sharePct);
-    let issue = "Adequate coverage";
-    if (sharePct === 0) issue = "No accepted responses — zero coverage";
-    else if (sharePct < 5) issue = `Critically under-represented (${sharePct}% vs ${Math.round(avgShare)}% avg)`;
-    else if (sharePct < 10) issue = `Below expected coverage (${sharePct}% vs ${Math.round(avgShare)}% avg)`;
-    return { tehsilName: row.tehsilName, accepted: row.accepted, sharePct, tone, issue };
+    const tehsilPackages = packages.filter((pkg) => pkg.tehsilId === row.tehsilId);
+    const pendingReview = tehsilPackages.reduce((sum, pkg) => sum + pkg.pendingReview, 0);
+    const rejected = tehsilPackages.reduce((sum, pkg) => sum + pkg.rejected, 0);
+    const draft = tehsilPackages.reduce((sum, pkg) => sum + pkg.draft, 0);
+    const reverted = tehsilPackages.reduce((sum, pkg) => sum + pkg.reverted, 0);
+    const totalActivity = row.accepted + pendingReview + rejected + draft + reverted;
+    const acceptanceRate =
+      totalActivity > 0 ? Math.round((row.accepted / totalActivity) * 100) : 0;
+
+    let tone: ImpactTone = "positive";
+    let issue = "Balanced coverage and healthy acceptance performance";
+
+    if (sharePct < 5 || acceptanceRate < 25) {
+      tone = "negative";
+      issue =
+        sharePct < 5
+          ? `Critical gap: only ${sharePct}% coverage share vs ${Math.round(avgShare)}% average`
+          : `Quality issue: only ${acceptanceRate}% of responses are accepted in this tehsil`;
+    } else if (sharePct < 10 || acceptanceRate < 45 || pendingReview > row.accepted) {
+      tone = "warning";
+      issue =
+        sharePct < 10
+          ? `Low field coverage: ${sharePct}% share vs ${Math.round(avgShare)}% average`
+          : pendingReview > row.accepted
+            ? `Review backlog exceeds accepted volume (${pendingReview} pending vs ${row.accepted} accepted)`
+            : `Below-target acceptance rate (${acceptanceRate}%) indicates submission quality issues`;
+    } else if (impactToneForCoverageShare(sharePct) === "neutral") {
+      tone = "neutral";
+      issue = `Moderate coverage with ${acceptanceRate}% acceptance rate`;
+    }
+
+    return {
+      tehsilName: row.tehsilName,
+      accepted: row.accepted,
+      sharePct,
+      acceptanceRate,
+      pendingReview,
+      rejected,
+      tone,
+      issue,
+    };
   }).sort((a, b) => a.sharePct - b.sharePct);
+}
+
+function deriveExecutiveFindings(
+  analytics: SurveyFormAnalytics,
+  tehsilAlerts: TehsilAlert[],
+): ExecutiveFinding[] {
+  const findings: ExecutiveFinding[] = [];
+  const { summary } = analytics;
+  const totalSubmitted =
+    summary.accepted +
+    summary.pendingReview +
+    summary.draft +
+    summary.rejected +
+    summary.reverted;
+  const acceptanceRate =
+    totalSubmitted > 0 ? Math.round((summary.accepted / totalSubmitted) * 100) : 0;
+
+  findings.push({
+    id: "acceptance-rate",
+    title: "Overall response quality",
+    metric: `${acceptanceRate}%`,
+    detail:
+      acceptanceRate >= 60
+        ? "Most submissions are clearing review successfully."
+        : acceptanceRate >= 35
+          ? "Acceptance is moderate; some field submissions need better quality control."
+          : "Low acceptance rate suggests major issues in field submission quality.",
+    tone:
+      acceptanceRate >= 60
+        ? "positive"
+        : acceptanceRate >= 35
+          ? "neutral"
+          : "warning",
+  });
+
+  const weakestCoverage = tehsilAlerts[0];
+  if (weakestCoverage) {
+    findings.push({
+      id: "weakest-tehsil",
+      title: "Weakest tehsil coverage",
+      metric: `${weakestCoverage.sharePct}%`,
+      detail: `${weakestCoverage.tehsilName} has the lowest accepted-response share and should be prioritized for monitoring.`,
+      tone: weakestCoverage.tone,
+    });
+  }
+
+  const weakestQuality = [...tehsilAlerts].sort(
+    (a, b) => a.acceptanceRate - b.acceptanceRate,
+  )[0];
+  if (weakestQuality) {
+    findings.push({
+      id: "weakest-quality-tehsil",
+      title: "Lowest tehsil acceptance rate",
+      metric: `${weakestQuality.acceptanceRate}%`,
+      detail: `${weakestQuality.tehsilName} is generating the weakest acceptance outcome, indicating local submission quality or supervision issues.`,
+      tone:
+        weakestQuality.acceptanceRate < 25
+          ? "negative"
+          : weakestQuality.acceptanceRate < 45
+            ? "warning"
+            : "neutral",
+    });
+  }
+
+  const backlogRate =
+    summary.accepted + summary.pendingReview > 0
+      ? Math.round(
+          (summary.pendingReview / (summary.accepted + summary.pendingReview)) * 100,
+        )
+      : 0;
+  findings.push({
+    id: "review-backlog",
+    title: "Review backlog pressure",
+    metric: `${backlogRate}%`,
+    detail:
+      backlogRate >= 40
+        ? "Head-office review backlog is high enough to slow feedback loops."
+        : backlogRate >= 20
+          ? "Pending reviews should be monitored to avoid decision delays."
+          : "Review flow is healthy relative to accepted volume.",
+    tone:
+      backlogRate >= 40 ? "warning" : backlogRate >= 20 ? "neutral" : "positive",
+  });
+
+  const trendSeries = analytics.submissionsOverTime.filter((point) => point.count > 0);
+  if (trendSeries.length >= 14) {
+    const recent = trendSeries.slice(-7).reduce((sum, point) => sum + point.count, 0);
+    const previous = trendSeries
+      .slice(-14, -7)
+      .reduce((sum, point) => sum + point.count, 0);
+    const delta =
+      previous > 0 ? Math.round(((recent - previous) / previous) * 100) : 0;
+    findings.push({
+      id: "trend",
+      title: "Recent submission trend",
+      metric: `${delta > 0 ? "+" : ""}${delta}%`,
+      detail:
+        delta >= 25
+          ? "Accepted submission volume is accelerating in the latest week."
+          : delta <= -25
+            ? "Accepted submission volume has slowed materially in the latest week."
+            : "Submission pace is broadly stable week over week.",
+      tone: delta >= 25 ? "positive" : delta <= -25 ? "warning" : "neutral",
+    });
+  }
+
+  return findings.slice(0, 4);
 }
 
 // ─── filters ─────────────────────────────────────────────────────────────────
@@ -266,7 +420,12 @@ function ActiveScopeSummary({
   dateLabel: string;
 }) {
   const { summary } = analytics;
-  const totalSubmitted = summary.accepted + summary.pendingReview + summary.rejected + summary.reverted;
+  const totalSubmitted =
+    summary.accepted +
+    summary.pendingReview +
+    summary.draft +
+    summary.rejected +
+    summary.reverted;
   const acceptanceRate = totalSubmitted > 0 ? Math.round((summary.accepted / totalSubmitted) * 100) : 0;
 
   return (
@@ -306,7 +465,74 @@ function ActiveScopeSummary({
   );
 }
 
-// ─── Tehsil coverage diagnostics ─────────────────────────────────────────────
+// ─── Executive summary + tehsil diagnostics ──────────────────────────────────
+
+function ExecutiveFindingsPanel({ findings }: { findings: ExecutiveFinding[] }) {
+  return (
+    <Card className="overflow-hidden border-border/80 shadow-sm">
+      <div className="border-b bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-6 py-5">
+        <div className="flex items-start gap-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-background shadow-sm">
+            <ShieldAlert className="size-4 text-primary" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+              Executive findings
+            </p>
+            <p className="text-lg font-semibold tracking-tight">
+              Analyst summary for the current dashboard scope
+            </p>
+            <p className="text-sm text-muted-foreground">
+              This panel synthesizes the key message from the charts below so the
+              dashboard reads as one coherent briefing.
+            </p>
+          </div>
+        </div>
+      </div>
+      <CardContent className="grid gap-3 p-6 lg:grid-cols-2">
+        {findings.map((finding) => (
+          <div
+            key={finding.id}
+            className={cn(
+              "rounded-xl border border-l-4 p-4 shadow-sm",
+              finding.tone === "negative" &&
+                "border-l-[var(--impact-negative)] bg-[color-mix(in_oklch,var(--impact-negative)_6%,var(--card))]",
+              finding.tone === "warning" &&
+                "border-l-[var(--impact-warning)] bg-[color-mix(in_oklch,var(--impact-warning)_7%,var(--card))]",
+              finding.tone === "neutral" &&
+                "border-l-[var(--impact-neutral)] bg-[color-mix(in_oklch,var(--impact-neutral)_7%,var(--card))]",
+              finding.tone === "positive" &&
+                "border-l-[var(--impact-positive)] bg-[color-mix(in_oklch,var(--impact-positive)_7%,var(--card))]",
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold">{finding.title}</p>
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      IMPACT_CHIP_CLASSES[finding.tone],
+                    )}
+                  >
+                    {IMPACT_LABELS[finding.tone]}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">{finding.detail}</p>
+              </div>
+              <p
+                className="shrink-0 text-right text-xl font-semibold tabular-nums"
+                style={{ color: impactColor(finding.tone) }}
+              >
+                {finding.metric}
+              </p>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 function TehsilProblematicPanel({ alerts }: { alerts: TehsilAlert[] }) {
   const critical = alerts.filter((a) => a.tone === "negative" || a.tone === "warning");
@@ -314,7 +540,10 @@ function TehsilProblematicPanel({ alerts }: { alerts: TehsilAlert[] }) {
     return (
       <div className="flex items-start gap-3 rounded-lg border border-[color-mix(in_oklch,var(--impact-positive)_25%,transparent)] bg-[color-mix(in_oklch,var(--impact-positive)_8%,var(--card))] p-4">
         <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--impact-positive)]" />
-        <p className="text-sm text-foreground">All tehsils are within acceptable coverage thresholds.</p>
+        <p className="text-sm text-foreground">
+          No tehsil is showing a material coverage or acceptance-quality gap in the
+          current scope.
+        </p>
       </div>
     );
   }
@@ -344,6 +573,10 @@ function TehsilProblematicPanel({ alerts }: { alerts: TehsilAlert[] }) {
               </span>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">{a.issue}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Coverage share: {a.sharePct}% · Acceptance rate: {a.acceptanceRate}% ·
+              Pending: {a.pendingReview} · Rejected: {a.rejected}
+            </p>
           </div>
           <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
             {a.accepted} resp.
@@ -402,8 +635,13 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
   );
 
   const tehsilAlerts = useMemo(
-    () => deriveTehsilAlerts(analytics.byTehsil, tehsilTotal),
-    [analytics.byTehsil, tehsilTotal],
+    () =>
+      deriveTehsilAlerts(
+        analytics.byTehsil,
+        analytics.byProcurementPackage,
+        tehsilTotal,
+      ),
+    [analytics.byProcurementPackage, analytics.byTehsil, tehsilTotal],
   );
 
   const tehsilChartConfig: ChartConfig = {
@@ -430,11 +668,12 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
         <CardHeader className="border-b bg-muted/20">
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="size-4 text-[var(--impact-warning)]" />
-            Coverage gap analysis — tehsil diagnostics
+            Tehsil health diagnostics
           </CardTitle>
           <CardDescription>
-            Identifies under-represented tehsils based on share of accepted responses
-            vs equal-distribution baseline. Red = critical monitoring gap.
+            Combines two signals into one analyst view: response coverage share and
+            acceptance quality. A tehsil is flagged only when representation or
+            review performance is materially weak.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
@@ -451,8 +690,8 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
               Tehsil response distribution
             </CardTitle>
             <CardDescription>
-              Donut shows proportional share. Bar chart shows absolute count coloured by coverage health.
-              Green = well-represented · Red = monitoring gap.
+              Use this section for distribution only: the donut shows proportional
+              share, while the bar chart compares absolute accepted volume by tehsil.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
@@ -549,10 +788,11 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
           <CardHeader className="border-b bg-muted/20">
             <CardTitle className="flex items-center gap-2 text-base">
               <MapPin className={cn("size-4", DEMOGRAPHIC_ACCENTS.village.icon)} />
-              Village response distribution — top 8
+              Village concentration
             </CardTitle>
             <CardDescription>
-              Each slice is proportional to accepted responses from that village.
+              This section highlights where accepted responses are concentrated at
+              village level after the tehsil picture above.
               {analytics.byVillage.length > 8
                 ? ` Showing 8 of ${analytics.byVillage.length} villages.`
                 : ""}
@@ -1150,6 +1390,16 @@ export function FormAnalyticsDashboard({
   const selectedPackage = packages.find((p) => p.packageId === selectedPackageId);
   const dateLabel = formatAnalyticsDateLabel(submittedFrom, submittedTo);
   const hasResponses = (analytics?.summary.accepted ?? 0) > 0;
+  const executiveFindings = useMemo(() => {
+    if (!analytics) return [];
+    const tehsilTotal = analytics.byTehsil.reduce((sum, row) => sum + row.accepted, 0);
+    const tehsilAlerts = deriveTehsilAlerts(
+      analytics.byTehsil,
+      analytics.byProcurementPackage,
+      tehsilTotal,
+    );
+    return deriveExecutiveFindings(analytics, tehsilAlerts);
+  }, [analytics]);
 
   return (
     <div className="space-y-6">
@@ -1166,6 +1416,10 @@ export function FormAnalyticsDashboard({
 
       {analytics ? (
         <ActiveScopeSummary analytics={analytics} selectedPackage={selectedPackage} dateLabel={dateLabel} />
+      ) : null}
+
+      {analytics && hasResponses ? (
+        <ExecutiveFindingsPanel findings={executiveFindings} />
       ) : null}
 
       {!hasResponses && analytics ? <EmptyFilterState /> : null}
