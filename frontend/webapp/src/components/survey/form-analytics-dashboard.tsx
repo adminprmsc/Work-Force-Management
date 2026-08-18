@@ -1,17 +1,26 @@
-// import { useMemo } from "react";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   CalendarRange,
-  // ClipboardList,
   ClipboardCheck,
+  ClipboardList,
   Filter,
+  Hash,
   Info,
   MapPin,
   MapPinned,
   Package,
+  TrendingUp,
 } from "lucide-react";
 
 import { CesmpAnalyticsDashboard } from "@/components/survey/cesmp-analytics-dashboard";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -19,6 +28,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,12 +41,18 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   formatAnalyticsDateLabel,
   type AnalyticsDatePreset,
 } from "@/lib/survey-analytics-dates";
-import {
-  DEMOGRAPHIC_ACCENTS,
-} from "@/lib/chart-colors";
+import { DEMOGRAPHIC_ACCENTS, chartSeriesColor } from "@/lib/chart-colors";
 import {
   IMPACT_CHIP_CLASSES,
   IMPACT_LABELS,
@@ -44,15 +65,16 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   SurveyFormAnalytics,
-  // SurveyFormAnalyticsFieldBreakdown,
+  SurveyFormAnalyticsFieldBreakdown,
   SurveyFormAnalyticsPackageRow,
+  SurveyFormAnalyticsTimePoint,
 } from "@/modules/api/survey-types";
 
-// const CHOICE_FIELD_TYPES = new Set([
-//   "CHECKBOXES",
-//   "MULTIPLE_CHOICE",
-//   "DROPDOWN",
-// ]);
+const CHOICE_FIELD_TYPES = new Set([
+  "CHECKBOXES",
+  "MULTIPLE_CHOICE",
+  "DROPDOWN",
+]);
 
 type FormAnalyticsDashboardProps = {
   analytics: SurveyFormAnalytics | undefined;
@@ -508,89 +530,359 @@ function GeographicDemographics({
   );
 }
 
-// function QuestionDemographics({
-//   fields,
-// }: {
-//   fields: SurveyFormAnalyticsFieldBreakdown[];
-// }) {
-//   const choiceFields = useMemo(
-//     () =>
-//       fields.filter(
-//         (field) =>
-//           CHOICE_FIELD_TYPES.has(field.type) &&
-//           field.choiceCounts &&
-//           Object.keys(field.choiceCounts).length > 0,
-//       ),
-//     [fields],
-//   );
+function ChoiceFieldBreakdown({
+  field,
+}: {
+  field: SurveyFormAnalyticsFieldBreakdown;
+}) {
+  const rows = Object.entries(field.choiceCounts ?? {})
+    .map(([answer, count]) => ({ answer, count }))
+    .sort((a, b) => b.count - a.count);
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  const max = Math.max(...rows.map((row) => row.count), 1);
 
-//   // if (choiceFields.length === 0) {
-//   //   return (
-//   //     <Card className="border-border/80 shadow-sm">
-//   //       <CardHeader>
-//   //         <CardTitle className="flex items-center gap-2 text-base">
-//   //           <ClipboardList className="size-4" />
-//   //           Response patterns by question
-//   //         </CardTitle>
-//   //         <CardDescription>
-//   //           No multiple-choice answers in the current filter yet. Submit more
-//   //           site visits or widen the date window.
-//   //         </CardDescription>
-//   //       </CardHeader>
-//   //     </Card>
-//   //   );
-//   // }
+  return (
+    <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-medium">{field.label}</p>
+          <p className="text-xs text-muted-foreground">
+            {field.answeredCount} accepted responses answered this question
+          </p>
+        </div>
+        <Badge variant="outline" className="w-fit tabular-nums">
+          {total} selections
+        </Badge>
+      </div>
+      <div className="space-y-2">
+        {rows.map((row, index) => {
+          const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
+          const widthPct = Math.round((row.count / max) * 100);
+          const color = chartSeriesColor(index);
+          return (
+            <div key={row.answer} className="space-y-1">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 truncate">{row.answer}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {row.count} ({pct}%)
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${widthPct}%`,
+                    background: impactBarGradient(color),
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-//   return <></>;
-// }
+function NumericFieldBreakdown({
+  field,
+}: {
+  field: SurveyFormAnalyticsFieldBreakdown;
+}) {
+  const numeric = field.numeric;
+  if (!numeric) return null;
 
-// function ChoiceFieldBreakdown({
-//   field,
-// }: {
-//   field: SurveyFormAnalyticsFieldBreakdown;
-// }) {
-//   const rows = Object.entries(field.choiceCounts ?? {})
-//     .map(([answer, count]) => ({ answer, count }))
-//     .sort((a, b) => b.count - a.count);
-//   const total = rows.reduce((sum, row) => sum + row.count, 0);
+  return (
+    <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">{field.label}</p>
+          <p className="text-xs text-muted-foreground">
+            Numeric summary across {numeric.count} answered responses
+          </p>
+        </div>
+        <Hash className="size-4 text-muted-foreground" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Average", value: numeric.avg },
+          { label: "Min", value: numeric.min },
+          { label: "Max", value: numeric.max },
+          { label: "Sum", value: numeric.sum },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2"
+          >
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {stat.label}
+            </p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">
+              {Number.isInteger(stat.value)
+                ? stat.value
+                : stat.value.toFixed(1)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-//   return (
-//     <div className="rounded-lg border p-4">
-//       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-//         <div>
-//           <p className="font-medium">{field.label}</p>
-//           <p className="text-xs text-muted-foreground">
-//             {field.answeredCount} responses answered this question
-//           </p>
-//         </div>
-//         <p className="text-xs text-muted-foreground">
-//           {total} total selections
-//         </p>
-//       </div>
-//       <div className="space-y-2">
-//         {rows.map((row) => {
-//           const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
-//           return (
-//             <div key={row.answer} className="space-y-1">
-//               <div className="flex items-center justify-between text-sm">
-//                 <span>{row.answer}</span>
-//                 <span className="tabular-nums text-muted-foreground">
-//                   {row.count} ({pct}%)
-//                 </span>
-//               </div>
-//               <div className="h-2 overflow-hidden rounded-full bg-muted">
-//                 <div
-//                   className="h-full rounded-full bg-primary/70"
-//                   style={{ width: `${pct}%` }}
-//                 />
-//               </div>
-//             </div>
-//           );
-//         })}
-//       </div>
-//     </div>
-//   );
-// }
+function QuestionDemographics({
+  fields,
+}: {
+  fields: SurveyFormAnalyticsFieldBreakdown[];
+}) {
+  const choiceFields = useMemo(
+    () =>
+      fields.filter(
+        (field) =>
+          CHOICE_FIELD_TYPES.has(field.type) &&
+          field.choiceCounts &&
+          Object.keys(field.choiceCounts).length > 0,
+      ),
+    [fields],
+  );
+
+  const numericFields = useMemo(
+    () => fields.filter((field) => field.numeric && field.numeric.count > 0),
+    [fields],
+  );
+
+  if (choiceFields.length === 0 && numericFields.length === 0) {
+    return (
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardList className="size-4" />
+            Question-level insights
+          </CardTitle>
+          <CardDescription>
+            No multiple-choice or numeric answers in the current filter yet.
+            Accept more site visits, pick a different package, or widen the date
+            window.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-border/80 shadow-sm">
+      <CardHeader className="border-b bg-muted/20">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ClipboardList className="size-4 text-primary" />
+          Question-level insights
+        </CardTitle>
+        <CardDescription>
+          Answer patterns from accepted responses in the current package and
+          date scope — use this to brief management on what field teams are
+          reporting.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-6">
+        {choiceFields.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Choice questions ({choiceFields.length})
+            </p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {choiceFields.map((field) => (
+                <ChoiceFieldBreakdown key={field.fieldId} field={field} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {numericFields.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Numeric questions ({numericFields.length})
+            </p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {numericFields.map((field) => (
+                <NumericFieldBreakdown key={field.fieldId} field={field} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProcurementPackageLinkage({
+  packages,
+  selectedPackageId,
+  onPackageChange,
+}: {
+  packages: SurveyFormAnalyticsPackageRow[];
+  selectedPackageId: string | null;
+  onPackageChange: (packageId: string | null) => void;
+}) {
+  const rows = useMemo(() => {
+    const scoped = selectedPackageId
+      ? packages.filter((pkg) => pkg.packageId === selectedPackageId)
+      : packages;
+    return scoped.filter((pkg) => pkg.total > 0);
+  }, [packages, selectedPackageId]);
+
+  if (rows.length === 0) {
+    return (
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Package className="size-4" />
+            Procurement package linkage
+          </CardTitle>
+          <CardDescription>
+            No response activity for procurement packages under the current
+            filters.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-border/80 shadow-sm">
+      <CardHeader className="border-b bg-muted/20">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Package className="size-4 text-primary" />
+          Procurement package linkage
+        </CardTitle>
+        <CardDescription>
+          How survey responses map to contract packages. Click a row to focus
+          the rest of the dashboard on that package.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-4">
+        <div className="overflow-x-auto rounded-lg border border-border/70">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Package</TableHead>
+                <TableHead>Tehsil</TableHead>
+                <TableHead className="text-right">Accepted</TableHead>
+                <TableHead className="text-right">Pending</TableHead>
+                <TableHead className="text-right">Draft</TableHead>
+                <TableHead className="text-right">Rejected</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((pkg) => {
+                const selected = pkg.packageId === selectedPackageId;
+                return (
+                  <TableRow
+                    key={pkg.packageId}
+                    className={cn(
+                      "cursor-pointer",
+                      selected && "bg-primary/5",
+                    )}
+                    onClick={() =>
+                      onPackageChange(selected ? null : pkg.packageId)
+                    }
+                  >
+                    <TableCell className="font-medium">
+                      {pkg.packageName}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {pkg.tehsilName}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-[var(--impact-positive)]">
+                      {pkg.accepted}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-[var(--impact-warning)]">
+                      {pkg.pendingReview}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {pkg.draft}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-[var(--impact-negative)]">
+                      {pkg.rejected}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">
+                      {pkg.total}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SubmissionsOverTime({
+  series,
+}: {
+  series: SurveyFormAnalyticsTimePoint[];
+}) {
+  const chartData = useMemo(
+    () =>
+      series
+        .filter((point) => point.count > 0)
+        .map((point) => ({
+          date: point.date,
+          label: point.date.slice(5),
+          count: point.count,
+        })),
+    [series],
+  );
+
+  const chartConfig = {
+    count: { label: "Accepted", color: "var(--chart-1)" },
+  } satisfies ChartConfig;
+
+  if (chartData.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card className="border-border/80 shadow-sm">
+      <CardHeader className="border-b bg-muted/20">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <TrendingUp className="size-4 text-primary" />
+          Accepted submissions over time
+        </CardTitle>
+        <CardDescription>
+          Daily accepted response volume for the current filters (last 90 days
+          of calendar buckets that have activity).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-6">
+        <ChartContainer config={chartConfig} className="h-[240px] w-full">
+          <BarChart data={chartData} margin={{ left: 8, right: 8, top: 8 }}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+              minTickGap={24}
+            />
+            <YAxis
+              allowDecimals={false}
+              tickLine={false}
+              axisLine={false}
+              width={32}
+            />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar
+              dataKey="count"
+              fill="var(--chart-1)"
+              radius={[4, 4, 0, 0]}
+            />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
 
 function EmptyFilterState() {
   return (
@@ -649,17 +941,26 @@ export function FormAnalyticsDashboard({
 
       {!hasResponses && analytics ? <EmptyFilterState /> : null}
 
-      {analytics?.cesmpInsights && hasResponses ? (
-        <CesmpAnalyticsDashboard
-          insights={analytics.cesmpInsights}
-          selectedPackageId={selectedPackageId}
-        />
-      ) : null}
-
       {analytics && hasResponses ? (
         <>
+          <ProcurementPackageLinkage
+            packages={packages}
+            selectedPackageId={selectedPackageId}
+            onPackageChange={onPackageChange}
+          />
+
+          {analytics.cesmpInsights ? (
+            <CesmpAnalyticsDashboard
+              insights={analytics.cesmpInsights}
+              selectedPackageId={selectedPackageId}
+            />
+          ) : null}
+
           <GeographicDemographics analytics={analytics} />
-          {/* <QuestionDemographics fields={analytics.fieldBreakdown} /> */}
+
+          <QuestionDemographics fields={analytics.fieldBreakdown} />
+
+          <SubmissionsOverTime series={analytics.submissionsOverTime} />
         </>
       ) : null}
     </div>

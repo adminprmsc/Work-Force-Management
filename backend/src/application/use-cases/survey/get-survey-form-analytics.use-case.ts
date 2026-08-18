@@ -443,13 +443,18 @@ export class GetSurveyFormAnalyticsUseCase {
     const countByStatus = (status: string) =>
       statusGroups.find((row) => row.status === status)?._count._all ?? 0;
 
-    const accepted = countByStatus('ACCEPTED');
+    // Accepted KPI must match the date-filtered geographic / question charts.
+    // Other status buckets stay package-scoped (no acceptance-date filter).
+    const accepted = hasDateFilter
+      ? acceptedResponses.length
+      : countByStatus('ACCEPTED');
     const pendingReview = countByStatus('SUBMITTED');
     const draft = countByStatus('DRAFT');
     const rejected = countByStatus('REJECTED');
     const reverted = countByStatus('REVERTED');
-    const totalResponses =
-      accepted + pendingReview + draft + rejected + reverted;
+    const totalResponses = hasDateFilter
+      ? accepted + pendingReview + draft + rejected + reverted
+      : accepted + pendingReview + draft + rejected + reverted;
 
     const tehsilIds = tehsilAcceptedGroups.map((row) => row.tehsilId);
     const villageIds = villageAcceptedGroups.map((row) => row.villageId);
