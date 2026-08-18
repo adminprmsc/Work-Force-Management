@@ -12,6 +12,13 @@ type SheetDef = {
   colWidths?: Record<number, number>;
 };
 
+type PackageAnalyticsExport = {
+  packageId: string;
+  packageName: string;
+  tehsilName: string;
+  analytics: SurveyFormAnalytics;
+};
+
 type TehsilHealthRow = {
   tehsilName: string;
   accepted: number;
@@ -517,6 +524,237 @@ function questionSheet(analytics: SurveyFormAnalytics): SheetDef {
   };
 }
 
+function packageDetailSummarySheet(
+  packages: PackageAnalyticsExport[],
+  dateLabel: string,
+): SheetDef {
+  const rows: Row[] = [
+    [
+      "Package",
+      "Tehsil",
+      "Accepted",
+      "Pending Review",
+      "Draft",
+      "Rejected",
+      "Reverted",
+      "Total Responses",
+      "Acceptance Rate",
+      "Villages Covered",
+      "Tehsils Covered",
+      "Date Window",
+    ],
+  ];
+
+  for (const item of packages) {
+    const summary = item.analytics.summary;
+    const total =
+      summary.accepted +
+      summary.pendingReview +
+      summary.draft +
+      summary.rejected +
+      summary.reverted;
+    rows.push([
+      item.packageName,
+      item.tehsilName,
+      summary.accepted,
+      summary.pendingReview,
+      summary.draft,
+      summary.rejected,
+      summary.reverted,
+      total,
+      pct(summary.accepted, total),
+      item.analytics.byVillage.length,
+      item.analytics.byTehsil.length,
+      dateLabel,
+    ]);
+  }
+
+  return {
+    name: "Package Detail",
+    rows,
+    colWidths: { 0: 34, 1: 18, 2: 10, 3: 14, 4: 10, 5: 10, 6: 10, 7: 12, 8: 14, 9: 14, 10: 14, 11: 16 },
+  };
+}
+
+function packageQuestionSheet(packages: PackageAnalyticsExport[]): SheetDef {
+  const choiceTypes = new Set(["CHECKBOXES", "MULTIPLE_CHOICE", "DROPDOWN"]);
+  const rows: Row[] = [
+    [
+      "Package",
+      "Tehsil",
+      "Question",
+      "Question Type",
+      "Answer Option / Metric",
+      "Value",
+      "Share",
+      "Answered Responses",
+      "Interpretation",
+    ],
+  ];
+
+  for (const item of packages) {
+    for (const field of item.analytics.fieldBreakdown) {
+      if (
+        choiceTypes.has(field.type) &&
+        field.choiceCounts &&
+        Object.keys(field.choiceCounts).length > 0
+      ) {
+        const sorted = Object.entries(field.choiceCounts).sort(([, a], [, b]) => b - a);
+        const totalSelections = sorted.reduce((sum, [, count]) => sum + count, 0);
+        const topShare =
+          totalSelections > 0
+            ? Math.round((sorted[0]![1] / totalSelections) * 100)
+            : 0;
+        sorted.forEach(([answer, count], index) => {
+          rows.push([
+            item.packageName,
+            item.tehsilName,
+            field.label,
+            field.type,
+            answer,
+            count,
+            pct(count, totalSelections),
+            field.answeredCount,
+            index === 0
+              ? topShare >= 70
+                ? "Dominant answer pattern within this package."
+                : topShare >= 50
+                  ? "Moderately concentrated answers within this package."
+                  : "Answers are distributed within this package."
+              : "",
+          ]);
+        });
+      } else if (field.numeric && field.numeric.count > 0) {
+        const numeric = field.numeric;
+        rows.push(
+          [
+            item.packageName,
+            item.tehsilName,
+            field.label,
+            "NUMERIC",
+            "Average",
+            Number(numeric.avg.toFixed(2)),
+            "",
+            numeric.count,
+            "Mean across answered responses for this package.",
+          ],
+          [
+            item.packageName,
+            item.tehsilName,
+            field.label,
+            "NUMERIC",
+            "Min",
+            numeric.min,
+            "",
+            numeric.count,
+            "Lowest observed value for this package.",
+          ],
+          [
+            item.packageName,
+            item.tehsilName,
+            field.label,
+            "NUMERIC",
+            "Max",
+            numeric.max,
+            "",
+            numeric.count,
+            "Highest observed value for this package.",
+          ],
+          [
+            item.packageName,
+            item.tehsilName,
+            field.label,
+            "NUMERIC",
+            "Sum",
+            numeric.sum,
+            "",
+            numeric.count,
+            "Total of numeric responses for this package.",
+          ],
+        );
+      }
+    }
+  }
+
+  return {
+    name: "Package Question Detail",
+    rows,
+    colWidths: { 0: 28, 1: 18, 2: 32, 3: 18, 4: 26, 5: 12, 6: 12, 7: 16, 8: 40 },
+  };
+}
+
+function packageTimelineSheet(packages: PackageAnalyticsExport[]): SheetDef {
+  const rows: Row[] = [
+    ["Package", "Tehsil", "Date", "Accepted Responses"],
+  ];
+
+  for (const item of packages) {
+    item.analytics.submissionsOverTime
+      .filter((point) => point.count > 0)
+      .forEach((point) => {
+        rows.push([item.packageName, item.tehsilName, point.date, point.count]);
+      });
+  }
+
+  return {
+    name: "Package Timeline",
+    rows,
+    colWidths: { 0: 28, 1: 18, 2: 14, 3: 18 },
+  };
+}
+
+function packageCesmpSheet(packages: PackageAnalyticsExport[]): SheetDef | null {
+  const rows: Row[] = [
+    [
+      "Package",
+      "Tehsil",
+      "Contractor",
+      "Consultant",
+      "Allocated",
+      "Utilized",
+      "Remaining",
+      "Utilization Rate",
+      "Budget Band",
+      "Villages Covered",
+      "Site Visits Submitted",
+      "HSE Staff Hired",
+      "C-ESMP Plan Submitted",
+    ],
+  ];
+
+  let hasRows = false;
+  for (const item of packages) {
+    const insights = item.analytics.cesmpInsights;
+    if (!insights) continue;
+    const pkg = insights.packages.find((entry) => entry.packageId === item.packageId);
+    if (!pkg) continue;
+    hasRows = true;
+    rows.push([
+      pkg.packageName,
+      pkg.tehsilName,
+      pkg.contractorName,
+      pkg.consultantName,
+      pkg.budgetAllocated,
+      pkg.budgetUtilized,
+      pkg.budgetRemaining,
+      `${pkg.utilizationRate}%`,
+      budgetBand(pkg.utilizationRate),
+      pkg.villagesCovered,
+      pkg.siteVisitsSubmitted,
+      yesNo(pkg.hseStaffHired),
+      yesNo(pkg.cesmpPlanSubmitted),
+    ]);
+  }
+
+  if (!hasRows) return null;
+
+  return {
+    name: "Package C-ESMP Detail",
+    rows,
+    colWidths: { 0: 28, 1: 18, 2: 22, 3: 22, 4: 14, 5: 14, 6: 14, 7: 14, 8: 14, 9: 12, 10: 16, 11: 16, 12: 20 },
+  };
+}
+
 function timelineSheet(analytics: SurveyFormAnalytics): SheetDef {
   const active = analytics.submissionsOverTime.filter((point) => point.count > 0);
   const counts = active.map((point) => point.count);
@@ -704,6 +942,7 @@ export function exportAnalyticsToExcel(
   analytics: SurveyFormAnalytics,
   dateLabel: string,
   packageLabel: string,
+  packageExports: PackageAnalyticsExport[] = [],
 ): void {
   const workbook = XLSX.utils.book_new();
   const cesmp = analytics.cesmpInsights ?? null;
@@ -717,6 +956,14 @@ export function exportAnalyticsToExcel(
     packageSheet(analytics),
     questionSheet(analytics),
     timelineSheet(analytics),
+    ...(packageExports.length > 0
+      ? [
+          packageDetailSummarySheet(packageExports, dateLabel),
+          packageQuestionSheet(packageExports),
+          packageTimelineSheet(packageExports),
+          packageCesmpSheet(packageExports),
+        ]
+      : []),
     cesmp ? cesmpSummarySheet(cesmp) : null,
     cesmp ? cesmpPackagesSheet(cesmp) : null,
     cesmp ? cesmpComplianceSheet(cesmp) : null,

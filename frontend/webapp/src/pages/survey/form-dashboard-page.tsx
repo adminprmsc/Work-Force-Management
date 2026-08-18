@@ -6,7 +6,9 @@ import { FormAnalyticsDashboard } from "@/components/survey/form-analytics-dashb
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useSurveyFormAnalyticsQuery } from "@/hooks/api/survey-hooks"
+import { useAuthToken } from "@/hooks/use-auth-token"
 import { useAuth } from "@/modules/auth/use-auth"
+import { getSurveyFormAnalytics } from "@/modules/api/survey-api"
 import { getQueryViewState } from "@/lib/query-view-state"
 import {
   formatAnalyticsDateLabel,
@@ -29,6 +31,7 @@ export function FormDashboardPage() {
   const { formId } = useParams<{ formId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const auth = useAuth()
+  const token = useAuthToken()
   const [isExporting, setIsExporting] = useState(false)
 
   const selectedPackageId = searchParams.get("packageId")
@@ -52,8 +55,8 @@ export function FormDashboardPage() {
 
   const analytics = view.data
 
-  const handleExport = useCallback(() => {
-    if (!analytics) return
+  const handleExport = useCallback(async () => {
+    if (!analytics || !token) return
     setIsExporting(true)
     try {
       const packages = analytics.byProcurementPackage
@@ -62,11 +65,33 @@ export function FormDashboardPage() {
         ? `${selectedPkg.packageName} (${selectedPkg.tehsilName})`
         : "All packages"
       const dateLabel = formatAnalyticsDateLabel(submittedFrom, submittedTo)
-      exportAnalyticsToExcel(analytics, dateLabel, packageLabel)
+
+      const targetPackages = selectedPkg
+        ? [selectedPkg]
+        : packages.filter((pkg) => pkg.total > 0)
+
+      const packageExports = await Promise.all(
+        targetPackages.map(async (pkg) => {
+          const packageAnalytics = await getSurveyFormAnalytics(token, formId, {
+            procurementPackageId: pkg.packageId,
+            submittedFrom,
+            submittedTo,
+          })
+
+          return {
+            packageId: pkg.packageId,
+            packageName: pkg.packageName,
+            tehsilName: pkg.tehsilName,
+            analytics: packageAnalytics,
+          }
+        }),
+      )
+
+      exportAnalyticsToExcel(analytics, dateLabel, packageLabel, packageExports)
     } finally {
       setIsExporting(false)
     }
-  }, [analytics, selectedPackageId, submittedFrom, submittedTo])
+  }, [analytics, token, formId, selectedPackageId, submittedFrom, submittedTo])
 
   const handlePackageChange = (packageId: string | null) => {
     const next = new URLSearchParams(searchParams)
