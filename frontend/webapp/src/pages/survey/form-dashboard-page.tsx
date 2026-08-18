@@ -1,5 +1,6 @@
+import { useState, useCallback } from "react"
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom"
-import { ArrowLeft, BarChart3, RefreshCw } from "lucide-react"
+import { ArrowLeft, BarChart3, Download, RefreshCw } from "lucide-react"
 
 import { FormAnalyticsDashboard } from "@/components/survey/form-analytics-dashboard"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +9,7 @@ import { useSurveyFormAnalyticsQuery } from "@/hooks/api/survey-hooks"
 import { useAuth } from "@/modules/auth/use-auth"
 import { getQueryViewState } from "@/lib/query-view-state"
 import {
+  formatAnalyticsDateLabel,
   readAnalyticsDateFilter,
   readAnalyticsDatePreset,
   type AnalyticsDatePreset,
@@ -19,6 +21,7 @@ import {
   surveyFormDashboardsPath,
   surveyResponsesPath,
 } from "@/lib/survey"
+import { exportAnalyticsToExcel } from "@/lib/export-analytics"
 import type { SurveyFormAnalytics } from "@/modules/api/survey-types"
 import { cn } from "@/lib/utils"
 
@@ -26,6 +29,7 @@ export function FormDashboardPage() {
   const { formId } = useParams<{ formId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const auth = useAuth()
+  const [isExporting, setIsExporting] = useState(false)
 
   const selectedPackageId = searchParams.get("packageId")
   const datePreset = readAnalyticsDatePreset(searchParams)
@@ -47,6 +51,22 @@ export function FormDashboardPage() {
   }
 
   const analytics = view.data
+
+  const handleExport = useCallback(() => {
+    if (!analytics) return
+    setIsExporting(true)
+    try {
+      const packages = analytics.byProcurementPackage
+      const selectedPkg = packages.find((p) => p.packageId === selectedPackageId)
+      const packageLabel = selectedPkg
+        ? `${selectedPkg.packageName} (${selectedPkg.tehsilName})`
+        : "All packages"
+      const dateLabel = formatAnalyticsDateLabel(submittedFrom, submittedTo)
+      exportAnalyticsToExcel(analytics, dateLabel, packageLabel)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [analytics, selectedPackageId, submittedFrom, submittedTo])
 
   const handlePackageChange = (packageId: string | null) => {
     const next = new URLSearchParams(searchParams)
@@ -142,6 +162,16 @@ export function FormDashboardPage() {
               <Link to={`${surveyResponsesPath(auth.user.role)}?formId=${formId}`}>
                 View raw responses
               </Link>
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              disabled={!analytics || isExporting}
+              onClick={handleExport}
+            >
+              <Download className={cn("mr-2 size-4", isExporting && "animate-bounce")} />
+              {isExporting ? "Exporting…" : "Export to Excel"}
             </Button>
           </div>
         </div>

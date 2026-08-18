@@ -3,11 +3,21 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  Line,
+  Pie,
+  PieChart,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  Radar,
   XAxis,
   YAxis,
 } from "recharts";
 import {
+  AlertTriangle,
   CalendarRange,
+  CheckCircle2,
   ClipboardCheck,
   ClipboardList,
   Filter,
@@ -16,6 +26,7 @@ import {
   MapPin,
   MapPinned,
   Package,
+  ShieldAlert,
   TrendingUp,
 } from "lucide-react";
 
@@ -30,6 +41,8 @@ import {
 } from "@/components/ui/card";
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -52,7 +65,7 @@ import {
   formatAnalyticsDateLabel,
   type AnalyticsDatePreset,
 } from "@/lib/survey-analytics-dates";
-import { DEMOGRAPHIC_ACCENTS, chartSeriesColor } from "@/lib/chart-colors";
+import { DEMOGRAPHIC_ACCENTS, CHART_SERIES_COLORS } from "@/lib/chart-colors";
 import {
   IMPACT_CHIP_CLASSES,
   IMPACT_LABELS,
@@ -67,6 +80,7 @@ import type {
   SurveyFormAnalytics,
   SurveyFormAnalyticsFieldBreakdown,
   SurveyFormAnalyticsPackageRow,
+  SurveyFormAnalyticsTehsilRow,
   SurveyFormAnalyticsTimePoint,
 } from "@/modules/api/survey-types";
 
@@ -75,6 +89,8 @@ const CHOICE_FIELD_TYPES = new Set([
   "MULTIPLE_CHOICE",
   "DROPDOWN",
 ]);
+
+// ─── types ───────────────────────────────────────────────────────────────────
 
 type FormAnalyticsDashboardProps = {
   analytics: SurveyFormAnalytics | undefined;
@@ -88,6 +104,39 @@ type FormAnalyticsDashboardProps = {
   isInitialLoading?: boolean;
   isRefreshing?: boolean;
 };
+
+type TehsilAlert = {
+  tehsilName: string;
+  accepted: number;
+  sharePct: number;
+  tone: ImpactTone;
+  issue: string;
+};
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function fmt(n: number) {
+  return n.toLocaleString();
+}
+
+function deriveTehsilAlerts(
+  byTehsil: SurveyFormAnalyticsTehsilRow[],
+  total: number,
+): TehsilAlert[] {
+  if (byTehsil.length === 0 || total === 0) return [];
+  const avgShare = 100 / byTehsil.length;
+  return byTehsil.map((row) => {
+    const sharePct = Math.round((row.accepted / total) * 100);
+    const tone = impactToneForCoverageShare(sharePct);
+    let issue = "Adequate coverage";
+    if (sharePct === 0) issue = "No accepted responses — zero coverage";
+    else if (sharePct < 5) issue = `Critically under-represented (${sharePct}% vs ${Math.round(avgShare)}% avg)`;
+    else if (sharePct < 10) issue = `Below expected coverage (${sharePct}% vs ${Math.round(avgShare)}% avg)`;
+    return { tehsilName: row.tehsilName, accepted: row.accepted, sharePct, tone, issue };
+  }).sort((a, b) => a.sharePct - b.sharePct);
+}
+
+// ─── filters ─────────────────────────────────────────────────────────────────
 
 function DashboardFilters({
   packages,
@@ -113,10 +162,8 @@ function DashboardFilters({
       <CardHeader className="pb-4">
         <CardTitle className="text-base">Dashboard filters</CardTitle>
         <CardDescription>
-          All charts and tables below reflect only accepted responses that
-          match the procurement package and acceptance date window you choose.
-          Package counts in the dropdown are all-time totals to help you pick a
-          package.
+          All charts reflect accepted responses matching the procurement package
+          and date window. Package counts in the dropdown are all-time totals.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -137,66 +184,47 @@ function DashboardFilters({
               </NativeSelectOption>
               {packages.map((pkg) => (
                 <NativeSelectOption key={pkg.packageId} value={pkg.packageId}>
-                  {pkg.packageName} · {pkg.tehsilName} ({pkg.total} responses
-                  all-time)
+                  {pkg.packageName} · {pkg.tehsilName} ({pkg.total} responses)
                 </NativeSelectOption>
               ))}
             </NativeSelect>
-            <p className="text-xs text-muted-foreground">
-              Narrow KPIs to one contract package, or keep the overview to see
-              programme-wide patterns.
-            </p>
           </div>
-
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <CalendarRange className="size-4 text-muted-foreground" />
-              <Label htmlFor="date-preset">Submission date window</Label>
+              <Label htmlFor="date-preset">Date window</Label>
             </div>
             <NativeSelect
               id="date-preset"
               className="w-full"
               value={datePreset}
-              onChange={(e) =>
-                onDatePresetChange(e.target.value as AnalyticsDatePreset)
-              }
+              onChange={(e) => onDatePresetChange(e.target.value as AnalyticsDatePreset)}
             >
               <NativeSelectOption value="all">All time</NativeSelectOption>
               <NativeSelectOption value="30d">Last 30 days</NativeSelectOption>
               <NativeSelectOption value="90d">Last 90 days</NativeSelectOption>
-              <NativeSelectOption value="custom">
-                Custom range
-              </NativeSelectOption>
+              <NativeSelectOption value="custom">Custom range</NativeSelectOption>
             </NativeSelect>
-            <p className="text-xs text-muted-foreground">
-              Counts responses by when they were accepted, not when the site
-              visit occurred.
-            </p>
           </div>
         </div>
-
         {datePreset === "custom" ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="submitted-from">Submitted from</Label>
+              <Label htmlFor="submitted-from">From</Label>
               <Input
                 id="submitted-from"
                 type="date"
                 value={submittedFrom ?? ""}
-                onChange={(e) =>
-                  onCustomDateChange(e.target.value || null, submittedTo)
-                }
+                onChange={(e) => onCustomDateChange(e.target.value || null, submittedTo)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="submitted-to">Submitted through</Label>
+              <Label htmlFor="submitted-to">Through</Label>
               <Input
                 id="submitted-to"
                 type="date"
                 value={submittedTo ?? ""}
-                onChange={(e) =>
-                  onCustomDateChange(submittedFrom, e.target.value || null)
-                }
+                onChange={(e) => onCustomDateChange(submittedFrom, e.target.value || null)}
               />
             </div>
           </div>
@@ -206,256 +234,458 @@ function DashboardFilters({
   );
 }
 
-function ActiveScopeSummary({
-  analytics,
-  selectedPackage,
-  dateLabel,
-}: {
-  analytics: SurveyFormAnalytics;
-  selectedPackage: SurveyFormAnalyticsPackageRow | undefined;
-  dateLabel: string;
-}) {
-  const { summary } = analytics;
-  const villageCount = analytics.byVillage.length;
-  const tehsilCount = analytics.byTehsil.length;
-
-  return (
-    <Card className="overflow-hidden border-border/80 shadow-sm">
-      <div className="border-b bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-6 py-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-background shadow-sm">
-              <Filter className="size-4 text-primary" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
-                Current view
-              </p>
-              <p className="text-lg font-semibold tracking-tight">
-                {selectedPackage
-                  ? selectedPackage.packageName
-                  : "All procurement packages"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {selectedPackage
-                  ? `${selectedPackage.tehsilName} · single package scope`
-                  : `${summary.packageCount} packages in programme`}
-                <span className="mx-1.5 text-border">·</span>
-                Submissions: {dateLabel}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <CardContent className="p-6">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <ScopeStat
-            label="Accepted"
-            value={summary.accepted}
-            hint="In selected window"
-            tone="positive"
-            icon={<ClipboardCheck className="size-4" />}
-          />
-          <ScopeStat
-            label="Pending review"
-            value={summary.pendingReview}
-            hint="Awaiting HO decision"
-            tone="warning"
-            icon={<ClipboardCheck className="size-4" />}
-          />
-          <ScopeStat
-            label="Villages"
-            value={villageCount}
-            hint="With accepted responses"
-            tone="neutral"
-            icon={<MapPin className="size-4" />}
-          />
-          <ScopeStat
-            label="Tehsils"
-            value={tehsilCount}
-            hint="With accepted responses"
-            tone="neutral"
-            icon={<MapPinned className="size-4" />}
-          />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// ─── KPI strip ───────────────────────────────────────────────────────────────
 
 function ScopeStat({
-  label,
-  value,
-  hint,
-  tone,
-  icon,
+  label, value, hint, tone, icon,
 }: {
-  label: string;
-  value: number;
-  hint: string;
-  tone: ImpactTone;
-  icon: ReactNode;
+  label: string; value: number; hint: string; tone: ImpactTone; icon: ReactNode;
 }) {
   return (
     <div
-      className={cn(
-        "rounded-xl border border-border/70 bg-card p-4 shadow-sm",
-        "border-t-[3px]",
-      )}
+      className="rounded-xl border border-border/70 bg-card p-4 shadow-sm border-t-[3px]"
       style={{ borderTopColor: impactColor(tone) }}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
-        <span className="opacity-90" style={{ color: impactColor(tone) }}>
-          {icon}
-        </span>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <span style={{ color: impactColor(tone) }}>{icon}</span>
       </div>
-      <p
-        className="mt-2 text-2xl font-semibold tabular-nums tracking-tight"
-        style={{ color: impactColor(tone) }}
-      >
-        {value}
+      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight" style={{ color: impactColor(tone) }}>
+        {fmt(value)}
       </p>
       <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>
     </div>
   );
 }
 
-function DemographicBarRow({
-  label,
-  sublabel,
-  value,
-  max,
-  sharePct,
-}: {
-  label: string;
-  sublabel?: string;
-  value: number;
-  max: number;
-  sharePct: number;
-}) {
-  const widthPct = max > 0 ? Math.round((value / max) * 100) : 0;
-  const tone = impactToneForCoverageShare(sharePct);
-  const color = impactColorForCoverageShare(sharePct);
-
-  return (
-    <div className="group rounded-lg border border-border/60 bg-card px-3 py-2.5 transition-colors hover:border-border hover:bg-muted/20">
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="size-2.5 shrink-0 rounded-full ring-2 ring-background"
-              style={{ backgroundColor: color }}
-            />
-            <p className="truncate text-sm font-medium">{label}</p>
-            <span
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                IMPACT_CHIP_CLASSES[tone],
-              )}
-            >
-              {IMPACT_LABELS[tone]}
-            </span>
-          </div>
-          {sublabel ? (
-            <p className="mt-0.5 truncate pl-4.5 text-xs text-muted-foreground">
-              {sublabel}
-            </p>
-          ) : null}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm font-semibold tabular-nums">{value}</p>
-          <p className="text-[11px] tabular-nums text-muted-foreground">
-            {sharePct}%
-          </p>
-        </div>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted/70">
-        <div
-          className="h-full rounded-full transition-[width] duration-500 ease-out"
-          style={{
-            width: `${widthPct}%`,
-            background: impactBarGradient(color),
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function DemographicSection({
-  title,
-  subtitle,
-  total,
-  accent,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  total: number;
-  accent: (typeof DEMOGRAPHIC_ACCENTS)[keyof typeof DEMOGRAPHIC_ACCENTS];
-  children: ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-xl border border-border/80 bg-muted/10 p-4 shadow-sm",
-        "border-l-4",
-        accent.border,
-      )}
-    >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{title}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
-        </div>
-        <span
-          className={cn(
-            "rounded-md px-2.5 py-1 text-xs font-semibold tabular-nums",
-            accent.chip,
-          )}
-        >
-          {total} total
-        </span>
-      </div>
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-
-function GeographicDemographics({
-  analytics,
+function ActiveScopeSummary({
+  analytics, selectedPackage, dateLabel,
 }: {
   analytics: SurveyFormAnalytics;
+  selectedPackage: SurveyFormAnalyticsPackageRow | undefined;
+  dateLabel: string;
 }) {
-  const hasVillages = analytics.byVillage.length > 0;
+  const { summary } = analytics;
+  const totalSubmitted = summary.accepted + summary.pendingReview + summary.rejected + summary.reverted;
+  const acceptanceRate = totalSubmitted > 0 ? Math.round((summary.accepted / totalSubmitted) * 100) : 0;
+
+  return (
+    <Card className="overflow-hidden border-border/80 shadow-sm">
+      <div className="border-b bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-6 py-5">
+        <div className="flex items-start gap-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-background shadow-sm">
+            <Filter className="size-4 text-primary" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Current view</p>
+            <p className="text-lg font-semibold tracking-tight">
+              {selectedPackage ? selectedPackage.packageName : "All procurement packages"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {selectedPackage
+                ? `${selectedPackage.tehsilName} · single package`
+                : `${summary.packageCount} packages in programme`}
+              <span className="mx-1.5 text-border">·</span>
+              {dateLabel}
+              <span className="mx-1.5 text-border">·</span>
+              {acceptanceRate}% acceptance rate
+            </p>
+          </div>
+        </div>
+      </div>
+      <CardContent className="p-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <ScopeStat label="Accepted" value={summary.accepted} hint="In selected window" tone="positive" icon={<ClipboardCheck className="size-4" />} />
+          <ScopeStat label="Pending review" value={summary.pendingReview} hint="Awaiting HO decision" tone="warning" icon={<ClipboardCheck className="size-4" />} />
+          <ScopeStat label="Rejected" value={summary.rejected} hint="Not accepted" tone="negative" icon={<ClipboardCheck className="size-4" />} />
+          <ScopeStat label="Villages" value={analytics.byVillage.length} hint="With accepted responses" tone="neutral" icon={<MapPin className="size-4" />} />
+          <ScopeStat label="Tehsils" value={analytics.byTehsil.length} hint="With accepted responses" tone="neutral" icon={<MapPinned className="size-4" />} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Tehsil coverage diagnostics ─────────────────────────────────────────────
+
+function TehsilProblematicPanel({ alerts }: { alerts: TehsilAlert[] }) {
+  const critical = alerts.filter((a) => a.tone === "negative" || a.tone === "warning");
+  if (critical.length === 0) {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border border-[color-mix(in_oklch,var(--impact-positive)_25%,transparent)] bg-[color-mix(in_oklch,var(--impact-positive)_8%,var(--card))] p-4">
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[var(--impact-positive)]" />
+        <p className="text-sm text-foreground">All tehsils are within acceptable coverage thresholds.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {critical.length} tehsil{critical.length === 1 ? "" : "s"} need attention
+      </p>
+      {critical.map((a) => (
+        <div
+          key={a.tehsilName}
+          className={cn(
+            "flex items-start gap-3 rounded-lg border border-l-4 p-3",
+            a.tone === "negative"
+              ? "border-[var(--impact-negative)] bg-[color-mix(in_oklch,var(--impact-negative)_7%,var(--card))]"
+              : "border-[var(--impact-warning)] bg-[color-mix(in_oklch,var(--impact-warning)_7%,var(--card))]",
+          )}
+        >
+          <ShieldAlert
+            className={cn("mt-0.5 size-4 shrink-0", a.tone === "negative" ? "text-[var(--impact-negative)]" : "text-[var(--impact-warning)]")}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{a.tehsilName}</span>
+              <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", IMPACT_CHIP_CLASSES[a.tone])}>
+                {IMPACT_LABELS[a.tone]}
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">{a.issue}</p>
+          </div>
+          <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+            {a.accepted} resp.
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Geographic section ───────────────────────────────────────────────────────
+
+function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics }) {
   const hasTehsils = analytics.byTehsil.length > 0;
+  const hasVillages = analytics.byVillage.length > 0;
 
-  const tehsilTotal = analytics.byTehsil.reduce(
-    (sum, row) => sum + row.accepted,
-    0,
-  );
-  const villageTotal = analytics.byVillage.reduce(
-    (sum, row) => sum + row.accepted,
-    0,
-  );
-  const maxTehsil = Math.max(...analytics.byTehsil.map((r) => r.accepted), 1);
-  const villageRows = analytics.byVillage.slice(0, 12);
-  const maxVillage = Math.max(...villageRows.map((r) => r.accepted), 1);
+  const tehsilTotal = analytics.byTehsil.reduce((s, r) => s + r.accepted, 0);
+  const villageTotal = analytics.byVillage.reduce((s, r) => s + r.accepted, 0);
 
-  if (!hasVillages && !hasTehsils) {
+  // Donut data for tehsil distribution
+  const tehsilPieData = useMemo(
+    () =>
+      analytics.byTehsil.map((r, i) => ({
+        name: r.tehsilName,
+        value: r.accepted,
+        fill: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length],
+      })),
+    [analytics.byTehsil],
+  );
+
+  // Donut data for top 8 villages
+  const villagePieData = useMemo(
+    () =>
+      analytics.byVillage.slice(0, 8).map((r, i) => ({
+        name: r.villageName,
+        value: r.accepted,
+        tehsil: r.tehsilName,
+        fill: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length],
+      })),
+    [analytics.byVillage],
+  );
+
+  // Horizontal bar data comparing tehsils
+  const tehsilBarData = useMemo(
+    () =>
+      analytics.byTehsil.map((r) => ({
+        name: r.tehsilName.length > 14 ? r.tehsilName.slice(0, 14) + "…" : r.tehsilName,
+        full: r.tehsilName,
+        accepted: r.accepted,
+        share: tehsilTotal > 0 ? Math.round((r.accepted / tehsilTotal) * 100) : 0,
+        fill: impactColorForCoverageShare(
+          tehsilTotal > 0 ? Math.round((r.accepted / tehsilTotal) * 100) : 0,
+        ),
+      })),
+    [analytics.byTehsil, tehsilTotal],
+  );
+
+  const tehsilAlerts = useMemo(
+    () => deriveTehsilAlerts(analytics.byTehsil, tehsilTotal),
+    [analytics.byTehsil, tehsilTotal],
+  );
+
+  const tehsilChartConfig: ChartConfig = {
+    accepted: { label: "Accepted responses", color: "var(--chart-1)" },
+  };
+
+  if (!hasTehsils && !hasVillages) {
     return (
       <Card className="border-border/80 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <MapPinned className="size-4" />
-            Geographic coverage
+            <MapPinned className="size-4" />Geographic coverage
+          </CardTitle>
+          <CardDescription>No accepted responses match the current filters.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Coverage diagnostics panel */}
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="border-b bg-muted/20">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="size-4 text-[var(--impact-warning)]" />
+            Coverage gap analysis — tehsil diagnostics
           </CardTitle>
           <CardDescription>
-            No accepted responses match the current package and date filters.
+            Identifies under-represented tehsils based on share of accepted responses
+            vs equal-distribution baseline. Red = critical monitoring gap.
           </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-5">
+          <TehsilProblematicPanel alerts={tehsilAlerts} />
+        </CardContent>
+      </Card>
+
+      {/* Tehsil comparison: donut + bar side by side */}
+      {hasTehsils ? (
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapPinned className={cn("size-4", DEMOGRAPHIC_ACCENTS.tehsil.icon)} />
+              Tehsil response distribution
+            </CardTitle>
+            <CardDescription>
+              Donut shows proportional share. Bar chart shows absolute count coloured by coverage health.
+              Green = well-represented · Red = monitoring gap.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
+            {/* Donut */}
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Share of accepted responses · {fmt(tehsilTotal)} total
+              </p>
+              <ChartContainer config={{}} className="h-[260px] w-full">
+                <PieChart>
+                  <ChartTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]!;
+                      const pct = tehsilTotal > 0 ? Math.round((Number(d.value) / tehsilTotal) * 100) : 0;
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                          <p className="font-medium">{d.name}</p>
+                          <p className="text-muted-foreground">{fmt(Number(d.value))} responses · {pct}%</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Pie
+                    data={tehsilPieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius="42%"
+                    outerRadius="72%"
+                    paddingAngle={2}
+                    label={({ percent }: { name?: string; percent?: number }) =>
+                      (percent ?? 0) > 0.05 ? `${Math.round((percent ?? 0) * 100)}%` : ""
+                    }
+                    labelLine={false}
+                  >
+                    {tehsilPieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ChartContainer>
+              {/* legend */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {tehsilPieData.map((d, i) => (
+                  <span key={i} className="flex items-center gap-1.5 text-xs">
+                    <span className="size-2.5 rounded-full" style={{ backgroundColor: d.fill }} />
+                    {d.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Horizontal bar */}
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Absolute count comparison
+              </p>
+              <ChartContainer config={tehsilChartConfig} className="h-[260px] w-full">
+                <BarChart
+                  data={tehsilBarData}
+                  layout="vertical"
+                  margin={{ left: 8, right: 32, top: 4, bottom: 4 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                  <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="name" width={90} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                  <ChartTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]!.payload as (typeof tehsilBarData)[0];
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                          <p className="font-medium">{d.full}</p>
+                          <p className="text-muted-foreground">{fmt(d.accepted)} responses · {d.share}% share</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="accepted" radius={[0, 4, 4, 0]}>
+                    {tehsilBarData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Village donut */}
+      {hasVillages ? (
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapPin className={cn("size-4", DEMOGRAPHIC_ACCENTS.village.icon)} />
+              Village response distribution — top 8
+            </CardTitle>
+            <CardDescription>
+              Each slice is proportional to accepted responses from that village.
+              {analytics.byVillage.length > 8
+                ? ` Showing 8 of ${analytics.byVillage.length} villages.`
+                : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
+            {/* Donut */}
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Village share · {fmt(villageTotal)} total
+              </p>
+              <ChartContainer config={{}} className="h-[260px] w-full">
+                <PieChart>
+                  <ChartTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]!.payload as (typeof villagePieData)[0];
+                      const pct = villageTotal > 0 ? Math.round((Number(payload[0]!.value) / villageTotal) * 100) : 0;
+                      return (
+                        <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                          <p className="font-medium">{d.name}</p>
+                          <p className="text-muted-foreground">{d.tehsil}</p>
+                          <p className="text-muted-foreground">{fmt(Number(payload[0]!.value))} responses · {pct}%</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Pie
+                    data={villagePieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius="38%"
+                    outerRadius="68%"
+                    paddingAngle={2}
+                    label={({ percent }: { name?: string; percent?: number }) =>
+                      (percent ?? 0) > 0.06 ? `${Math.round((percent ?? 0) * 100)}%` : ""
+                    }
+                    labelLine={false}
+                  >
+                    {villagePieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ChartContainer>
+            </div>
+
+            {/* Ranked list */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ranked by accepted responses</p>
+              {analytics.byVillage.slice(0, 12).map((row, i) => {
+                const sharePct = villageTotal > 0 ? Math.round((row.accepted / villageTotal) * 100) : 0;
+                const tone = impactToneForCoverageShare(sharePct);
+                const color = impactColorForCoverageShare(sharePct);
+                const widthPct = villageTotal > 0 ? Math.round((row.accepted / analytics.byVillage[0]!.accepted) * 100) : 0;
+                return (
+                  <div key={row.villageId} className="rounded-lg border border-border/60 bg-card px-3 py-2">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length] }} />
+                        <span className="truncate text-sm font-medium">{row.villageName}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{row.tehsilName}</span>
+                        <span className={cn("rounded px-1 py-0.5 text-[10px] font-medium", IMPACT_CHIP_CLASSES[tone])}>{IMPACT_LABELS[tone]}</span>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">{row.accepted}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted/70">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${widthPct}%`, background: impactBarGradient(color) }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Package linkage ──────────────────────────────────────────────────────────
+
+function ProcurementPackageLinkage({
+  packages,
+  selectedPackageId,
+  onPackageChange,
+}: {
+  packages: SurveyFormAnalyticsPackageRow[];
+  selectedPackageId: string | null;
+  onPackageChange: (packageId: string | null) => void;
+}) {
+  const rows = useMemo(() => {
+    const scoped = selectedPackageId
+      ? packages.filter((p) => p.packageId === selectedPackageId)
+      : packages;
+    return scoped.filter((p) => p.total > 0);
+  }, [packages, selectedPackageId]);
+
+  // Stacked bar chart data: accepted / pending / draft / rejected
+  const barData = useMemo(
+    () =>
+      rows.map((p) => ({
+        name: p.packageName.length > 18 ? p.packageName.slice(0, 18) + "…" : p.packageName,
+        full: p.packageName,
+        tehsil: p.tehsilName,
+        accepted: p.accepted,
+        pending: p.pendingReview,
+        draft: p.draft,
+        rejected: p.rejected,
+        total: p.total,
+        acceptanceRate: p.total > 0 ? Math.round((p.accepted / p.total) * 100) : 0,
+      })),
+    [rows],
+  );
+
+  const stackedConfig: ChartConfig = {
+    accepted: { label: "Accepted", color: "var(--impact-positive)" },
+    pending: { label: "Pending", color: "var(--impact-warning)" },
+    draft: { label: "Draft", color: "var(--impact-neutral)" },
+    rejected: { label: "Rejected", color: "var(--impact-negative)" },
+  };
+
+  if (rows.length === 0) {
+    return (
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Package className="size-4" />Procurement package linkage
+          </CardTitle>
+          <CardDescription>No response activity for current filters.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -465,204 +695,260 @@ function GeographicDemographics({
     <Card className="border-border/80 shadow-sm">
       <CardHeader className="border-b bg-muted/20">
         <CardTitle className="flex items-center gap-2 text-base">
-          <MapPinned className={cn("size-4", DEMOGRAPHIC_ACCENTS.tehsil.icon)} />
-          Geographic demographics
+          <Package className="size-4 text-primary" />
+          Procurement package — response status comparison
         </CardTitle>
         <CardDescription>
-          Submission distribution by tehsil and village (accepted only) —
-          coverage strength (green = well represented, red = monitoring gap).
+          Stacked bars show accepted / pending / draft / rejected per package.
+          Click a table row to drill into that package.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
-        {hasTehsils ? (
-          <DemographicSection
-            title="By tehsil"
-            subtitle="Administrative coverage of accepted site visits"
-            total={tehsilTotal}
-            accent={DEMOGRAPHIC_ACCENTS.tehsil}
-          >
-            {analytics.byTehsil.map((row) => (
-              <DemographicBarRow
-                key={row.tehsilId}
-                label={row.tehsilName}
-                value={row.accepted}
-                max={maxTehsil}
-                sharePct={
-                  tehsilTotal > 0
-                    ? Math.round((row.accepted / tehsilTotal) * 100)
-                    : 0
-                }
-              />
-            ))}
-          </DemographicSection>
-        ) : null}
+      <CardContent className="space-y-6 pt-6">
+        {/* Stacked bar */}
+        <ChartContainer config={stackedConfig} className="h-[260px] w-full">
+          <BarChart data={barData} margin={{ left: 8, right: 8, top: 8, bottom: 40 }}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="name"
+              tickLine={false}
+              axisLine={false}
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              tick={{ fontSize: 10 }}
+            />
+            <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={32} />
+            <ChartTooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0]!.payload as (typeof barData)[0];
+                return (
+                  <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md space-y-1">
+                    <p className="font-medium">{d.full}</p>
+                    <p className="text-muted-foreground">{d.tehsil}</p>
+                    <p>Accepted: <strong>{d.accepted}</strong> ({d.acceptanceRate}%)</p>
+                    <p>Pending: <strong>{d.pending}</strong></p>
+                    <p>Draft: <strong>{d.draft}</strong></p>
+                    <p>Rejected: <strong>{d.rejected}</strong></p>
+                    <p>Total: <strong>{d.total}</strong></p>
+                  </div>
+                );
+              }}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="accepted" stackId="a" fill="var(--impact-positive)" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="pending" stackId="a" fill="var(--impact-warning)" />
+            <Bar dataKey="draft" stackId="a" fill="var(--impact-neutral)" />
+            <Bar dataKey="rejected" stackId="a" fill="var(--impact-negative)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ChartContainer>
 
-        {hasVillages ? (
-          <DemographicSection
-            title="By village"
-            subtitle="Top villages by accepted response count"
-            total={villageTotal}
-            accent={DEMOGRAPHIC_ACCENTS.village}
-          >
-            {villageRows.map((row) => (
-              <DemographicBarRow
-                key={row.villageId}
-                label={row.villageName}
-                sublabel={row.tehsilName}
-                value={row.accepted}
-                max={maxVillage}
-                sharePct={
-                  villageTotal > 0
-                    ? Math.round((row.accepted / villageTotal) * 100)
-                    : 0
-                }
-              />
-            ))}
-            {analytics.byVillage.length > 12 ? (
-              <p className="pt-1 text-center text-xs text-muted-foreground">
-                Showing top 12 of {analytics.byVillage.length} villages.
-              </p>
-            ) : null}
-          </DemographicSection>
-        ) : null}
+        {/* Table */}
+        <div className="overflow-x-auto rounded-lg border border-border/70">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Package</TableHead>
+                <TableHead>Tehsil</TableHead>
+                <TableHead className="text-right">Accepted</TableHead>
+                <TableHead className="text-right">Pending</TableHead>
+                <TableHead className="text-right">Draft</TableHead>
+                <TableHead className="text-right">Rejected</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Acceptance %</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((pkg) => {
+                const rate = pkg.total > 0 ? Math.round((pkg.accepted / pkg.total) * 100) : 0;
+                const selected = pkg.packageId === selectedPackageId;
+                return (
+                  <TableRow
+                    key={pkg.packageId}
+                    className={cn("cursor-pointer", selected && "bg-primary/5")}
+                    onClick={() => onPackageChange(selected ? null : pkg.packageId)}
+                  >
+                    <TableCell className="font-medium">{pkg.packageName}</TableCell>
+                    <TableCell className="text-muted-foreground">{pkg.tehsilName}</TableCell>
+                    <TableCell className="text-right tabular-nums text-[var(--impact-positive)]">{pkg.accepted}</TableCell>
+                    <TableCell className="text-right tabular-nums text-[var(--impact-warning)]">{pkg.pendingReview}</TableCell>
+                    <TableCell className="text-right tabular-nums">{pkg.draft}</TableCell>
+                    <TableCell className="text-right tabular-nums text-[var(--impact-negative)]">{pkg.rejected}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{pkg.total}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium",
+                        rate >= 60 ? IMPACT_CHIP_CLASSES.positive :
+                        rate >= 35 ? IMPACT_CHIP_CLASSES.neutral :
+                        rate >= 15 ? IMPACT_CHIP_CLASSES.warning :
+                        IMPACT_CHIP_CLASSES.negative
+                      )}>
+                        {rate}%
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function ChoiceFieldBreakdown({
-  field,
-}: {
-  field: SurveyFormAnalyticsFieldBreakdown;
-}) {
-  const rows = Object.entries(field.choiceCounts ?? {})
-    .map(([answer, count]) => ({ answer, count }))
-    .sort((a, b) => b.count - a.count);
-  const total = rows.reduce((sum, row) => sum + row.count, 0);
-  const max = Math.max(...rows.map((row) => row.count), 1);
+// ─── Question insights ────────────────────────────────────────────────────────
+
+function ChoiceFieldBreakdown({ field }: { field: SurveyFormAnalyticsFieldBreakdown }) {
+  const rows = useMemo(
+    () =>
+      Object.entries(field.choiceCounts ?? {})
+        .map(([answer, count], i) => ({
+          answer,
+          count,
+          fill: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length],
+        }))
+        .sort((a, b) => b.count - a.count),
+    [field.choiceCounts],
+  );
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  const config = Object.fromEntries(
+    rows.map((r) => [r.answer, { label: r.answer, color: r.fill }]),
+  ) satisfies ChartConfig;
 
   return (
     <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <p className="font-medium">{field.label}</p>
-          <p className="text-xs text-muted-foreground">
-            {field.answeredCount} accepted responses answered this question
-          </p>
+          <p className="text-xs text-muted-foreground">{field.answeredCount} responses · {fmt(total)} selections</p>
         </div>
-        <Badge variant="outline" className="w-fit tabular-nums">
-          {total} selections
-        </Badge>
+        <Badge variant="outline" className="tabular-nums">{rows.length} options</Badge>
       </div>
-      <div className="space-y-2">
-        {rows.map((row, index) => {
-          const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
-          const widthPct = Math.round((row.count / max) * 100);
-          const color = chartSeriesColor(index);
-          return (
-            <div key={row.answer} className="space-y-1">
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="min-w-0 truncate">{row.answer}</span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {row.count} ({pct}%)
-                </span>
+      <div className="grid gap-4 lg:grid-cols-[160px_1fr]">
+        <ChartContainer config={config} className="mx-auto h-[160px] w-full max-w-[160px]">
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <Pie data={rows} dataKey="count" nameKey="answer" innerRadius={36} outerRadius={68} paddingAngle={2}>
+              {rows.map((r, i) => <Cell key={i} fill={r.fill} />)}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        <div className="space-y-1.5">
+          {rows.map((row) => {
+            const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
+            const w = total > 0 ? Math.round((row.count / rows[0]!.count) * 100) : 0;
+            return (
+              <div key={row.answer} className="space-y-0.5">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
+                    <span className="truncate text-muted-foreground">{row.answer}</span>
+                  </div>
+                  <span className="shrink-0 tabular-nums font-medium">{row.count} ({pct}%)</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full" style={{ width: `${w}%`, background: impactBarGradient(row.fill) }} />
+                </div>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${widthPct}%`,
-                    background: impactBarGradient(color),
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
-function NumericFieldBreakdown({
-  field,
-}: {
-  field: SurveyFormAnalyticsFieldBreakdown;
-}) {
+function NumericFieldBreakdown({ field }: { field: SurveyFormAnalyticsFieldBreakdown }) {
   const numeric = field.numeric;
   if (!numeric) return null;
-
+  const gaugeData = [
+    { name: "Avg", value: Number(numeric.avg.toFixed(1)), fill: "var(--chart-1)" },
+    { name: "Min", value: numeric.min, fill: "var(--chart-3)" },
+    { name: "Max", value: numeric.max, fill: "var(--chart-2)" },
+  ];
+  const config: ChartConfig = {
+    Avg: { label: "Average", color: "var(--chart-1)" },
+    Min: { label: "Min", color: "var(--chart-3)" },
+    Max: { label: "Max", color: "var(--chart-2)" },
+  };
   return (
     <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="font-medium">{field.label}</p>
-          <p className="text-xs text-muted-foreground">
-            Numeric summary across {numeric.count} answered responses
-          </p>
+          <p className="text-xs text-muted-foreground">Numeric summary · {numeric.count} answered</p>
         </div>
         <Hash className="size-4 text-muted-foreground" />
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Average", value: numeric.avg },
-          { label: "Min", value: numeric.min },
-          { label: "Max", value: numeric.max },
-          { label: "Sum", value: numeric.sum },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2"
-          >
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {stat.label}
-            </p>
-            <p className="mt-1 text-lg font-semibold tabular-nums">
-              {Number.isInteger(stat.value)
-                ? stat.value
-                : stat.value.toFixed(1)}
-            </p>
-          </div>
-        ))}
+      <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
+        <ChartContainer config={config} className="h-[160px] w-full">
+          <BarChart data={gaugeData} margin={{ left: 4, right: 4 }}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis allowDecimals tickLine={false} axisLine={false} width={40} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              {gaugeData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+        <div className="grid grid-cols-2 gap-2 content-start">
+          {[
+            { label: "Average", value: numeric.avg, color: "var(--chart-1)" },
+            { label: "Min", value: numeric.min, color: "var(--chart-3)" },
+            { label: "Max", value: numeric.max, color: "var(--chart-2)" },
+            { label: "Sum", value: numeric.sum, color: "var(--chart-4)" },
+          ].map((s) => (
+            <div key={s.label} className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{s.label}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: s.color }}>
+                {Number.isInteger(s.value) ? fmt(s.value) : s.value.toFixed(1)}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function QuestionDemographics({
-  fields,
-}: {
-  fields: SurveyFormAnalyticsFieldBreakdown[];
-}) {
+function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBreakdown[] }) {
   const choiceFields = useMemo(
-    () =>
-      fields.filter(
-        (field) =>
-          CHOICE_FIELD_TYPES.has(field.type) &&
-          field.choiceCounts &&
-          Object.keys(field.choiceCounts).length > 0,
-      ),
+    () => fields.filter((f) => CHOICE_FIELD_TYPES.has(f.type) && f.choiceCounts && Object.keys(f.choiceCounts).length > 0),
+    [fields],
+  );
+  const numericFields = useMemo(
+    () => fields.filter((f) => f.numeric && f.numeric.count > 0),
     [fields],
   );
 
-  const numericFields = useMemo(
-    () => fields.filter((field) => field.numeric && field.numeric.count > 0),
-    [fields],
-  );
+  // Radar chart for multi-choice field comparison (up to 8 fields, top answer share)
+  const radarData = useMemo(() => {
+    return choiceFields.slice(0, 8).map((f) => {
+      const counts = Object.values(f.choiceCounts ?? {});
+      const total = counts.reduce((s, n) => s + n, 0);
+      const top = Math.max(...counts, 0);
+      return {
+        subject: f.label.length > 22 ? f.label.slice(0, 22) + "…" : f.label,
+        fullLabel: f.label,
+        dominance: total > 0 ? Math.round((top / total) * 100) : 0,
+        answered: f.answeredCount,
+      };
+    });
+  }, [choiceFields]);
+
+  const radarConfig: ChartConfig = {
+    dominance: { label: "Top-answer dominance %", color: "var(--chart-1)" },
+  };
 
   if (choiceFields.length === 0 && numericFields.length === 0) {
     return (
       <Card className="border-border/80 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <ClipboardList className="size-4" />
-            Question-level insights
+            <ClipboardList className="size-4" />Question-level insights
           </CardTitle>
-          <CardDescription>
-            No multiple-choice or numeric answers in the current filter yet.
-            Accept more site visits, pick a different package, or widen the date
-            window.
-          </CardDescription>
+          <CardDescription>No multiple-choice or numeric answers in the current filter.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -676,34 +962,66 @@ function QuestionDemographics({
           Question-level insights
         </CardTitle>
         <CardDescription>
-          Answer patterns from accepted responses in the current package and
-          date scope — use this to brief management on what field teams are
-          reporting.
+          Radar shows how concentrated each field's answers are (high % = one dominant answer).
+          Drill into individual questions below.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-6 pt-6">
+        {/* Radar overview */}
+        {radarData.length >= 3 ? (
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Answer dominance radar — % of responses picking the top answer per question
+            </p>
+            <ChartContainer config={radarConfig} className="mx-auto h-[280px] max-w-[500px] w-full">
+              <RadarChart data={radarData}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
+                <Radar
+                  dataKey="dominance"
+                  stroke="var(--chart-1)"
+                  fill="var(--chart-1)"
+                  fillOpacity={0.2}
+                  strokeWidth={2}
+                />
+                <ChartTooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]!.payload as (typeof radarData)[0];
+                    return (
+                      <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                        <p className="font-medium">{d.fullLabel}</p>
+                        <p className="text-muted-foreground">Top-answer dominance: {d.dominance}%</p>
+                        <p className="text-muted-foreground">{d.answered} responses answered</p>
+                      </div>
+                    );
+                  }}
+                />
+              </RadarChart>
+            </ChartContainer>
+          </div>
+        ) : null}
+
+        {/* Individual choice breakdowns */}
         {choiceFields.length > 0 ? (
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Choice questions ({choiceFields.length})
+              Choice fields ({choiceFields.length})
             </p>
             <div className="grid gap-4 lg:grid-cols-2">
-              {choiceFields.map((field) => (
-                <ChoiceFieldBreakdown key={field.fieldId} field={field} />
-              ))}
+              {choiceFields.map((f) => <ChoiceFieldBreakdown key={f.fieldId} field={f} />)}
             </div>
           </div>
         ) : null}
 
+        {/* Numeric breakdowns */}
         {numericFields.length > 0 ? (
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Numeric questions ({numericFields.length})
+              Numeric fields ({numericFields.length})
             </p>
             <div className="grid gap-4 lg:grid-cols-2">
-              {numericFields.map((field) => (
-                <NumericFieldBreakdown key={field.fieldId} field={field} />
-              ))}
+              {numericFields.map((f) => <NumericFieldBreakdown key={f.fieldId} field={f} />)}
             </div>
           </div>
         ) : null}
@@ -712,177 +1030,93 @@ function QuestionDemographics({
   );
 }
 
-function ProcurementPackageLinkage({
-  packages,
-  selectedPackageId,
-  onPackageChange,
-}: {
-  packages: SurveyFormAnalyticsPackageRow[];
-  selectedPackageId: string | null;
-  onPackageChange: (packageId: string | null) => void;
-}) {
-  const rows = useMemo(() => {
-    const scoped = selectedPackageId
-      ? packages.filter((pkg) => pkg.packageId === selectedPackageId)
-      : packages;
-    return scoped.filter((pkg) => pkg.total > 0);
-  }, [packages, selectedPackageId]);
+// ─── Submissions timeline ─────────────────────────────────────────────────────
 
-  if (rows.length === 0) {
-    return (
-      <Card className="border-border/80 shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Package className="size-4" />
-            Procurement package linkage
-          </CardTitle>
-          <CardDescription>
-            No response activity for procurement packages under the current
-            filters.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="border-border/80 shadow-sm">
-      <CardHeader className="border-b bg-muted/20">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Package className="size-4 text-primary" />
-          Procurement package linkage
-        </CardTitle>
-        <CardDescription>
-          How survey responses map to contract packages. Click a row to focus
-          the rest of the dashboard on that package.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-4">
-        <div className="overflow-x-auto rounded-lg border border-border/70">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Package</TableHead>
-                <TableHead>Tehsil</TableHead>
-                <TableHead className="text-right">Accepted</TableHead>
-                <TableHead className="text-right">Pending</TableHead>
-                <TableHead className="text-right">Draft</TableHead>
-                <TableHead className="text-right">Rejected</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((pkg) => {
-                const selected = pkg.packageId === selectedPackageId;
-                return (
-                  <TableRow
-                    key={pkg.packageId}
-                    className={cn(
-                      "cursor-pointer",
-                      selected && "bg-primary/5",
-                    )}
-                    onClick={() =>
-                      onPackageChange(selected ? null : pkg.packageId)
-                    }
-                  >
-                    <TableCell className="font-medium">
-                      {pkg.packageName}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {pkg.tehsilName}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-[var(--impact-positive)]">
-                      {pkg.accepted}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-[var(--impact-warning)]">
-                      {pkg.pendingReview}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {pkg.draft}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-[var(--impact-negative)]">
-                      {pkg.rejected}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">
-                      {pkg.total}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SubmissionsOverTime({
-  series,
-}: {
-  series: SurveyFormAnalyticsTimePoint[];
-}) {
+function SubmissionsOverTime({ series }: { series: SurveyFormAnalyticsTimePoint[] }) {
   const chartData = useMemo(
     () =>
       series
-        .filter((point) => point.count > 0)
-        .map((point) => ({
-          date: point.date,
-          label: point.date.slice(5),
-          count: point.count,
-        })),
+        .filter((p) => p.count > 0)
+        .map((p) => ({ date: p.date, label: p.date.slice(5), count: p.count })),
     [series],
   );
 
-  const chartConfig = {
-    count: { label: "Accepted", color: "var(--chart-1)" },
-  } satisfies ChartConfig;
+  // 7-day rolling average
+  const withRolling = useMemo(() => {
+    return chartData.map((d, i) => {
+      const window = chartData.slice(Math.max(0, i - 6), i + 1);
+      const avg = window.reduce((s, x) => s + x.count, 0) / window.length;
+      return { ...d, rolling: Math.round(avg * 10) / 10 };
+    });
+  }, [chartData]);
 
-  if (chartData.length === 0) {
-    return null;
-  }
+  const config: ChartConfig = {
+    count: { label: "Daily accepted", color: "var(--chart-1)" },
+    rolling: { label: "7-day avg", color: "var(--chart-2)" },
+  };
+
+  if (chartData.length === 0) return null;
+
+  const peak = Math.max(...chartData.map((d) => d.count));
+  const peakDay = chartData.find((d) => d.count === peak);
+  const totalInWindow = chartData.reduce((s, d) => s + d.count, 0);
 
   return (
     <Card className="border-border/80 shadow-sm">
       <CardHeader className="border-b bg-muted/20">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="size-4 text-primary" />
-          Accepted submissions over time
-        </CardTitle>
-        <CardDescription>
-          Daily accepted response volume for the current filters (last 90 days
-          of calendar buckets that have activity).
-        </CardDescription>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="size-4 text-primary" />
+              Submission trend — accepted responses
+            </CardTitle>
+            <CardDescription>
+              Daily volume + 7-day rolling average. Identify acceleration and slowdown periods.
+            </CardDescription>
+          </div>
+          <div className="flex gap-3">
+            <div className="rounded-lg border bg-card px-3 py-2 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Peak day</p>
+              <p className="text-lg font-semibold tabular-nums text-[var(--chart-1)]">{peak}</p>
+              <p className="text-[10px] text-muted-foreground">{peakDay?.label}</p>
+            </div>
+            <div className="rounded-lg border bg-card px-3 py-2 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">In window</p>
+              <p className="text-lg font-semibold tabular-nums text-[var(--chart-2)]">{fmt(totalInWindow)}</p>
+              <p className="text-[10px] text-muted-foreground">total</p>
+            </div>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="pt-6">
-        <ChartContainer config={chartConfig} className="h-[240px] w-full">
-          <BarChart data={chartData} margin={{ left: 8, right: 8, top: 8 }}>
+        <ChartContainer config={config} className="h-[260px] w-full">
+          <BarChart data={withRolling} margin={{ left: 8, right: 8, top: 8 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis
-              dataKey="label"
-              tickLine={false}
-              axisLine={false}
-              interval="preserveStartEnd"
-              minTickGap={24}
+            <XAxis dataKey="label" tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} tick={{ fontSize: 10 }} />
+            <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={32} />
+            <ChartTooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md space-y-1">
+                    <p className="font-medium">{label}</p>
+                    <p>Daily: <strong>{payload.find(p => p.dataKey === "count")?.value}</strong></p>
+                    <p>7-day avg: <strong>{payload.find(p => p.dataKey === "rolling")?.value}</strong></p>
+                  </div>
+                );
+              }}
             />
-            <YAxis
-              allowDecimals={false}
-              tickLine={false}
-              axisLine={false}
-              width={32}
-            />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar
-              dataKey="count"
-              fill="var(--chart-1)"
-              radius={[4, 4, 0, 0]}
-            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="count" fill="var(--chart-1)" radius={[3, 3, 0, 0]} opacity={0.8} />
+            <Line dataKey="rolling" type="monotone" stroke="var(--chart-2)" strokeWidth={2} dot={false} />
           </BarChart>
         </ChartContainer>
       </CardContent>
     </Card>
   );
 }
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyFilterState() {
   return (
@@ -892,14 +1126,15 @@ function EmptyFilterState() {
         <div>
           <p className="font-medium">No data for this filter</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Try selecting all packages, widening the submission date window, or
-            waiting for more site visits to be submitted.
+            Try selecting all packages, widening the date window, or waiting for more accepted responses.
           </p>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+// ─── Root export ──────────────────────────────────────────────────────────────
 
 export function FormAnalyticsDashboard({
   analytics,
@@ -912,9 +1147,7 @@ export function FormAnalyticsDashboard({
   onCustomDateChange,
 }: FormAnalyticsDashboardProps) {
   const packages = analytics?.byProcurementPackage ?? [];
-  const selectedPackage = packages.find(
-    (pkg) => pkg.packageId === selectedPackageId,
-  );
+  const selectedPackage = packages.find((p) => p.packageId === selectedPackageId);
   const dateLabel = formatAnalyticsDateLabel(submittedFrom, submittedTo);
   const hasResponses = (analytics?.summary.accepted ?? 0) > 0;
 
@@ -932,11 +1165,7 @@ export function FormAnalyticsDashboard({
       />
 
       {analytics ? (
-        <ActiveScopeSummary
-          analytics={analytics}
-          selectedPackage={selectedPackage}
-          dateLabel={dateLabel}
-        />
+        <ActiveScopeSummary analytics={analytics} selectedPackage={selectedPackage} dateLabel={dateLabel} />
       ) : null}
 
       {!hasResponses && analytics ? <EmptyFilterState /> : null}
@@ -950,10 +1179,7 @@ export function FormAnalyticsDashboard({
           />
 
           {analytics.cesmpInsights ? (
-            <CesmpAnalyticsDashboard
-              insights={analytics.cesmpInsights}
-              selectedPackageId={selectedPackageId}
-            />
+            <CesmpAnalyticsDashboard insights={analytics.cesmpInsights} selectedPackageId={selectedPackageId} />
           ) : null}
 
           <GeographicDemographics analytics={analytics} />
