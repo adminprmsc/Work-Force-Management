@@ -62,6 +62,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   formatAnalyticsDateLabel,
   type AnalyticsDatePreset,
 } from "@/lib/survey-analytics-dates";
@@ -128,6 +134,38 @@ type ExecutiveFinding = {
 
 function fmt(n: number) {
   return n.toLocaleString();
+}
+
+function AnalysisInfo({
+  meaning,
+  role,
+}: {
+  meaning: string;
+  role: string;
+}) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Explain this analysis"
+          >
+            <Info className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6} className="max-w-sm">
+          <div className="space-y-1">
+            <p className="font-medium">What it means</p>
+            <p>{meaning}</p>
+            <p className="pt-1 font-medium">Why it matters</p>
+            <p>{role}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 function deriveTehsilAlerts(
@@ -479,9 +517,15 @@ function ExecutiveFindingsPanel({ findings }: { findings: ExecutiveFinding[] }) 
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
               Executive findings
             </p>
-            <p className="text-lg font-semibold tracking-tight">
-              Analyst summary for the current dashboard scope
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-lg font-semibold tracking-tight">
+                Analyst summary for the current dashboard scope
+              </p>
+              <AnalysisInfo
+                meaning="This is the short executive reading of the full dashboard. It surfaces the most important findings from coverage, acceptance quality, backlog, and recent trend."
+                role="Use this first when briefing managers or auditors so they understand the main message before reading the detailed charts."
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               This panel synthesizes the key message from the charts below so the
               dashboard reads as one coherent briefing.
@@ -669,6 +713,10 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="size-4 text-[var(--impact-warning)]" />
             Tehsil health diagnostics
+            <AnalysisInfo
+              meaning="This combines two things for each tehsil: how much accepted response coverage it has, and how well its responses are clearing review."
+              role="Use this to identify which tehsils are weak because they are under-covered, producing low-quality submissions, or creating review backlog."
+            />
           </CardTitle>
           <CardDescription>
             Combines two signals into one analyst view: response coverage share and
@@ -688,6 +736,10 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
             <CardTitle className="flex items-center gap-2 text-base">
               <MapPinned className={cn("size-4", DEMOGRAPHIC_ACCENTS.tehsil.icon)} />
               Tehsil response distribution
+              <AnalysisInfo
+                meaning="This shows how accepted responses are distributed across tehsils. The donut shows relative share and the bars show absolute accepted count."
+                role="Use this to see whether monitoring activity is concentrated in only a few tehsils or spread across the programme."
+              />
             </CardTitle>
             <CardDescription>
               Use this section for distribution only: the donut shows proportional
@@ -789,6 +841,10 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
             <CardTitle className="flex items-center gap-2 text-base">
               <MapPin className={cn("size-4", DEMOGRAPHIC_ACCENTS.village.icon)} />
               Village concentration
+              <AnalysisInfo
+                meaning="This shows which villages contribute most of the accepted responses inside the current scope."
+                role="Use this to spot whether evidence is concentrated in a small set of villages and where field coverage may need widening."
+              />
             </CardTitle>
             <CardDescription>
               This section highlights where accepted responses are concentrated at
@@ -937,6 +993,10 @@ function ProcurementPackageLinkage({
         <CardTitle className="flex items-center gap-2 text-base">
           <Package className="size-4 text-primary" />
           Procurement package — response status comparison
+          <AnalysisInfo
+            meaning="This compares procurement packages by accepted, pending, draft, and rejected responses, along with package-level acceptance rate."
+            role="Use this to see which packages are performing well, which ones are stalled in review, and where contractor or field-team follow-up is needed."
+          />
         </CardTitle>
         <CardDescription>
           Stacked bars show accepted / pending / draft / rejected per package.
@@ -1200,6 +1260,10 @@ function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBrea
         <CardTitle className="flex items-center gap-2 text-base">
           <ClipboardList className="size-4 text-primary" />
           Question-level insights
+          <AnalysisInfo
+            meaning="This shows how people are answering form questions. It highlights whether one answer dominates or whether responses are mixed."
+            role="Use this to interpret what field teams are actually reporting, not just how many forms were submitted."
+          />
         </CardTitle>
         <CardDescription>
           Radar shows how concentrated each field's answers are (high % = one dominant answer).
@@ -1309,6 +1373,10 @@ function SubmissionsOverTime({ series }: { series: SurveyFormAnalyticsTimePoint[
             <CardTitle className="flex items-center gap-2 text-base">
               <TrendingUp className="size-4 text-primary" />
               Submission trend — accepted responses
+              <AnalysisInfo
+                meaning="This tracks accepted responses over time and compares each day with the recent 7-day average."
+                role="Use this to understand whether field reporting is accelerating, stable, or slowing down over the selected period."
+              />
             </CardTitle>
             <CardDescription>
               Daily volume + 7-day rolling average. Identify acceleration and slowdown periods.
