@@ -1,112 +1,164 @@
-/**
- * Export a SurveyFormAnalytics payload to a richly formatted multi-sheet
- * Excel workbook.
- *
- * Sheets produced:
- *  1.  Cover               – report metadata, scope, generated timestamp
- *  2.  Analyst Findings    – auto-derived risk alerts (coverage gaps, budget, compliance)
- *  3.  Summary KPIs        – full KPI snapshot with acceptance rate
- *  4.  Tehsil Coverage     – accepted counts, share %, coverage health flag
- *  5.  Village Coverage    – accepted counts, share %, tehsil, coverage flag
- *  6.  Package Comparison  – stacked status breakdown + acceptance rate per package
- *  7.  Question Insights   – choice breakdowns with dominance %, numeric stats
- *  8.  Timeline (Daily)    – accepted per day + 7-day rolling average
- *  9.  C-ESMP Summary      – programme-level ESMP KPIs (if present)
- * 10.  C-ESMP Packages     – per-package budget + utilization + HSE data
- * 11.  C-ESMP Compliance   – PPE / noise / dust answer distributions
- * 12.  C-ESMP Training     – training sessions, participants, venues
- */
-
 import * as XLSX from "xlsx";
-import type { SurveyFormAnalytics, CesmpFormInsights } from "@/modules/api/survey-types";
-
-// ─── types ────────────────────────────────────────────────────────────────────
+import type {
+  CesmpFormInsights,
+  SurveyFormAnalytics,
+} from "@/modules/api/survey-types";
 
 type Cell = string | number | boolean | null;
 type Row = Cell[];
-
-interface SheetDef {
+type SheetDef = {
   name: string;
   rows: Row[];
-  /** Column index → custom width override (chars) */
   colWidths?: Record<number, number>;
-}
+};
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+type TehsilHealthRow = {
+  tehsilName: string;
+  accepted: number;
+  pendingReview: number;
+  draft: number;
+  rejected: number;
+  reverted: number;
+  totalActivity: number;
+  acceptanceRate: number;
+  coverageShare: number;
+  issueCategory: string;
+  interpretation: string;
+};
 
 function pct(n: number, d: number, decimals = 0): string {
   if (d === 0) return "0%";
-  const v = (n / d) * 100;
-  return `${decimals > 0 ? v.toFixed(decimals) : Math.round(v)}%`;
-}
-
-function pkr(n: number): string {
-  return `PKR ${n.toLocaleString("en-PK")}`;
+  const value = (n / d) * 100;
+  return `${decimals > 0 ? value.toFixed(decimals) : Math.round(value)}%`;
 }
 
 function yesNo(v: boolean | null | undefined): string {
-  if (v === null || v === undefined) return "—";
+  if (v === null || v === undefined) return "Not Reported";
   return v ? "Yes" : "No";
-}
-
-function coverageFlag(sharePct: number): string {
-  if (sharePct === 0) return "⛔ ZERO COVERAGE";
-  if (sharePct < 5) return "🔴 Critical Gap";
-  if (sharePct < 10) return "🟠 Below Target";
-  if (sharePct < 20) return "🟡 Moderate";
-  return "🟢 Adequate";
-}
-
-function budgetFlag(rate: number): string {
-  if (rate >= 95) return "🔴 Near Exhausted";
-  if (rate >= 85) return "🟠 High Utilization";
-  if (rate >= 60) return "🟡 On Track";
-  return "🟢 Underspent";
-}
-
-function acceptanceFlag(rate: number): string {
-  if (rate >= 60) return "🟢 Good";
-  if (rate >= 35) return "🟡 Moderate";
-  if (rate >= 15) return "🟠 Low";
-  return "🔴 Very Low";
-}
-
-function rollingAvg(data: number[], idx: number, window = 7): number {
-  const slice = data.slice(Math.max(0, idx - window + 1), idx + 1);
-  return slice.reduce((s, v) => s + v, 0) / slice.length;
 }
 
 function blank(): Row {
   return [];
 }
 
-// ─── auto column widths ───────────────────────────────────────────────────────
-
-function applyColWidths(ws: XLSX.WorkSheet, rows: Row[], overrides: Record<number, number> = {}): void {
-  const widths: number[] = [];
-  for (const row of rows) {
-    row.forEach((cell, i) => {
-      const len = cell == null ? 0 : String(cell).length;
-      widths[i] = Math.min(Math.max(widths[i] ?? 10, len + 2), 64);
-    });
-  }
-  Object.entries(overrides).forEach(([i, w]) => {
-    widths[Number(i)] = w;
-  });
-  ws["!cols"] = widths.map((w) => ({ wch: w ?? 12 }));
+function acceptanceBand(rate: number): string {
+  if (rate < 25) return "Critical";
+  if (rate < 45) return "Attention";
+  if (rate < 60) return "Moderate";
+  return "Healthy";
 }
 
-// ─── sheet helpers ────────────────────────────────────────────────────────────
+function coverageBand(share: number): string {
+  if (share < 5) return "Critical";
+  if (share < 10) return "Attention";
+  if (share < 20) return "Moderate";
+  return "Healthy";
+}
+
+function budgetBand(rate: number): string {
+  if (rate >= 95) return "Critical";
+  if (rate >= 85) return "Attention";
+  if (rate >= 60) return "Moderate";
+  return "Healthy";
+}
+
+function rollingAvg(values: number[], idx: number, window = 7): number {
+  const slice = values.slice(Math.max(0, idx - window + 1), idx + 1);
+  return slice.reduce((sum, value) => sum + value, 0) / slice.length;
+}
+
+function applyColWidths(
+  ws: XLSX.WorkSheet,
+  rows: Row[],
+  overrides: Record<number, number> = {},
+): void {
+  const widths: number[] = [];
+  for (const row of rows) {
+    row.forEach((cell, index) => {
+      const len = cell == null ? 0 : String(cell).length;
+      widths[index] = Math.min(Math.max(widths[index] ?? 10, len + 2), 56);
+    });
+  }
+  Object.entries(overrides).forEach(([index, width]) => {
+    widths[Number(index)] = width;
+  });
+  ws["!cols"] = widths.map((width) => ({ wch: width ?? 12 }));
+}
 
 function makeSheet(def: SheetDef): { name: string; ws: XLSX.WorkSheet } {
   const ws = XLSX.utils.aoa_to_sheet(def.rows);
-  applyColWidths(ws, def.rows, def.colWidths ?? {});
+  applyColWidths(ws, def.rows, def.colWidths);
   return { name: def.name, ws };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 1. COVER SHEET
-// ═══════════════════════════════════════════════════════════════════════════════
+function buildTehsilHealthRows(analytics: SurveyFormAnalytics): TehsilHealthRow[] {
+  const acceptedTotal = analytics.byTehsil.reduce((sum, row) => sum + row.accepted, 0);
+  const avgShare = analytics.byTehsil.length > 0 ? 100 / analytics.byTehsil.length : 0;
+
+  return analytics.byTehsil
+    .map((tehsil) => {
+      const tehsilPackages = analytics.byProcurementPackage.filter(
+        (pkg) => pkg.tehsilId === tehsil.tehsilId,
+      );
+      const pendingReview = tehsilPackages.reduce((sum, pkg) => sum + pkg.pendingReview, 0);
+      const draft = tehsilPackages.reduce((sum, pkg) => sum + pkg.draft, 0);
+      const rejected = tehsilPackages.reduce((sum, pkg) => sum + pkg.rejected, 0);
+      const reverted = tehsilPackages.reduce((sum, pkg) => sum + pkg.reverted, 0);
+      const totalActivity = tehsil.accepted + pendingReview + draft + rejected + reverted;
+      const acceptanceRate =
+        totalActivity > 0 ? Math.round((tehsil.accepted / totalActivity) * 100) : 0;
+      const coverageShare =
+        acceptedTotal > 0 ? Math.round((tehsil.accepted / acceptedTotal) * 100) : 0;
+
+      let issueCategory = "Healthy";
+      let interpretation = "Balanced coverage and acceptable review performance.";
+
+      if (coverageShare < 5 || acceptanceRate < 25) {
+        issueCategory = "Critical";
+        interpretation =
+          coverageShare < 5
+            ? `Accepted-response share is only ${coverageShare}% versus an equal-distribution benchmark of ${Math.round(avgShare)}%.`
+            : `Only ${acceptanceRate}% of responses from this tehsil are being accepted.`;
+      } else if (
+        coverageShare < 10 ||
+        acceptanceRate < 45 ||
+        pendingReview > tehsil.accepted
+      ) {
+        issueCategory = "Attention";
+        interpretation =
+          pendingReview > tehsil.accepted
+            ? `Pending review volume (${pendingReview}) exceeds accepted volume (${tehsil.accepted}).`
+            : coverageShare < 10
+              ? `Coverage share is low at ${coverageShare}% compared with ${Math.round(avgShare)}% benchmark.`
+              : `Acceptance rate is below target at ${acceptanceRate}%.`;
+      } else if (coverageShare < 20 || acceptanceRate < 60) {
+        issueCategory = "Moderate";
+        interpretation = `Coverage share is ${coverageShare}% and acceptance rate is ${acceptanceRate}%; monitor but not critical.`;
+      }
+
+      return {
+        tehsilName: tehsil.tehsilName,
+        accepted: tehsil.accepted,
+        pendingReview,
+        draft,
+        rejected,
+        reverted,
+        totalActivity,
+        acceptanceRate,
+        coverageShare,
+        issueCategory,
+        interpretation,
+      };
+    })
+    .sort((a, b) => {
+      const order = ["Critical", "Attention", "Moderate", "Healthy"];
+      return (
+        order.indexOf(a.issueCategory) - order.indexOf(b.issueCategory) ||
+        a.acceptanceRate - b.acceptanceRate ||
+        a.coverageShare - b.coverageShare
+      );
+    });
+}
 
 function coverSheet(
   analytics: SurveyFormAnalytics,
@@ -114,226 +166,170 @@ function coverSheet(
   packageLabel: string,
 ): SheetDef {
   const { summary, form } = analytics;
-  const totalSubmitted = summary.accepted + summary.pendingReview + summary.draft + summary.rejected + summary.reverted;
-  const acceptanceRate = totalSubmitted > 0 ? Math.round((summary.accepted / totalSubmitted) * 100) : 0;
+  const totalResponses =
+    summary.accepted +
+    summary.pendingReview +
+    summary.draft +
+    summary.rejected +
+    summary.reverted;
+  const acceptanceRate =
+    totalResponses > 0 ? Math.round((summary.accepted / totalResponses) * 100) : 0;
 
-  const rows: Row[] = [
-    ["ESMS — Environment & Social Management System"],
-    ["Work Force Management Platform — Analytics Report"],
-    blank(),
-    ["Form Title", form.title],
-    ["Form Status", form.status],
-    ["Package Scope", packageLabel],
-    ["Date Window", dateLabel],
-    ["Report Generated", new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })],
-    blank(),
-    ["━━ SCOPE SUMMARY ━━"],
-    ["Accepted Responses (in scope)", summary.accepted],
-    ["Total Submitted (all statuses)", totalSubmitted],
-    ["Overall Acceptance Rate", `${acceptanceRate}%`],
-    ["Procurement Packages", summary.packageCount],
-    ["Tehsils with Accepted Responses", analytics.byTehsil.length],
-    ["Villages with Accepted Responses", analytics.byVillage.length],
-    blank(),
-    ["━━ CONTENTS ━━"],
-    ["Sheet", "Description"],
-    ["Cover", "This page — report metadata and scope"],
-    ["Analyst Findings", "Auto-derived risk alerts: coverage gaps, budget, compliance"],
-    ["Summary KPIs", "Full KPI snapshot with rate analysis"],
-    ["Tehsil Coverage", "Accepted counts, share %, and coverage health per tehsil"],
-    ["Village Coverage", "Top villages by accepted count with coverage rating"],
-    ["Package Comparison", "Status breakdown + acceptance rate per procurement package"],
-    ["Question Insights", "Choice and numeric field answer distributions"],
-    ["Timeline", "Daily accepted submissions + 7-day rolling average"],
-    ...(analytics.cesmpInsights
-      ? [
-          ["C-ESMP Summary", "Programme-level ESMP KPIs"],
-          ["C-ESMP Packages", "Per-package budget utilization and HSE data"],
-          ["C-ESMP Compliance", "PPE, dust, noise answer distributions"],
-          ["C-ESMP Training", "Training sessions, participants, venues"],
-        ]
-      : []),
-    blank(),
-    ["Note: All data reflects ACCEPTED responses only unless otherwise stated."],
-    ["Figures are as of the generated timestamp above."],
-  ];
-
-  return { name: "Cover", rows, colWidths: { 0: 42, 1: 48 } };
+  return {
+    name: "Report Scope",
+    rows: [
+      ["Field", "Value"],
+      ["Report Title", "Survey Form Analytics Report"],
+      ["Form Title", form.title],
+      ["Form Status", form.status],
+      ["Package Scope", packageLabel],
+      ["Date Window", dateLabel],
+      [
+        "Generated At",
+        new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" }),
+      ],
+      ["Accepted Responses", summary.accepted],
+      ["Total Responses Across All Statuses", totalResponses],
+      ["Overall Acceptance Rate", `${acceptanceRate}%`],
+      ["Procurement Packages in Scope", summary.packageCount],
+      ["Assignments in Scope", summary.assignmentCount],
+      ["Tehsils with Accepted Responses", analytics.byTehsil.length],
+      ["Villages with Accepted Responses", analytics.byVillage.length],
+      blank(),
+      [
+        "Method Note",
+        "Geographic and question-level analysis uses accepted responses unless a sheet explicitly states otherwise.",
+      ],
+    ],
+    colWidths: { 0: 28, 1: 64 },
+  };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 2. ANALYST FINDINGS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function analystFindingsSheet(analytics: SurveyFormAnalytics): SheetDef {
   const rows: Row[] = [
-    ["ANALYST FINDINGS — Auto-Derived Risk Alerts"],
-    ["Generated by ESMS analytics engine based on accepted responses in current scope."],
-    blank(),
+    [
+      "Finding ID",
+      "Severity",
+      "Domain",
+      "Location",
+      "Metric",
+      "Value",
+      "Threshold / Benchmark",
+      "Interpretation",
+      "Recommended Action",
+    ],
   ];
 
-  let findingIndex = 1;
+  const tehsilHealth = buildTehsilHealthRows(analytics);
+  for (const row of tehsilHealth.filter((item) => item.issueCategory !== "Healthy")) {
+    rows.push([
+      `TH-${rows.length}`,
+      row.issueCategory,
+      "Tehsil Health",
+      row.tehsilName,
+      row.acceptanceRate < 45 ? "Acceptance Rate" : "Coverage Share",
+      row.acceptanceRate < 45 ? `${row.acceptanceRate}%` : `${row.coverageShare}%`,
+      row.acceptanceRate < 45 ? "Target >= 45%" : "Benchmark >= 10% share",
+      row.interpretation,
+      row.issueCategory === "Critical"
+        ? "Immediate field and review follow-up required."
+        : "Increase monitoring attention and review submission quality.",
+    ]);
+  }
 
-  // ── Coverage gap analysis ──
-  const tehsilTotal = analytics.byTehsil.reduce((s, r) => s + r.accepted, 0);
-  const avgShare = analytics.byTehsil.length > 0 ? 100 / analytics.byTehsil.length : 0;
-
-  const criticalTehsils = analytics.byTehsil
-    .map((r) => ({
-      name: r.tehsilName,
-      accepted: r.accepted,
-      sharePct: tehsilTotal > 0 ? Math.round((r.accepted / tehsilTotal) * 100) : 0,
+  const weakPackages = analytics.byProcurementPackage
+    .filter((pkg) => pkg.total > 0)
+    .map((pkg) => ({
+      ...pkg,
+      acceptanceRate: Math.round((pkg.accepted / pkg.total) * 100),
     }))
-    .filter((r) => r.sharePct < 10)
-    .sort((a, b) => a.sharePct - b.sharePct);
+    .filter((pkg) => pkg.acceptanceRate < 35)
+    .sort((a, b) => a.acceptanceRate - b.acceptanceRate);
 
-  if (criticalTehsils.length > 0) {
-    rows.push([`Finding ${findingIndex++}`, "COVERAGE GAP — Under-represented tehsils", "PRIORITY: HIGH"]);
-    rows.push(["", "Tehsil", "Accepted", "Share %", "Expected Share", "Gap", "Status"]);
-    for (const t of criticalTehsils) {
-      const gap = Math.round(avgShare - t.sharePct);
-      rows.push([
-        "",
-        t.name,
-        t.accepted,
-        `${t.sharePct}%`,
-        `${Math.round(avgShare)}%`,
-        gap > 0 ? `-${gap}pp` : `+${Math.abs(gap)}pp`,
-        coverageFlag(t.sharePct),
-      ]);
-    }
-    rows.push(["", "Action: Increase monitoring visits and follow-up in flagged tehsils."]);
-    rows.push(blank());
+  for (const pkg of weakPackages) {
+    rows.push([
+      `PK-${rows.length}`,
+      pkg.acceptanceRate < 25 ? "Critical" : "Attention",
+      "Package Performance",
+      `${pkg.tehsilName} / ${pkg.packageName}`,
+      "Acceptance Rate",
+      `${pkg.acceptanceRate}%`,
+      "Target >= 45%",
+      "Package-level acceptance is weak, suggesting low submission quality or high review rejection.",
+      "Review field completion with contractor and supervising staff.",
+    ]);
   }
 
-  // ── Package acceptance rate ──
-  const lowAcceptPkgs = analytics.byProcurementPackage
-    .filter((p) => p.total >= 5 && p.total > 0)
-    .map((p) => ({ ...p, rate: Math.round((p.accepted / p.total) * 100) }))
-    .filter((p) => p.rate < 35)
-    .sort((a, b) => a.rate - b.rate);
-
-  if (lowAcceptPkgs.length > 0) {
-    rows.push([`Finding ${findingIndex++}`, "LOW ACCEPTANCE RATE — Procurement packages", "PRIORITY: HIGH"]);
-    rows.push(["", "Package", "Tehsil", "Accepted", "Total", "Rate", "Status"]);
-    for (const p of lowAcceptPkgs) {
-      rows.push([
-        "",
-        p.packageName,
-        p.tehsilName,
-        p.accepted,
-        p.total,
-        `${p.rate}%`,
-        acceptanceFlag(p.rate),
-      ]);
-    }
-    rows.push(["", "Action: Review submission quality; brief field teams on form completion standards."]);
-    rows.push(blank());
+  const reviewPipeline = analytics.summary.accepted + analytics.summary.pendingReview;
+  const backlogRate =
+    reviewPipeline > 0
+      ? Math.round((analytics.summary.pendingReview / reviewPipeline) * 100)
+      : 0;
+  if (backlogRate >= 20) {
+    rows.push([
+      `RV-${rows.length}`,
+      backlogRate >= 40 ? "Attention" : "Moderate",
+      "Review Workflow",
+      "All Scope",
+      "Pending Review Share",
+      `${backlogRate}%`,
+      "Target < 20%",
+      "A large share of reviewed responses is still awaiting acceptance decision.",
+      "Clear review backlog before additional field cycles increase queue pressure.",
+    ]);
   }
 
-  // ── High pending volume ──
-  const totalPending = analytics.byProcurementPackage.reduce((s, p) => s + p.pendingReview, 0);
-  const totalAccepted = analytics.summary.accepted;
-  const pendingRatio = (totalAccepted + totalPending) > 0
-    ? Math.round((totalPending / (totalAccepted + totalPending)) * 100)
-    : 0;
-
-  if (pendingRatio >= 30) {
-    rows.push([`Finding ${findingIndex++}`, "HIGH PENDING REVIEW BACKLOG", pendingRatio >= 50 ? "PRIORITY: HIGH" : "PRIORITY: MEDIUM"]);
-    rows.push(["", `${totalPending} responses are pending review (${pendingRatio}% of accepted+pending combined).`]);
-    rows.push(["", "Action: Accelerate HO review cycle to prevent field team morale impact."]);
-    rows.push(blank());
-  }
-
-  // ── Timeline: recent acceleration / slowdown ──
-  const activeDays = analytics.submissionsOverTime.filter((p) => p.count > 0);
-  if (activeDays.length >= 14) {
-    const counts = activeDays.map((d) => d.count);
-    const recentHalf = counts.slice(-7).reduce((s, v) => s + v, 0);
-    const prevHalf = counts.slice(-14, -7).reduce((s, v) => s + v, 0);
-    const change = prevHalf > 0 ? Math.round(((recentHalf - prevHalf) / prevHalf) * 100) : 0;
-    if (Math.abs(change) >= 25) {
-      const direction = change > 0 ? "ACCELERATION" : "SLOWDOWN";
-      const priority = Math.abs(change) >= 50 ? "PRIORITY: HIGH" : "PRIORITY: MEDIUM";
-      rows.push([`Finding ${findingIndex++}`, `SUBMISSION ${direction} — Last 7 vs previous 7 days`, priority]);
-      rows.push(["", `Last 7 days: ${recentHalf} accepted`, `Previous 7 days: ${prevHalf} accepted`, `Change: ${change > 0 ? "+" : ""}${change}%`]);
-      if (change < 0) {
-        rows.push(["", "Action: Investigate field access issues, team attendance, and site conditions."]);
-      } else {
-        rows.push(["", "Note: Positive trend — ensure quality is maintained during accelerated submissions."]);
-      }
-      rows.push(blank());
-    }
-  }
-
-  // ── C-ESMP specific findings ──
   const c = analytics.cesmpInsights;
   if (c) {
-    // HSE staffing
-    if (c.summary.hseStaffHiredRate < 1 && c.summary.totalProcurementPackages > 0) {
-      const missingPkgs = c.summary.totalProcurementPackages - c.summary.hseStaffHiredPackages;
-      const priority = c.summary.hseStaffHiredRate < 0.5 ? "PRIORITY: HIGH" : "PRIORITY: MEDIUM";
-      rows.push([`Finding ${findingIndex++}`, "HSE STAFF NOT HIRED — Multiple packages", priority]);
-      rows.push(["", `${missingPkgs} of ${c.summary.totalProcurementPackages} packages have not hired HSE staff.`]);
-      rows.push(["", "Action: Issue NOC/compliance notice to contractors missing HSE appointments."]);
-      rows.push(blank());
+    if (c.summary.hseStaffHiredRate < 100) {
+      rows.push([
+        `CE-${rows.length}`,
+        c.summary.hseStaffHiredRate < 50 ? "Critical" : "Attention",
+        "C-ESMP Staffing",
+        "All Scope",
+        "HSE Staff Hired Rate",
+        `${c.summary.hseStaffHiredRate}%`,
+        "Target = 100%",
+        `${c.summary.totalProcurementPackages - c.summary.hseStaffHiredPackages} packages report no HSE staff hired.`,
+        "Issue compliance notices to packages without HSE staff.",
+      ]);
     }
 
-    // Budget utilization
     if (c.budget.overallUtilizationRate >= 85) {
-      const priority = c.budget.overallUtilizationRate >= 95 ? "PRIORITY: HIGH" : "PRIORITY: MEDIUM";
-      rows.push([`Finding ${findingIndex++}`, "ESMP BUDGET — High utilization", priority]);
-      rows.push(["", `Overall utilization: ${Math.round(c.budget.overallUtilizationRate)}%`]);
-      rows.push(["", `Remaining: ${pkr(c.budget.totalRemaining)} of ${pkr(c.budget.totalAllocated)}`]);
-      rows.push(["", "Action: Review remaining ESMP commitments and prepare supplementary budget if needed."]);
-      rows.push(blank());
-    }
-
-    // PPE compliance
-    const ppeCounts = c.ppeCompliance.wearingRate.counts;
-    const ppeTotal = c.ppeCompliance.wearingRate.total;
-    const lowPpeCount = (ppeCounts["None"] ?? 0) + (ppeCounts["Some"] ?? 0);
-    const lowPpePct = ppeTotal > 0 ? Math.round((lowPpeCount / ppeTotal) * 100) : 0;
-    if (lowPpePct >= 20) {
-      rows.push([`Finding ${findingIndex++}`, "PPE NON-COMPLIANCE — Workers not wearing PPE", lowPpePct >= 40 ? "PRIORITY: HIGH" : "PRIORITY: MEDIUM"]);
-      rows.push(["", `${lowPpePct}% of site visits report "None" or "Some" workers wearing PPE.`]);
-      rows.push(["", "Action: Issue PPE compliance directive; conduct spot checks at sites."]);
-      rows.push(blank());
-    }
-
-    // Dust
-    const dustCounts = c.dust.level.counts;
-    const dustTotal = c.dust.level.total;
-    const highDustCount = Object.entries(dustCounts)
-      .filter(([k]) => k.toLowerCase().includes("high") || k.toLowerCase().includes("extreme"))
-      .reduce((s, [, v]) => s + v, 0);
-    const highDustPct = dustTotal > 0 ? Math.round((highDustCount / dustTotal) * 100) : 0;
-    if (highDustPct >= 20) {
-      rows.push([`Finding ${findingIndex++}`, "DUST EXPOSURE — Elevated fugitive dust reported", highDustPct >= 40 ? "PRIORITY: HIGH" : "PRIORITY: MEDIUM"]);
-      rows.push(["", `${highDustPct}% of site visits report high or extreme dust levels.`]);
-      rows.push(["", "Action: Mandate water sprinkling at all active sites; increase inspection frequency."]);
-      rows.push(blank());
+      rows.push([
+        `BG-${rows.length}`,
+        c.budget.overallUtilizationRate >= 95 ? "Critical" : "Attention",
+        "C-ESMP Budget",
+        "All Scope",
+        "Budget Utilization",
+        `${c.budget.overallUtilizationRate}%`,
+        "Attention >= 85%",
+        "Remaining ESMP budget headroom is limited.",
+        "Review remaining ESMP commitments and consider supplementary allocation.",
+      ]);
     }
   }
 
-  if (findingIndex === 1) {
-    rows.push(["✅ No critical findings identified in the current scope."]);
-    rows.push(["All tehsils, packages, and compliance indicators are within acceptable thresholds."]);
+  if (rows.length === 1) {
+    rows.push([
+      "NF-1",
+      "Healthy",
+      "Overall",
+      "All Scope",
+      "Finding Status",
+      "No major exceptions",
+      "—",
+      "No tehsil, package, workflow, or C-ESMP threshold breached the configured alert logic.",
+      "Continue routine monitoring.",
+    ]);
   }
-
-  rows.push(blank());
-  rows.push(["━━ END OF ANALYST FINDINGS ━━"]);
 
   return {
     name: "Analyst Findings",
     rows,
-    colWidths: { 0: 14, 1: 52, 2: 32, 3: 16, 4: 16, 5: 14, 6: 24 },
+    colWidths: { 0: 12, 1: 12, 2: 18, 3: 28, 4: 20, 5: 14, 6: 22, 7: 54, 8: 44 },
   };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 3. SUMMARY KPIs
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function summarySheet(
   analytics: SurveyFormAnalytics,
@@ -341,214 +337,137 @@ function summarySheet(
   packageLabel: string,
 ): SheetDef {
   const { summary } = analytics;
-  const totalSubmitted = summary.accepted + summary.pendingReview + summary.draft + summary.rejected + summary.reverted;
-  const acceptanceRate = totalSubmitted > 0 ? Math.round((summary.accepted / totalSubmitted) * 100) : 0;
-  const reviewPendingRate = totalSubmitted > 0 ? Math.round((summary.pendingReview / totalSubmitted) * 100) : 0;
-  const rejectionRate = totalSubmitted > 0 ? Math.round((summary.rejected / totalSubmitted) * 100) : 0;
+  const totalResponses =
+    summary.accepted +
+    summary.pendingReview +
+    summary.draft +
+    summary.rejected +
+    summary.reverted;
 
-  const rows: Row[] = [
-    ["Summary KPIs"],
-    [`Scope: ${packageLabel} | ${dateLabel}`],
-    blank(),
-    ["━━ RESPONSE PIPELINE ━━"],
-    ["Status", "Count", "Share of Total", "Notes"],
-    ["Accepted", summary.accepted, `${acceptanceRate}%`, "Used for all analytics below"],
-    ["Pending Review", summary.pendingReview, `${reviewPendingRate}%`, "Awaiting HO acceptance"],
-    ["Draft", summary.draft, `${totalSubmitted > 0 ? Math.round((summary.draft / totalSubmitted) * 100) : 0}%`, "Incomplete field submissions"],
-    ["Rejected", summary.rejected, `${rejectionRate}%`, "Returned to field team"],
-    ["Reverted", summary.reverted, `${totalSubmitted > 0 ? Math.round((summary.reverted / totalSubmitted) * 100) : 0}%`, "Sent back for revision"],
-    ["━━ TOTAL ━━", totalSubmitted, "100%", ""],
-    blank(),
-    ["━━ PROGRAMME SCOPE ━━"],
-    ["Procurement Packages in Scope", summary.packageCount],
-    ["Assignments Covered", summary.assignmentCount],
-    ["Tehsils with Accepted Responses", analytics.byTehsil.length],
-    ["Villages with Accepted Responses", analytics.byVillage.length],
-    blank(),
-    ["━━ QUALITY INDICATORS ━━"],
-    ["Indicator", "Value", "Rating"],
-    ["Overall Acceptance Rate", `${acceptanceRate}%`, acceptanceFlag(acceptanceRate)],
-    ["Rejection Rate", `${rejectionRate}%`, rejectionRate <= 10 ? "🟢 Low" : rejectionRate <= 25 ? "🟡 Moderate" : "🔴 High"],
-    ["Review Backlog Rate", `${reviewPendingRate}%`, reviewPendingRate <= 20 ? "🟢 Healthy" : reviewPendingRate <= 40 ? "🟡 Monitor" : "🔴 Backlog"],
-  ];
-
-  return { name: "Summary KPIs", rows, colWidths: { 0: 36, 1: 16, 2: 18, 3: 42 } };
+  return {
+    name: "Summary",
+    rows: [
+      ["Metric", "Value", "Rate / Share", "Scope"],
+      ["Accepted", summary.accepted, pct(summary.accepted, totalResponses), `${packageLabel} | ${dateLabel}`],
+      ["Pending Review", summary.pendingReview, pct(summary.pendingReview, totalResponses), `${packageLabel} | ${dateLabel}`],
+      ["Draft", summary.draft, pct(summary.draft, totalResponses), `${packageLabel} | ${dateLabel}`],
+      ["Rejected", summary.rejected, pct(summary.rejected, totalResponses), `${packageLabel} | ${dateLabel}`],
+      ["Reverted", summary.reverted, pct(summary.reverted, totalResponses), `${packageLabel} | ${dateLabel}`],
+      ["Total Responses", totalResponses, "100%", `${packageLabel} | ${dateLabel}`],
+      ["Procurement Packages", summary.packageCount, "", `${packageLabel} | ${dateLabel}`],
+      ["Assignments", summary.assignmentCount, "", `${packageLabel} | ${dateLabel}`],
+      ["Tehsils with Accepted Responses", analytics.byTehsil.length, "", `${packageLabel} | ${dateLabel}`],
+      ["Villages with Accepted Responses", analytics.byVillage.length, "", `${packageLabel} | ${dateLabel}`],
+    ],
+    colWidths: { 0: 28, 1: 14, 2: 14, 3: 30 },
+  };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 4. TEHSIL COVERAGE
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function tehsilSheet(analytics: SurveyFormAnalytics): SheetDef {
-  const total = analytics.byTehsil.reduce((s, r) => s + r.accepted, 0);
-  const avgShare = analytics.byTehsil.length > 0 ? 100 / analytics.byTehsil.length : 0;
-
-  const sorted = [...analytics.byTehsil].sort((a, b) => b.accepted - a.accepted);
-
-  const rows: Row[] = [
-    ["Tehsil Coverage Analysis"],
-    ["Sorted by accepted responses (descending). Coverage flag = share vs equal-distribution baseline."],
-    blank(),
-    ["Rank", "Tehsil", "Accepted", "Share (%)", "Expected Share", "Deviation (pp)", "Coverage Flag"],
-    ...sorted.map((r, i) => {
-      const sharePct = total > 0 ? Math.round((r.accepted / total) * 100) : 0;
-      const deviation = sharePct - Math.round(avgShare);
-      return [
-        i + 1,
-        r.tehsilName,
-        r.accepted,
-        `${sharePct}%`,
-        `${Math.round(avgShare)}%`,
-        deviation >= 0 ? `+${deviation}pp` : `${deviation}pp`,
-        coverageFlag(sharePct),
-      ];
-    }),
-    blank(),
-    ["TOTAL", "", total, "100%", "", "", ""],
-    blank(),
-    ["Coverage Flag Key"],
-    ["🟢 Adequate", "≥ 20% share"],
-    ["🟡 Moderate", "10%–19% share"],
-    ["🟠 Below Target", "5%–9% share"],
-    ["🔴 Critical Gap", "1%–4% share"],
-    ["⛔ ZERO COVERAGE", "0 accepted responses"],
-  ];
-
+  const rows = buildTehsilHealthRows(analytics);
   return {
-    name: "Tehsil Coverage",
-    rows,
-    colWidths: { 0: 8, 1: 28, 2: 12, 3: 12, 4: 16, 5: 16, 6: 22 },
+    name: "Tehsil Health",
+    rows: [
+      [
+        "Tehsil",
+        "Accepted",
+        "Pending Review",
+        "Draft",
+        "Rejected",
+        "Reverted",
+        "Total Activity",
+        "Acceptance Rate",
+        "Coverage Share of Accepted",
+        "Issue Category",
+        "Interpretation",
+      ],
+      ...rows.map((row) => [
+        row.tehsilName,
+        row.accepted,
+        row.pendingReview,
+        row.draft,
+        row.rejected,
+        row.reverted,
+        row.totalActivity,
+        `${row.acceptanceRate}%`,
+        `${row.coverageShare}%`,
+        row.issueCategory,
+        row.interpretation,
+      ]),
+    ],
+    colWidths: { 0: 22, 1: 10, 2: 14, 3: 10, 4: 10, 5: 10, 6: 14, 7: 14, 8: 20, 9: 16, 10: 56 },
   };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 5. VILLAGE COVERAGE
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function villageSheet(analytics: SurveyFormAnalytics): SheetDef {
-  const total = analytics.byVillage.reduce((s, r) => s + r.accepted, 0);
-  const sorted = [...analytics.byVillage].sort((a, b) => b.accepted - a.accepted);
-
-  const rows: Row[] = [
-    ["Village Coverage Analysis"],
-    ["All villages with accepted responses, sorted by count (descending)."],
-    blank(),
-    ["Rank", "Village", "Tehsil", "Accepted", "Share (%)", "Coverage Flag"],
-    ...sorted.map((r, i) => {
-      const sharePct = total > 0 ? Math.round((r.accepted / total) * 100) : 0;
-      return [
-        i + 1,
-        r.villageName,
-        r.tehsilName,
-        r.accepted,
-        `${sharePct}%`,
-        coverageFlag(sharePct),
-      ];
-    }),
-    blank(),
-    ["TOTAL", "", "", total, "100%", ""],
-  ];
-
+  const totalAccepted = analytics.byVillage.reduce((sum, row) => sum + row.accepted, 0);
+  const rows = [...analytics.byVillage].sort((a, b) => b.accepted - a.accepted);
   return {
-    name: "Village Coverage",
-    rows,
-    colWidths: { 0: 8, 1: 30, 2: 22, 3: 12, 4: 12, 5: 22 },
+    name: "Village Health",
+    rows: [
+      ["Village", "Tehsil", "Accepted", "Share of Accepted", "Coverage Band"],
+      ...rows.map((row) => {
+        const share = totalAccepted > 0 ? Math.round((row.accepted / totalAccepted) * 100) : 0;
+        return [row.villageName, row.tehsilName, row.accepted, `${share}%`, coverageBand(share)];
+      }),
+    ],
+    colWidths: { 0: 28, 1: 22, 2: 10, 3: 18, 4: 16 },
   };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 6. PACKAGE COMPARISON
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function packageSheet(analytics: SurveyFormAnalytics): SheetDef {
-  const sorted = [...analytics.byProcurementPackage]
-    .filter((p) => p.total > 0)
-    .sort((a, b) => b.accepted - a.accepted);
-
-  const totals = sorted.reduce(
-    (acc, p) => ({
-      accepted: acc.accepted + p.accepted,
-      pendingReview: acc.pendingReview + p.pendingReview,
-      draft: acc.draft + p.draft,
-      rejected: acc.rejected + p.rejected,
-      reverted: acc.reverted + p.reverted,
-      total: acc.total + p.total,
-    }),
-    { accepted: 0, pendingReview: 0, draft: 0, rejected: 0, reverted: 0, total: 0 },
-  );
-
-  const rows: Row[] = [
-    ["Procurement Package — Response Status Comparison"],
-    ["Sorted by accepted responses. Acceptance rate = accepted ÷ total."],
-    blank(),
-    [
-      "Package",
-      "Tehsil",
-      "Accepted",
-      "Pending Review",
-      "Draft",
-      "Rejected",
-      "Reverted",
-      "Total",
-      "Acceptance Rate",
-      "Rate Flag",
-    ],
-    ...sorted.map((p) => {
-      const rate = p.total > 0 ? Math.round((p.accepted / p.total) * 100) : 0;
-      return [
-        p.packageName,
-        p.tehsilName,
-        p.accepted,
-        p.pendingReview,
-        p.draft,
-        p.rejected,
-        p.reverted,
-        p.total,
-        `${rate}%`,
-        acceptanceFlag(rate),
-      ];
-    }),
-    blank(),
-    [
-      "PROGRAMME TOTAL",
-      "",
-      totals.accepted,
-      totals.pendingReview,
-      totals.draft,
-      totals.rejected,
-      totals.reverted,
-      totals.total,
-      pct(totals.accepted, totals.total),
-      acceptanceFlag(totals.total > 0 ? Math.round((totals.accepted / totals.total) * 100) : 0),
-    ],
-    blank(),
-    ["Acceptance Rate Flag Key"],
-    ["🟢 Good", "≥ 60% acceptance"],
-    ["🟡 Moderate", "35%–59% acceptance"],
-    ["🟠 Low", "15%–34% acceptance"],
-    ["🔴 Very Low", "< 15% acceptance"],
-  ];
+  const rows = [...analytics.byProcurementPackage]
+    .filter((pkg) => pkg.total > 0)
+    .sort((a, b) => (b.accepted - a.accepted) || a.packageName.localeCompare(b.packageName));
 
   return {
-    name: "Package Comparison",
-    rows,
-    colWidths: { 0: 34, 1: 22, 2: 12, 3: 16, 4: 10, 5: 12, 6: 12, 7: 10, 8: 16, 9: 20 },
+    name: "Package Performance",
+    rows: [
+      [
+        "Package",
+        "Tehsil",
+        "Accepted",
+        "Pending Review",
+        "Draft",
+        "Rejected",
+        "Reverted",
+        "Total",
+        "Acceptance Rate",
+        "Performance Band",
+      ],
+      ...rows.map((pkg) => {
+        const rate = Math.round((pkg.accepted / pkg.total) * 100);
+        return [
+          pkg.packageName,
+          pkg.tehsilName,
+          pkg.accepted,
+          pkg.pendingReview,
+          pkg.draft,
+          pkg.rejected,
+          pkg.reverted,
+          pkg.total,
+          `${rate}%`,
+          acceptanceBand(rate),
+        ];
+      }),
+    ],
+    colWidths: { 0: 34, 1: 20, 2: 10, 3: 14, 4: 10, 5: 10, 6: 10, 7: 10, 8: 14, 9: 16 },
   };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 7. QUESTION INSIGHTS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function questionSheet(analytics: SurveyFormAnalytics): SheetDef {
   const choiceTypes = new Set(["CHECKBOXES", "MULTIPLE_CHOICE", "DROPDOWN"]);
   const rows: Row[] = [
-    ["Question-Level Insights — Accepted Responses"],
-    ["Choice fields: answer distribution with dominance analysis. Numeric fields: descriptive stats."],
-    blank(),
+    [
+      "Question",
+      "Question Type",
+      "Answer Option / Metric",
+      "Value",
+      "Share",
+      "Answered Responses",
+      "Interpretation",
+    ],
   ];
-
-  let hasData = false;
 
   for (const field of analytics.fieldBreakdown) {
     if (
@@ -556,297 +475,240 @@ function questionSheet(analytics: SurveyFormAnalytics): SheetDef {
       field.choiceCounts &&
       Object.keys(field.choiceCounts).length > 0
     ) {
-      hasData = true;
       const sorted = Object.entries(field.choiceCounts).sort(([, a], [, b]) => b - a);
-      const total = sorted.reduce((s, [, n]) => s + n, 0);
-      const topCount = sorted[0]?.[1] ?? 0;
-      const dominancePct = total > 0 ? Math.round((topCount / total) * 100) : 0;
-
-      rows.push([`▶ ${field.label}`, "", `Type: ${field.type}`, `${field.answeredCount} answered`, `${total} selections`, `Top-answer dominance: ${dominancePct}%`]);
-      rows.push(["Rank", "Answer Option", "Count", "Share (%)", "Of Answers", "Dominance Flag"]);
-
-      sorted.forEach(([answer, count], i) => {
-        const sharePct = total > 0 ? Math.round((count / total) * 100) : 0;
-        const domFlag = i === 0 && dominancePct >= 70
-          ? "🔴 Highly dominant"
-          : i === 0 && dominancePct >= 50
-          ? "🟡 Moderately dominant"
-          : i === 0
-          ? "🟢 Distributed"
-          : "";
-        rows.push([i + 1, answer, count, `${sharePct}%`, `${field.answeredCount} responses`, domFlag]);
+      const totalSelections = sorted.reduce((sum, [, count]) => sum + count, 0);
+      const topShare = totalSelections > 0 ? Math.round((sorted[0]![1] / totalSelections) * 100) : 0;
+      sorted.forEach(([answer, count], index) => {
+        rows.push([
+          field.label,
+          field.type,
+          answer,
+          count,
+          pct(count, totalSelections),
+          field.answeredCount,
+          index === 0
+            ? topShare >= 70
+              ? "Dominant answer pattern."
+              : topShare >= 50
+                ? "Moderately concentrated answer pattern."
+                : "Answers are relatively distributed."
+            : "",
+        ]);
       });
-      rows.push(blank());
     } else if (field.numeric && field.numeric.count > 0) {
-      hasData = true;
-      const n = field.numeric;
-      const range = n.max - n.min;
-      rows.push([`▶ ${field.label}`, "", "Type: Numeric", `${n.count} answered`]);
-      rows.push(["Metric", "Value", "Context"]);
-      rows.push(["Average", Number(n.avg.toFixed(2)), "Mean across all answered responses"]);
-      rows.push(["Min", n.min, "Lowest single response"]);
-      rows.push(["Max", n.max, "Highest single response"]);
-      rows.push(["Sum", n.sum, "Total across all answered responses"]);
-      rows.push(["Range", Number(range.toFixed(2)), "Max − Min"]);
-      rows.push(["Responses Answered", n.count, ""]);
-      rows.push(blank());
+      const numeric = field.numeric;
+      rows.push(
+        [field.label, "NUMERIC", "Average", Number(numeric.avg.toFixed(2)), "", numeric.count, "Mean across answered responses."],
+        [field.label, "NUMERIC", "Min", numeric.min, "", numeric.count, "Lowest observed value."],
+        [field.label, "NUMERIC", "Max", numeric.max, "", numeric.count, "Highest observed value."],
+        [field.label, "NUMERIC", "Sum", numeric.sum, "", numeric.count, "Total of all numeric responses."],
+      );
     }
   }
 
-  if (!hasData) {
-    rows.push(["No multiple-choice or numeric question data in the current filter."]);
+  if (rows.length === 1) {
+    rows.push(["No question-level numeric or choice data available.", "", "", "", "", "", ""]);
   }
 
   return {
     name: "Question Insights",
     rows,
-    colWidths: { 0: 8, 1: 44, 2: 12, 3: 12, 4: 18, 5: 24 },
+    colWidths: { 0: 34, 1: 20, 2: 28, 3: 12, 4: 12, 5: 16, 6: 42 },
   };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 8. TIMELINE — daily + 7-day rolling avg
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function timelineSheet(analytics: SurveyFormAnalytics): SheetDef {
-  const active = analytics.submissionsOverTime.filter((p) => p.count > 0);
-  const counts = active.map((p) => p.count);
-
-  const total = counts.reduce((s, v) => s + v, 0);
-  const peak = Math.max(...counts, 0);
-  const peakDay = active.find((p) => p.count === peak)?.date ?? "—";
-  const avgPerDay = active.length > 0 ? (total / active.length).toFixed(1) : "0";
-
-  const rows: Row[] = [
-    ["Accepted Submissions — Daily Timeline"],
-    ["Includes 7-day rolling average. Only days with ≥ 1 accepted response are shown."],
-    blank(),
-    ["Overall Total", total, "Peak Day", peakDay, "Peak Count", peak, "Avg/Active Day", avgPerDay],
-    blank(),
-    ["Date", "Accepted", "7-Day Rolling Avg", "vs Rolling Avg"],
-    ...active.map((p, i) => {
-      const avg = rollingAvg(counts, i, 7);
-      const vsAvg = avg > 0 ? Math.round(((p.count - avg) / avg) * 100) : 0;
-      return [
-        p.date,
-        p.count,
-        Number(avg.toFixed(1)),
-        vsAvg >= 0 ? `+${vsAvg}%` : `${vsAvg}%`,
-      ];
-    }),
-  ];
-
-  if (active.length === 0) {
-    rows.push(["No accepted responses in the current filter window."]);
-  }
-
+  const active = analytics.submissionsOverTime.filter((point) => point.count > 0);
+  const counts = active.map((point) => point.count);
   return {
-    name: "Timeline",
-    rows,
-    colWidths: { 0: 14, 1: 12, 2: 20, 3: 18 },
+    name: "Submission Timeline",
+    rows: [
+      ["Date", "Accepted Responses", "7-Day Rolling Average", "Variance vs Rolling Average"],
+      ...active.map((point, index) => {
+        const average = rollingAvg(counts, index, 7);
+        const variance = average > 0 ? Math.round(((point.count - average) / average) * 100) : 0;
+        return [
+          point.date,
+          point.count,
+          Number(average.toFixed(1)),
+          `${variance > 0 ? "+" : ""}${variance}%`,
+        ];
+      }),
+    ],
+    colWidths: { 0: 14, 1: 18, 2: 22, 3: 24 },
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 9–12. C-ESMP SHEETS
-// ═══════════════════════════════════════════════════════════════════════════════
-
 function cesmpSummarySheet(c: CesmpFormInsights): SheetDef {
-  const s = c.summary;
-  const b = c.budget;
-  const remaining = b.totalRemaining;
-  const utilizationPct = Math.round(b.overallUtilizationRate);
-
-  const rows: Row[] = [
-    ["C-ESMP Programme Summary"],
-    blank(),
-    ["━━ PROGRAMME SCOPE ━━"],
-    ["Metric", "Value", "Notes"],
-    ["Total Contractors", s.totalContractors, ""],
-    ["Total Procurement Packages", s.totalProcurementPackages, ""],
-    ["Total Villages Covered", s.totalVillageCoverage, ""],
-    ["Total Site Visits Submitted", s.totalSiteVisitsSubmitted, ""],
-    ["HSE Staff Hired (packages)", s.hseStaffHiredPackages, `${s.totalProcurementPackages - s.hseStaffHiredPackages} packages NOT compliant`],
-    ["HSE Hire Rate", `${Math.round(s.hseStaffHiredRate * 100)}%`, s.hseStaffHiredRate < 0.5 ? "⚠️ Below 50% — escalation required" : ""],
-    ["C-ESMP Plan Submitted", s.cesmpPlanSubmittedPackages, `of ${s.totalProcurementPackages} packages`],
-    blank(),
-    ["━━ ESMP BUDGET UTILIZATION ━━"],
-    ["Metric", "Amount (PKR)", "Notes"],
-    ["Total Allocated", b.totalAllocated, ""],
-    ["Total Utilized", b.totalUtilized, ""],
-    ["Total Remaining", remaining, remaining < 0 ? "⚠️ OVER BUDGET" : ""],
-    ["Overall Utilization Rate", `${utilizationPct}%`, budgetFlag(utilizationPct)],
-    blank(),
-    ["━━ BUDGET BY HEAD ━━"],
-    ["Head", "Amount (PKR)", "Share of Utilized"],
-    ["PPE", b.byHead.ppe, pct(b.byHead.ppe, b.totalUtilized, 1)],
-    ["HSE", b.byHead.hse, pct(b.byHead.hse, b.totalUtilized, 1)],
-    ["Environmental Monitoring", b.byHead.environmentalMonitoring, pct(b.byHead.environmentalMonitoring, b.totalUtilized, 1)],
-    blank(),
-    ["━━ TRAINING ━━"],
-    ["Responses with Training Data", c.training.responsesWithTraining, ""],
-    ["Total Participants", c.training.totalParticipants, ""],
-  ];
-
-  return { name: "C-ESMP Summary", rows, colWidths: { 0: 38, 1: 20, 2: 44 } };
+  return {
+    name: "C-ESMP Summary",
+    rows: [
+      ["Metric", "Value", "Interpretation"],
+      ["Total Contractors", c.summary.totalContractors, ""],
+      ["Total Procurement Packages", c.summary.totalProcurementPackages, ""],
+      ["Total Villages Covered", c.summary.totalVillageCoverage, ""],
+      ["Total Site Visits Submitted", c.summary.totalSiteVisitsSubmitted, ""],
+      [
+        "HSE Staff Hired Rate",
+        `${c.summary.hseStaffHiredRate}%`,
+        c.summary.hseStaffHiredRate < 100
+          ? "Not all packages report HSE staff hired."
+          : "All packages report HSE staff hired.",
+      ],
+      [
+        "C-ESMP Budget Utilization",
+        `${c.budget.overallUtilizationRate}%`,
+        `${budgetBand(c.budget.overallUtilizationRate)} budget pressure.`,
+      ],
+      ["Total Budget Allocated", c.budget.totalAllocated, ""],
+      ["Total Budget Utilized", c.budget.totalUtilized, ""],
+      ["Total Budget Remaining", c.budget.totalRemaining, ""],
+      ["Training Responses", c.training.responsesWithTraining, ""],
+      ["Training Participants", c.training.totalParticipants, ""],
+    ],
+    colWidths: { 0: 30, 1: 18, 2: 48 },
+  };
 }
 
 function cesmpPackagesSheet(c: CesmpFormInsights): SheetDef {
-  const sorted = [...c.packages].sort((a, b) => b.utilizationRate - a.utilizationRate);
-
-  const rows: Row[] = [
-    ["C-ESMP Per-Package Data — Sorted by Budget Utilization (highest first)"],
-    blank(),
-    [
-      "Package",
-      "Tehsil",
-      "Contractor",
-      "Consultant",
-      "Allocated (PKR)",
-      "Utilized (PKR)",
-      "Remaining (PKR)",
-      "Utilization %",
-      "Budget Flag",
-      "Villages",
-      "Site Visits",
-      "HSE Staff Hired",
-      "C-ESMP Plan",
-      "PPE Budget (PKR)",
-      "HSE Budget (PKR)",
-      "Env. Mon. Budget (PKR)",
-    ],
-    ...sorted.map((p) => {
-      const uRate = Math.round(p.utilizationRate);
-      return [
-        p.packageName,
-        p.tehsilName,
-        p.contractorName,
-        p.consultantName,
-        p.budgetAllocated,
-        p.budgetUtilized,
-        p.budgetRemaining,
-        `${uRate}%`,
-        budgetFlag(uRate),
-        p.villagesCovered,
-        p.siteVisitsSubmitted,
-        yesNo(p.hseStaffHired),
-        yesNo(p.cesmpPlanSubmitted),
-        p.budgetByHead.ppe,
-        p.budgetByHead.hse,
-        p.budgetByHead.environmentalMonitoring,
-      ];
-    }),
-    blank(),
-    ["Budget Flag Key"],
-    ["🟢 Underspent", "< 60% utilized"],
-    ["🟡 On Track", "60%–84% utilized"],
-    ["🟠 High Utilization", "85%–94% utilized"],
-    ["🔴 Near Exhausted", "≥ 95% utilized"],
-  ];
-
+  const rows = [...c.packages].sort((a, b) => b.utilizationRate - a.utilizationRate);
   return {
     name: "C-ESMP Packages",
-    rows,
-    colWidths: { 0: 30, 1: 18, 2: 22, 3: 22, 4: 18, 5: 18, 6: 18, 7: 14, 8: 22, 9: 10, 10: 12, 11: 16, 12: 16 },
+    rows: [
+      [
+        "Package",
+        "Tehsil",
+        "Contractor",
+        "Consultant",
+        "Allocated",
+        "Utilized",
+        "Remaining",
+        "Utilization Rate",
+        "Budget Band",
+        "Villages Covered",
+        "Site Visits Submitted",
+        "HSE Staff Hired",
+        "C-ESMP Plan Submitted",
+      ],
+      ...rows.map((pkg) => [
+        pkg.packageName,
+        pkg.tehsilName,
+        pkg.contractorName,
+        pkg.consultantName,
+        pkg.budgetAllocated,
+        pkg.budgetUtilized,
+        pkg.budgetRemaining,
+        `${pkg.utilizationRate}%`,
+        budgetBand(pkg.utilizationRate),
+        pkg.villagesCovered,
+        pkg.siteVisitsSubmitted,
+        yesNo(pkg.hseStaffHired),
+        yesNo(pkg.cesmpPlanSubmitted),
+      ]),
+    ],
+    colWidths: { 0: 28, 1: 18, 2: 22, 3: 22, 4: 14, 5: 14, 6: 14, 7: 14, 8: 14, 9: 12, 10: 16, 11: 16, 12: 20 },
   };
 }
 
 function cesmpComplianceSheet(c: CesmpFormInsights): SheetDef {
-  const patterns: Array<{ category: string; indicator: string; insight: CesmpFormInsights["ppeCompliance"]["wearingRate"] }> = [
-    { category: "PPE", indicator: "Wearing Rate", insight: c.ppeCompliance.wearingRate },
-    { category: "PPE", indicator: "Good Condition", insight: c.ppeCompliance.goodCondition },
-    { category: "Noise", indicator: "Level", insight: c.noise.level },
-    { category: "Noise", indicator: "Reduction Measures", insight: c.noise.reductionMeasures },
-    { category: "Dust", indicator: "Level", insight: c.dust.level },
-    { category: "Dust", indicator: "Reduction Measures", insight: c.dust.reductionMeasures },
+  const patterns: Array<{
+    category: string;
+    indicator: string;
+    counts: Record<string, number>;
+    total: number;
+  }> = [
+    {
+      category: "PPE",
+      indicator: "Wearing Rate",
+      counts: c.ppeCompliance.wearingRate.counts,
+      total: c.ppeCompliance.wearingRate.total,
+    },
+    {
+      category: "PPE",
+      indicator: "Good Condition",
+      counts: c.ppeCompliance.goodCondition.counts,
+      total: c.ppeCompliance.goodCondition.total,
+    },
+    {
+      category: "Noise",
+      indicator: "Level",
+      counts: c.noise.level.counts,
+      total: c.noise.level.total,
+    },
+    {
+      category: "Noise",
+      indicator: "Reduction Measures",
+      counts: c.noise.reductionMeasures.counts,
+      total: c.noise.reductionMeasures.total,
+    },
+    {
+      category: "Dust",
+      indicator: "Level",
+      counts: c.dust.level.counts,
+      total: c.dust.level.total,
+    },
+    {
+      category: "Dust",
+      indicator: "Reduction Measures",
+      counts: c.dust.reductionMeasures.counts,
+      total: c.dust.reductionMeasures.total,
+    },
   ];
 
-  const rows: Row[] = [
-    ["C-ESMP Compliance Patterns — Answer Distributions"],
-    ["Each row = one answer option for a compliance indicator. Sorted by count descending."],
-    blank(),
-    ["Category", "Indicator", "Answer", "Count", "Total Responses", "Share (%)", "Notes"],
-  ];
-
-  for (const { category, indicator, insight } of patterns) {
-    const sorted = Object.entries(insight.counts).sort(([, a], [, b]) => b - a);
-    sorted.forEach(([answer, count], i) => {
-      const sharePct = Math.round((count / insight.total) * 100);
-      let note = "";
-      if (category === "PPE" && indicator === "Wearing Rate") {
-        if (["none", "some"].includes(answer.toLowerCase()) && sharePct >= 20) {
-          note = `⚠️ ${sharePct}% non-compliant — action required`;
-        }
-      }
-      if (category === "Dust" && indicator === "Level") {
-        if ((answer.toLowerCase().includes("high") || answer.toLowerCase().includes("extreme")) && sharePct >= 20) {
-          note = `⚠️ Elevated dust risk — ${sharePct}% of visits`;
-        }
-      }
-      rows.push([
-        i === 0 ? category : "",
-        i === 0 ? indicator : "",
-        answer,
-        count,
-        insight.total,
-        `${sharePct}%`,
-        note,
-      ]);
-    });
-    rows.push(blank());
+  const rows: Row[] = [["Category", "Indicator", "Answer", "Count", "Total Responses", "Share", "Interpretation"]];
+  for (const pattern of patterns) {
+    Object.entries(pattern.counts)
+      .sort(([, a], [, b]) => b - a)
+      .forEach(([answer, count]) => {
+        rows.push([
+          pattern.category,
+          pattern.indicator,
+          answer,
+          count,
+          pattern.total,
+          pct(count, pattern.total),
+          "",
+        ]);
+      });
   }
 
   return {
     name: "C-ESMP Compliance",
     rows,
-    colWidths: { 0: 14, 1: 24, 2: 30, 3: 10, 4: 18, 5: 12, 6: 44 },
+    colWidths: { 0: 14, 1: 24, 2: 30, 3: 10, 4: 16, 5: 12, 6: 28 },
   };
 }
 
 function cesmpTrainingSheet(c: CesmpFormInsights): SheetDef | null {
   if (c.training.topTrainings.length === 0) return null;
-
-  const rows: Row[] = [
-    ["C-ESMP Training Data"],
-    blank(),
-    ["━━ TRAINING SESSIONS ━━"],
-    ["Training Title", "Sessions Count", "Total Participants", "Avg Participants/Session"],
-    ...c.training.topTrainings.map((t) => [
-      t.title,
-      t.count,
-      t.participants,
-      t.count > 0 ? Math.round(t.participants / t.count) : 0,
-    ]),
-    blank(),
-    ["Programme Total", c.training.topTrainings.reduce((s, t) => s + t.count, 0), c.training.totalParticipants, ""],
-    blank(),
-    ["━━ TRAINING VENUES ━━"],
-    ["Venue", "Count", "Share (%)"],
-    ...Object.entries(c.training.venues)
-      .sort(([, a], [, b]) => b - a)
-      .map(([venue, count]) => {
-        const total = Object.values(c.training.venues).reduce((s, v) => s + v, 0);
-        return [venue, count, pct(count, total)];
-      }),
-  ];
-
-  return { name: "C-ESMP Training", rows, colWidths: { 0: 44, 1: 18, 2: 20, 3: 24 } };
+  const venueTotal = Object.values(c.training.venues).reduce((sum, value) => sum + value, 0);
+  return {
+    name: "C-ESMP Training",
+    rows: [
+      ["Section", "Name", "Count", "Participants / Share"],
+      ...c.training.topTrainings.map((row) => [
+        "Training",
+        row.title,
+        row.count,
+        row.participants,
+      ]),
+      ...Object.entries(c.training.venues)
+        .sort(([, a], [, b]) => b - a)
+        .map(([venue, count]) => ["Venue", venue, count, pct(count, venueTotal)]),
+    ],
+    colWidths: { 0: 14, 1: 40, 2: 12, 3: 18 },
+  };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN EXPORT
-// ═══════════════════════════════════════════════════════════════════════════════
 
 export function exportAnalyticsToExcel(
   analytics: SurveyFormAnalytics,
   dateLabel: string,
   packageLabel: string,
 ): void {
-  const wb = XLSX.utils.book_new();
+  const workbook = XLSX.utils.book_new();
+  const cesmp = analytics.cesmpInsights ?? null;
 
-  const c = analytics.cesmpInsights ?? null;
-
-  const sheetDefs: SheetDef[] = [
+  const sheets: Array<SheetDef | null> = [
     coverSheet(analytics, dateLabel, packageLabel),
     analystFindingsSheet(analytics),
     summarySheet(analytics, dateLabel, packageLabel),
@@ -855,24 +717,19 @@ export function exportAnalyticsToExcel(
     packageSheet(analytics),
     questionSheet(analytics),
     timelineSheet(analytics),
-    ...(c
-      ? [
-          cesmpSummarySheet(c),
-          cesmpPackagesSheet(c),
-          cesmpComplianceSheet(c),
-          ...(cesmpTrainingSheet(c) ? [cesmpTrainingSheet(c)!] : []),
-        ]
-      : []),
+    cesmp ? cesmpSummarySheet(cesmp) : null,
+    cesmp ? cesmpPackagesSheet(cesmp) : null,
+    cesmp ? cesmpComplianceSheet(cesmp) : null,
+    cesmp ? cesmpTrainingSheet(cesmp) : null,
   ];
 
-  for (const def of sheetDefs) {
-    const { name, ws } = makeSheet(def);
-    XLSX.utils.book_append_sheet(wb, ws, name);
+  for (const sheet of sheets) {
+    if (!sheet) continue;
+    const { name, ws } = makeSheet(sheet);
+    XLSX.utils.book_append_sheet(workbook, ws, name);
   }
 
   const safeTitle = analytics.form.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 40);
-  const dateStamp = new Date().toISOString().slice(0, 10);
-  const filename = `ESMS_Report_${safeTitle}_${dateStamp}.xlsx`;
-
-  XLSX.writeFile(wb, filename);
+  const stamp = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(workbook, `ESMS_Report_${safeTitle}_${stamp}.xlsx`);
 }
