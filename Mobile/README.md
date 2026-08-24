@@ -53,6 +53,10 @@ Only users with role `RA_ES_TEHSIL`.
 ## Environment
 
 ```env
-API_BASE_URL=http://localhost:3001/api
+# Production (see deploy/DOMAIN.md):
+API_BASE_URL=https://esms.essprmsc.com/api
+
+# Local development:
+# API_BASE_URL=http://localhost:3001/api
 # Android emulator: http://10.0.2.2:3001/api
 ```

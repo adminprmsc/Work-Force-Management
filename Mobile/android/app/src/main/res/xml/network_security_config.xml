@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Allow cleartext HTTP until the API is served over HTTPS.
-     targetSdk 36 ignores usesCleartextTraffic alone without this config. -->
+<!-- Cleartext for esms.essprmsc.com until TLS is live on the VM. Local dev domains included. -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
+    <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">115.186.164.190</domain>
+        <domain includeSubdomains="true">esms.essprmsc.com</domain>
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
     </domain-config>

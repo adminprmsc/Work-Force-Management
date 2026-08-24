@@ -352,15 +352,13 @@ make health
 curl -sS http://localhost/api/health
 ```
 
-### Step 5 — Update clients to the new IP
+### Step 5 — Update clients to the production domain
 
-If the public IP changed, update:
+Production URL: **https://esms.essprmsc.com** (see `deploy/DOMAIN.md`).
 
-- **Mobile** `Mobile/.env` → `API_BASE_URL=http://<NEW_VM_IP>/api`, rebuild APK
-- **iOS ATS** / **Android network security config** if the IP changed
+- **Mobile** `Mobile/.env` → `API_BASE_URL=https://esms.essprmsc.com/api`, rebuild APK
+- **Web** — same-origin `/api` via Nginx; no client change if already deployed with `VITE_API_BASE_URL=/api`
 - Any bookmarks or shared links you gave to RA tehsil users
-
-App URL: `http://<NEW_VM_IP>/`
 
 ### Step 6 — Post-restore checklist
 

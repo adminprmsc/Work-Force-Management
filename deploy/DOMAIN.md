@@ -33,4 +33,20 @@ sudo cp deploy/host-nginx/esms.essprmsc.com.conf /etc/nginx/sites-available/
 
 No `CORS_ORIGINS` change needed — API is same-origin at `/api`.
 
+**Mobile app** — set in `Mobile/.env` (rebuild APK after changing):
+
+```env
+# Until certbot/TLS is live on the VM:
+API_BASE_URL=http://esms.essprmsc.com/api
+
+# After HTTPS (port 443) is working:
+# API_BASE_URL=https://esms.essprmsc.com/api
+```
+
+Verify TLS before switching mobile to `https://`:
+
+```bash
+curl -sS https://esms.essprmsc.com/api/health
+```
+
 Replace `YOUR_ORG` with your GitHub organization after pushing `essprmsc-platform`.
