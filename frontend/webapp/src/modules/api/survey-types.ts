@@ -414,6 +414,20 @@ export type CesmpPackageInsight = {
   }
 }
 
+export type CesmpBudgetVisit = {
+  visitDate: string
+  villageName: string
+  tehsilName: string
+  packageId: string
+  packageName: string
+  allocated: number
+  utilized: number
+  remaining: number
+  ppe: number
+  hse: number
+  monitoring: number
+}
+
 export type CesmpBudgetUtilizationInsight = {
   totalAllocated: number
   totalUtilized: number
@@ -424,6 +438,7 @@ export type CesmpBudgetUtilizationInsight = {
     hse: number
     environmentalMonitoring: number
   }
+  visits: CesmpBudgetVisit[]
 }
 
 export type CesmpTrainingInsight = {

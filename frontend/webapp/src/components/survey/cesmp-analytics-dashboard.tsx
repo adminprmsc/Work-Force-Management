@@ -68,6 +68,16 @@ function formatCurrency(value: number): string {
   })
 }
 
+function compactMoneyTick(value: number): string {
+  const abs = Math.abs(value)
+  if (abs >= 1_000_000) {
+    const millions = value / 1_000_000
+    return `${Number.isInteger(millions) ? millions.toFixed(0) : millions.toFixed(1)}M`
+  }
+  if (abs >= 1_000) return `${Math.round(value / 1_000)}k`
+  return String(Math.round(value))
+}
+
 function patternRows(insight: CesmpPatternInsight) {
   return Object.entries(insight.counts)
     .map(([name, count]) => ({
@@ -479,17 +489,21 @@ export function CesmpAnalyticsDashboard({
 }: CesmpAnalyticsDashboardProps) {
   const riskAlerts = useMemo(() => deriveRiskHints(insights), [insights])
 
-  const budgetHeadData = [
-    { head: "PPE", amount: insights.budget.byHead.ppe },
-    { head: "HSE", amount: insights.budget.byHead.hse },
-    {
-      head: "Monitoring",
-      amount: insights.budget.byHead.environmentalMonitoring,
-    },
+  const budgetSeries = [
+    { name: "Allocated", amount: insights.budget.totalAllocated, fill: "var(--chart-1)" },
+    { name: "Utilized", amount: insights.budget.totalUtilized, fill: "var(--chart-4)" },
+    { name: "Remaining", amount: insights.budget.totalRemaining, fill: "var(--chart-2)" },
   ]
+  const budgetPeak = Math.max(...budgetSeries.map((row) => row.amount), 0)
+  const headSeries = [
+    { name: "PPE", amount: insights.budget.byHead.ppe },
+    { name: "HSE", amount: insights.budget.byHead.hse },
+    { name: "Monitoring", amount: insights.budget.byHead.environmentalMonitoring },
+  ]
+  const headPeak = Math.max(...headSeries.map((row) => row.amount), 0)
 
   const budgetChartConfig = {
-    amount: { label: "Spend (PKR)", color: "var(--chart-1)" },
+    amount: { label: "Amount", color: "var(--chart-1)" },
   } satisfies ChartConfig
 
   const visiblePackages = selectedPackageId
@@ -562,14 +576,16 @@ export function CesmpAnalyticsDashboard({
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <Card className="border-border/80 shadow-sm xl:col-span-1">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="border-border/80 shadow-sm">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2 text-base">
               <TrendingUp className="size-4" />
               ESMP budget utilization
             </CardTitle>
-            <CardDescription>Allocated vs utilized across scope</CardDescription>
+            <CardDescription>
+              Allocated, utilized, and remaining for this scope. The axis is the same currency as the figures.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
             <dl className="grid grid-cols-2 gap-3 text-sm">
@@ -598,19 +614,77 @@ export function CesmpAnalyticsDashboard({
                 </dd>
               </div>
             </dl>
-            <ChartContainer config={budgetChartConfig} className="h-[200px] w-full">
-              <BarChart data={budgetHeadData} margin={{ left: 0, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" />
-                <XAxis dataKey="head" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={48} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="amount" fill="var(--color-amount)" radius={[4, 4, 0, 0]} />
+            <ChartContainer config={budgetChartConfig} className="h-[220px] w-full">
+              <BarChart data={budgetSeries} margin={{ left: 4, right: 8, top: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/60" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={48}
+                  domain={[0, budgetPeak === 0 ? 1 : budgetPeak]}
+                  tickFormatter={compactMoneyTick}
+                />
+                <ChartTooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null
+                    const row = payload[0]?.payload as (typeof budgetSeries)[number]
+                    return (
+                      <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                        <p className="font-medium">{row.name}</p>
+                        <p className="text-muted-foreground">{formatCurrency(row.amount)}</p>
+                      </div>
+                    )
+                  }}
+                />
+                <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                  {budgetSeries.map((row) => (
+                    <Cell key={row.name} fill={row.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             </ChartContainer>
+            {headPeak > 0 ? (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Visit spend by head
+                </p>
+                <ChartContainer config={budgetChartConfig} className="h-[160px] w-full">
+                  <BarChart data={headSeries} margin={{ left: 4, right: 8, top: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/60" />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      width={48}
+                      domain={[0, headPeak]}
+                      tickFormatter={compactMoneyTick}
+                    />
+                    <ChartTooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null
+                        const row = payload[0]?.payload as (typeof headSeries)[number]
+                        return (
+                          <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                            <p className="font-medium">{row.name}</p>
+                            <p className="text-muted-foreground">{formatCurrency(row.amount)}</p>
+                          </div>
+                        )
+                      }}
+                    />
+                    <Bar dataKey="amount" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No PPE, HSE, or monitoring spend has been recorded on visits in this scope.
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 shadow-sm xl:col-span-2">
+        <Card className="border-border/80 shadow-sm">
           <CardHeader className="border-b">
             <CardTitle className="text-base">Procurement package ESMP profile</CardTitle>
             <CardDescription>
@@ -618,76 +692,60 @@ export function CesmpAnalyticsDashboard({
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
-            <div className="max-h-[360px] overflow-auto rounded-lg border">
-              <Table className="enterprise-table">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Package</TableHead>
-                    <TableHead>Contractor</TableHead>
-                    <TableHead className="text-right">Budget</TableHead>
-                    <TableHead className="text-right">Utilized</TableHead>
-                    <TableHead className="text-right">Remaining</TableHead>
-                    <TableHead className="text-right">Villages</TableHead>
-                    <TableHead>HSE</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visiblePackages.map((pkg) => (
-                    <TableRow key={pkg.packageId}>
-                      <TableCell>
-                        <div className="font-medium">{pkg.packageName}</div>
-                        <div className="text-xs text-muted-foreground">
+            {visiblePackages.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">No package data in this scope.</p>
+            ) : (
+              <ul className="divide-y rounded-lg border">
+                {visiblePackages.map((pkg) => (
+                  <li key={pkg.packageId} className="space-y-3 px-3 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{pkg.packageName}</p>
+                        <p className="text-xs text-muted-foreground">
                           {pkg.tehsilName}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{pkg.contractorName}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatCurrency(pkg.budgetAllocated)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatCurrency(pkg.budgetUtilized)}
-                        <div className="text-xs text-muted-foreground">
-                          {pkg.utilizationRate}%
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatCurrency(pkg.budgetRemaining)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {pkg.villagesCovered}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            pkg.hseStaffHired === true
-                              ? "default"
-                              : pkg.hseStaffHired === false
-                                ? "destructive"
-                                : "outline"
-                          }
-                        >
-                          {pkg.hseStaffHired === true
-                            ? "Hired"
+                          {pkg.contractorName ? ` · ${pkg.contractorName}` : ""}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          pkg.hseStaffHired === true
+                            ? "default"
                             : pkg.hseStaffHired === false
-                              ? "Not hired"
-                              : "—"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {visiblePackages.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="py-10 text-center text-sm text-muted-foreground"
+                              ? "destructive"
+                              : "outline"
+                        }
                       >
-                        No package data in this scope.
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </div>
+                        {pkg.hseStaffHired === true
+                          ? "HSE hired"
+                          : pkg.hseStaffHired === false
+                            ? "HSE not hired"
+                            : "HSE unknown"}
+                      </Badge>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="min-w-0">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Budget</dt>
+                        <dd className="text-sm font-semibold tabular-nums">{formatCurrency(pkg.budgetAllocated)}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Utilized · {pkg.utilizationRate}%
+                        </dt>
+                        <dd className="text-sm font-semibold tabular-nums">{formatCurrency(pkg.budgetUtilized)}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Remaining</dt>
+                        <dd className="text-sm font-semibold tabular-nums">{formatCurrency(pkg.budgetRemaining)}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Villages</dt>
+                        <dd className="text-sm font-semibold tabular-nums">{pkg.villagesCovered}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

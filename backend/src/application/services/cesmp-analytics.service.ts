@@ -10,14 +10,24 @@ import { PackageSurveyBudgetService } from './package-survey-budget.service';
 import { PrismaService } from '../../infrastructure/database/prisma/prisma.service';
 
 interface CesmpAnalyticsRow {
+  visitDate: Date | null;
+  acceptedAt: Date | null;
+  submittedAt: Date | null;
   villageId: string;
+  village: { name: string };
+  tehsil: { name: string };
   answers: Array<{ fieldId: string; value: unknown }>;
   formRevision: { fields: unknown };
   assignment: { procurementPackageId: string };
 }
 
 const cesmpResponseSelect = {
+  visitDate: true,
+  acceptedAt: true,
+  submittedAt: true,
   villageId: true,
+  village: { select: { name: true } },
+  tehsil: { select: { name: true } },
   answers: { select: { fieldId: true, value: true } },
   formRevision: { select: { fields: true } },
   assignment: { select: { procurementPackageId: true } },
@@ -35,6 +45,9 @@ const FIELD_PATTERNS = {
   budgetPpe: 'utilized from ppes head',
   budgetHse: 'utilized from hse head',
   budgetMonitoring: 'environmental monitoring head',
+  budgetAllocated: 'esmp budget is allocated',
+  budgetUtilized: 'total utilized on this visit',
+  budgetRemaining: 'remaining esmp budget',
   trainingTitle: 'title of training',
   trainingParticipants: 'number of participants',
   trainingVenue: 'venue of training',
@@ -73,6 +86,20 @@ export interface CesmpPackageInsight {
   };
 }
 
+export interface CesmpBudgetVisit {
+  visitDate: string;
+  villageName: string;
+  tehsilName: string;
+  packageId: string;
+  packageName: string;
+  allocated: number;
+  utilized: number;
+  remaining: number;
+  ppe: number;
+  hse: number;
+  monitoring: number;
+}
+
 export interface CesmpBudgetUtilizationInsight {
   totalAllocated: number;
   totalUtilized: number;
@@ -83,6 +110,7 @@ export interface CesmpBudgetUtilizationInsight {
     hse: number;
     environmentalMonitoring: number;
   };
+  visits: CesmpBudgetVisit[];
 }
 
 export interface CesmpTrainingInsight {
@@ -173,6 +201,20 @@ function findBaselineFieldId(
   const needle = pattern.toLowerCase();
   return fields.find((field) => normalizeLabel(field.label).includes(needle))
     ?.id;
+}
+
+function answeredNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isoDay(value: Date | null): string | null {
+  if (!value) return null;
+  return value.toISOString().slice(0, 10);
 }
 
 function isYesValue(value: unknown): boolean | null {
@@ -378,6 +420,7 @@ export class CesmpAnalyticsService {
     const venueCounts: Record<string, number> = {};
     let responsesWithTraining = 0;
     let totalParticipants = 0;
+    const budgetVisits: CesmpBudgetVisit[] = [];
 
     for (const response of responses) {
       const packageId = response.assignment.procurementPackageId;
@@ -418,6 +461,46 @@ export class CesmpAnalyticsService {
       budgetByHead.ppe += ppeSpend;
       budgetByHead.hse += hseSpend;
       budgetByHead.environmentalMonitoring += monitoringSpend;
+
+      const allocatedAnswer = answeredNumber(
+        pick(FIELD_PATTERNS.budgetAllocated),
+      );
+      const utilizedAnswer = answeredNumber(
+        pick(FIELD_PATTERNS.budgetUtilized),
+      );
+      const remainingAnswer = answeredNumber(
+        pick(FIELD_PATTERNS.budgetRemaining),
+      );
+      const headSpend = ppeSpend + hseSpend + monitoringSpend;
+      const recordedBudget =
+        allocatedAnswer != null ||
+        utilizedAnswer != null ||
+        remainingAnswer != null ||
+        headSpend > 0;
+      if (recordedBudget) {
+        const pkg = packageMap.get(packageId);
+        const allocated = allocatedAnswer ?? Number(pkg?.budgetAmount ?? 0);
+        const utilized = utilizedAnswer ?? headSpend;
+        const remaining =
+          remainingAnswer ?? Math.max(allocated - utilized, 0);
+        budgetVisits.push({
+          visitDate:
+            isoDay(response.visitDate) ??
+            isoDay(response.acceptedAt) ??
+            isoDay(response.submittedAt) ??
+            '',
+          villageName: response.village.name,
+          tehsilName: response.tehsil.name,
+          packageId,
+          packageName: pkg?.name ?? '',
+          allocated,
+          utilized,
+          remaining,
+          ppe: ppeSpend,
+          hse: hseSpend,
+          monitoring: monitoringSpend,
+        });
+      }
 
       const trainingTitle = pick(FIELD_PATTERNS.trainingTitle);
       const participants = numericAnswerValue(
@@ -517,6 +600,7 @@ export class CesmpAnalyticsService {
     });
 
     packages.sort((a, b) => b.budgetUtilized - a.budgetUtilized);
+    budgetVisits.sort((a, b) => a.visitDate.localeCompare(b.visitDate));
 
     const topTrainings = [...trainingMap.entries()]
       .map(([title, data]) => ({
@@ -556,6 +640,7 @@ export class CesmpAnalyticsService {
         totalRemaining: Math.max(totalAllocated - totalUtilized, 0),
         overallUtilizationRate: pct(totalUtilized, totalAllocated),
         byHead: budgetByHead,
+        visits: budgetVisits,
       },
       training: {
         responsesWithTraining,
@@ -601,6 +686,7 @@ export class CesmpAnalyticsService {
         totalRemaining: 0,
         overallUtilizationRate: 0,
         byHead: { ppe: 0, hse: 0, environmentalMonitoring: 0 },
+        visits: [],
       },
       training: {
         responsesWithTraining: 0,

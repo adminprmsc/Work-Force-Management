@@ -16,11 +16,9 @@ import {
 } from "recharts";
 import {
   AlertTriangle,
-  CalendarRange,
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
-  Filter,
   Hash,
   Info,
   MapPin,
@@ -31,6 +29,12 @@ import {
 } from "lucide-react";
 
 import { CesmpAnalyticsDashboard } from "@/components/survey/cesmp-analytics-dashboard";
+import {
+  ColorReportRail,
+  ColorReportSheetButton,
+} from "@/components/survey/dashboard-color-grade-panel";
+import { DashboardColorGradeProvider } from "@/components/survey/dashboard-color-grade-provider";
+import { useDashboardColorGrade } from "@/components/survey/use-dashboard-color-grade";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -71,18 +75,25 @@ import {
   formatAnalyticsDateLabel,
   type AnalyticsDatePreset,
 } from "@/lib/survey-analytics-dates";
-import { DEMOGRAPHIC_ACCENTS, CHART_SERIES_COLORS } from "@/lib/chart-colors";
+import { DEMOGRAPHIC_ACCENTS } from "@/lib/chart-colors";
+import {
+  buildColorSeriesCatalog,
+  choiceSeriesKey,
+  distinguishFills,
+  tehsilSeriesKey,
+  villageSeriesKey,
+} from "@/lib/dashboard-color-grade";
 import {
   IMPACT_CHIP_CLASSES,
   IMPACT_LABELS,
   impactBarGradient,
   impactColor,
-  impactColorForCoverageShare,
   impactToneForCoverageShare,
   type ImpactTone,
 } from "@/lib/impact-colors";
 import { cn } from "@/lib/utils";
 import type {
+  CesmpBudgetVisit,
   SurveyFormAnalytics,
   SurveyFormAnalyticsFieldBreakdown,
   SurveyFormAnalyticsPackageRow,
@@ -350,79 +361,68 @@ function DashboardFilters({
   onCustomDateChange: (from: string | null, to: string | null) => void;
 }) {
   return (
-    <Card className="border-border/80 shadow-sm">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-base">Dashboard filters</CardTitle>
-        <CardDescription>
-          All charts reflect accepted responses matching the procurement package
-          and date window. Package counts in the dropdown are all-time totals.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Package className="size-4 text-muted-foreground" />
-              <Label htmlFor="package-filter">Procurement package</Label>
-            </div>
-            <NativeSelect
-              id="package-filter"
-              className="w-full"
-              value={selectedPackageId ?? ""}
-              onChange={(e) => onPackageChange(e.target.value || null)}
-            >
-              <NativeSelectOption value="">
-                All packages — compare across the full programme
+    <div className="rounded-xl border bg-card px-4 py-3 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <Label htmlFor="package-filter" className="text-xs text-muted-foreground">
+            Procurement package
+          </Label>
+          <NativeSelect
+            id="package-filter"
+            className="w-full"
+            value={selectedPackageId ?? ""}
+            onChange={(e) => onPackageChange(e.target.value || null)}
+          >
+            <NativeSelectOption value="">
+              All packages — compare across the full programme
+            </NativeSelectOption>
+            {packages.map((pkg) => (
+              <NativeSelectOption key={pkg.packageId} value={pkg.packageId}>
+                {pkg.packageName} · {pkg.tehsilName} ({pkg.total} responses)
               </NativeSelectOption>
-              {packages.map((pkg) => (
-                <NativeSelectOption key={pkg.packageId} value={pkg.packageId}>
-                  {pkg.packageName} · {pkg.tehsilName} ({pkg.total} responses)
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="w-full space-y-1.5 lg:w-56">
+          <Label htmlFor="date-preset" className="text-xs text-muted-foreground">
+            Date window
+          </Label>
+          <NativeSelect
+            id="date-preset"
+            className="w-full"
+            value={datePreset}
+            onChange={(e) => onDatePresetChange(e.target.value as AnalyticsDatePreset)}
+          >
+            <NativeSelectOption value="all">All time</NativeSelectOption>
+            <NativeSelectOption value="30d">Last 30 days</NativeSelectOption>
+            <NativeSelectOption value="90d">Last 90 days</NativeSelectOption>
+            <NativeSelectOption value="custom">Custom range</NativeSelectOption>
+          </NativeSelect>
+        </div>
+      </div>
+      {datePreset === "custom" ? (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="submitted-from" className="text-xs text-muted-foreground">From</Label>
+            <Input
+              id="submitted-from"
+              type="date"
+              value={submittedFrom ?? ""}
+              onChange={(e) => onCustomDateChange(e.target.value || null, submittedTo)}
+            />
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <CalendarRange className="size-4 text-muted-foreground" />
-              <Label htmlFor="date-preset">Date window</Label>
-            </div>
-            <NativeSelect
-              id="date-preset"
-              className="w-full"
-              value={datePreset}
-              onChange={(e) => onDatePresetChange(e.target.value as AnalyticsDatePreset)}
-            >
-              <NativeSelectOption value="all">All time</NativeSelectOption>
-              <NativeSelectOption value="30d">Last 30 days</NativeSelectOption>
-              <NativeSelectOption value="90d">Last 90 days</NativeSelectOption>
-              <NativeSelectOption value="custom">Custom range</NativeSelectOption>
-            </NativeSelect>
+          <div className="space-y-1.5">
+            <Label htmlFor="submitted-to" className="text-xs text-muted-foreground">Through</Label>
+            <Input
+              id="submitted-to"
+              type="date"
+              value={submittedTo ?? ""}
+              onChange={(e) => onCustomDateChange(submittedFrom, e.target.value || null)}
+            />
           </div>
         </div>
-        {datePreset === "custom" ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="submitted-from">From</Label>
-              <Input
-                id="submitted-from"
-                type="date"
-                value={submittedFrom ?? ""}
-                onChange={(e) => onCustomDateChange(e.target.value || null, submittedTo)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="submitted-to">Through</Label>
-              <Input
-                id="submitted-to"
-                type="date"
-                value={submittedTo ?? ""}
-                onChange={(e) => onCustomDateChange(submittedFrom, e.target.value || null)}
-              />
-            </div>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+      ) : null}
+    </div>
   );
 }
 
@@ -466,40 +466,27 @@ function ActiveScopeSummary({
     summary.reverted;
   const acceptanceRate = totalSubmitted > 0 ? Math.round((summary.accepted / totalSubmitted) * 100) : 0;
 
+  const scope = selectedPackage
+    ? `${selectedPackage.packageName} · ${selectedPackage.tehsilName}`
+    : `All packages · ${summary.packageCount} in programme`;
+
   return (
-    <Card className="overflow-hidden border-border/80 shadow-sm">
-      <div className="border-b bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-6 py-5">
-        <div className="flex items-start gap-4">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-background shadow-sm">
-            <Filter className="size-4 text-primary" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Current view</p>
-            <p className="text-lg font-semibold tracking-tight">
-              {selectedPackage ? selectedPackage.packageName : "All procurement packages"}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {selectedPackage
-                ? `${selectedPackage.tehsilName} · single package`
-                : `${summary.packageCount} packages in programme`}
-              <span className="mx-1.5 text-border">·</span>
-              {dateLabel}
-              <span className="mx-1.5 text-border">·</span>
-              {acceptanceRate}% acceptance rate
-            </p>
-          </div>
-        </div>
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        {scope}
+        <span className="mx-1.5 text-border">·</span>
+        {dateLabel}
+        <span className="mx-1.5 text-border">·</span>
+        {acceptanceRate}% accepted
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <ScopeStat label="Accepted" value={summary.accepted} hint="In selected window" tone="positive" icon={<ClipboardCheck className="size-4" />} />
+        <ScopeStat label="Pending review" value={summary.pendingReview} hint="Awaiting HO decision" tone="warning" icon={<ClipboardCheck className="size-4" />} />
+        <ScopeStat label="Rejected" value={summary.rejected} hint="Not accepted" tone="negative" icon={<ClipboardCheck className="size-4" />} />
+        <ScopeStat label="Villages" value={analytics.byVillage.length} hint="With accepted responses" tone="neutral" icon={<MapPin className="size-4" />} />
+        <ScopeStat label="Tehsils" value={analytics.byTehsil.length} hint="With accepted responses" tone="neutral" icon={<MapPinned className="size-4" />} />
       </div>
-      <CardContent className="p-6">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <ScopeStat label="Accepted" value={summary.accepted} hint="In selected window" tone="positive" icon={<ClipboardCheck className="size-4" />} />
-          <ScopeStat label="Pending review" value={summary.pendingReview} hint="Awaiting HO decision" tone="warning" icon={<ClipboardCheck className="size-4" />} />
-          <ScopeStat label="Rejected" value={summary.rejected} hint="Not accepted" tone="negative" icon={<ClipboardCheck className="size-4" />} />
-          <ScopeStat label="Villages" value={analytics.byVillage.length} hint="With accepted responses" tone="neutral" icon={<MapPin className="size-4" />} />
-          <ScopeStat label="Tehsils" value={analytics.byTehsil.length} hint="With accepted responses" tone="neutral" icon={<MapPinned className="size-4" />} />
-        </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 
@@ -631,61 +618,134 @@ function TehsilProblematicPanel({ alerts }: { alerts: TehsilAlert[] }) {
   );
 }
 
+// ─── Color-graded demographic charts ─────────────────────────────────────────
+
+type DemographicSlice = {
+  key: string;
+  full: string;
+  short: string;
+  value: number;
+  share: number;
+  fill: string;
+  color: string;
+  sectionId: string;
+  sectionLabel: string;
+  detail?: string;
+};
+
+function toDemographicSlices(
+  rows: { key: string; full: string; value: number; detail?: string }[],
+  paint: (key: string) => {
+    sectionId: string;
+    sectionLabel: string;
+    color: string;
+    visible: boolean;
+  },
+): DemographicSlice[] {
+  const visible = rows.flatMap((row) => {
+    const painted = paint(row.key);
+    if (!painted.visible || row.value <= 0) return [];
+    return [
+      {
+        key: row.key,
+        full: row.full,
+        short: row.full.length > 14 ? `${row.full.slice(0, 14)}…` : row.full,
+        value: row.value,
+        detail: row.detail,
+        color: painted.color,
+        sectionId: painted.sectionId,
+        sectionLabel: painted.sectionLabel,
+      },
+    ];
+  });
+  const total = visible.reduce((sum, row) => sum + row.value, 0);
+  const fills = distinguishFills(visible);
+  return visible.map((row, index) => ({
+    ...row,
+    fill: fills[index]!,
+    share: total > 0 ? Math.round((row.value / total) * 100) : 0,
+  }));
+}
+
+function ColorGradeEmpty({ noun }: { noun: string }) {
+  return (
+    <p className="text-sm text-muted-foreground">
+      No {noun} are included. Show their color in Chart colors.
+    </p>
+  );
+}
+
 // ─── Geographic section ───────────────────────────────────────────────────────
 
 function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics }) {
+  const grade = useDashboardColorGrade();
   const hasTehsils = analytics.byTehsil.length > 0;
   const hasVillages = analytics.byVillage.length > 0;
 
-  const tehsilTotal = analytics.byTehsil.reduce((s, r) => s + r.accepted, 0);
-  const villageTotal = analytics.byVillage.reduce((s, r) => s + r.accepted, 0);
-
-  // Donut data for tehsil distribution
-  const tehsilPieData = useMemo(
+  const tehsilSlices = useMemo(
     () =>
-      analytics.byTehsil.map((r, i) => ({
-        name: r.tehsilName,
-        value: r.accepted,
-        fill: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length],
-      })),
-    [analytics.byTehsil],
+      toDemographicSlices(
+        analytics.byTehsil.map((row) => ({
+          key: tehsilSeriesKey(row.tehsilId),
+          full: row.tehsilName,
+          value: row.accepted,
+        })),
+        grade.paint,
+      ),
+    [analytics.byTehsil, grade.paint],
   );
 
-  // Donut data for top 8 villages
-  const villagePieData = useMemo(
+  const villageSlices = useMemo(
     () =>
-      analytics.byVillage.slice(0, 8).map((r, i) => ({
-        name: r.villageName,
-        value: r.accepted,
-        tehsil: r.tehsilName,
-        fill: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length],
-      })),
-    [analytics.byVillage],
+      toDemographicSlices(
+        [...analytics.byVillage]
+          .sort((a, b) => b.accepted - a.accepted)
+          .map((row) => ({
+            key: villageSeriesKey(row.villageId),
+            full: row.villageName,
+            value: row.accepted,
+            detail: row.tehsilName,
+          })),
+        grade.paint,
+      ),
+    [analytics.byVillage, grade.paint],
   );
 
-  // Horizontal bar data comparing tehsils
-  const tehsilBarData = useMemo(
-    () =>
-      analytics.byTehsil.map((r) => ({
-        name: r.tehsilName.length > 14 ? r.tehsilName.slice(0, 14) + "…" : r.tehsilName,
-        full: r.tehsilName,
-        accepted: r.accepted,
-        share: tehsilTotal > 0 ? Math.round((r.accepted / tehsilTotal) * 100) : 0,
-        fill: impactColorForCoverageShare(
-          tehsilTotal > 0 ? Math.round((r.accepted / tehsilTotal) * 100) : 0,
-        ),
-      })),
-    [analytics.byTehsil, tehsilTotal],
-  );
+  const tehsilTotal = tehsilSlices.reduce((sum, row) => sum + row.value, 0);
+  const villageTotal = villageSlices.reduce((sum, row) => sum + row.value, 0);
+  const tehsilPieData = tehsilSlices.map((row) => ({
+    name: row.full,
+    value: row.value,
+    fill: row.fill,
+  }));
+  const tehsilBarData = tehsilSlices.map((row) => ({
+    name: row.short,
+    full: row.full,
+    accepted: row.value,
+    share: row.share,
+    fill: row.fill,
+  }));
+  const villagePieData = villageSlices.slice(0, 8).map((row) => ({
+    name: row.full,
+    value: row.value,
+    tehsil: row.detail ?? "",
+    fill: row.fill,
+  }));
+  const hiddenTehsilCount = analytics.byTehsil.filter(
+    (row) => row.accepted > 0 && !grade.paint(tehsilSeriesKey(row.tehsilId)).visible,
+  ).length;
+  const hiddenVillageCount = analytics.byVillage.filter(
+    (row) => row.accepted > 0 && !grade.paint(villageSeriesKey(row.villageId)).visible,
+  ).length;
 
   const tehsilAlerts = useMemo(
     () =>
       deriveTehsilAlerts(
         analytics.byTehsil,
         analytics.byProcurementPackage,
-        tehsilTotal,
+        analytics.byTehsil.reduce((sum, row) => sum + row.accepted, 0),
       ),
-    [analytics.byProcurementPackage, analytics.byTehsil, tehsilTotal],
+    [analytics.byProcurementPackage, analytics.byTehsil],
   );
 
   const tehsilChartConfig: ChartConfig = {
@@ -730,7 +790,7 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
       </Card>
 
       {/* Tehsil comparison: donut + bar side by side */}
-      {hasTehsils ? (
+      {hasTehsils && grade.layout === "combined" ? (
         <Card className="border-border/80 shadow-sm">
           <CardHeader className="border-b bg-muted/20">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -744,13 +804,21 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
             <CardDescription>
               Use this section for distribution only: the donut shows proportional
               share, while the bar chart compares absolute accepted volume by tehsil.
+              Only colors set to Showing in Chart colors are drawn.
+              {hiddenTehsilCount > 0
+                ? ` ${hiddenTehsilCount} tehsil${hiddenTehsilCount === 1 ? "" : "s"} left out because their color is off.`
+                : ""}
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
+          <CardContent className="pt-6">
+            {tehsilSlices.length === 0 ? (
+              <ColorGradeEmpty noun="tehsils" />
+            ) : (
+            <div className="grid gap-6 lg:grid-cols-2">
             {/* Donut */}
             <div>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Share of accepted responses · {fmt(tehsilTotal)} total
+                Share of accepted responses · {fmt(tehsilTotal)} shown
               </p>
               <ChartContainer config={{}} className="h-[260px] w-full">
                 <PieChart>
@@ -830,12 +898,14 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
                 </BarChart>
               </ChartContainer>
             </div>
+            </div>
+            )}
           </CardContent>
         </Card>
       ) : null}
 
       {/* Village donut */}
-      {hasVillages ? (
+      {hasVillages && grade.layout === "combined" ? (
         <Card className="border-border/80 shadow-sm">
           <CardHeader className="border-b bg-muted/20">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -848,17 +918,24 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
             </CardTitle>
             <CardDescription>
               This section highlights where accepted responses are concentrated at
-              village level after the tehsil picture above.
-              {analytics.byVillage.length > 8
-                ? ` Showing 8 of ${analytics.byVillage.length} villages.`
+              village level after the tehsil picture above. Only colors set to Showing in Chart colors are drawn.
+              {villageSlices.length > 8
+                ? ` Showing 8 of ${villageSlices.length} villages whose colors are on.`
+                : ""}
+              {hiddenVillageCount > 0
+                ? ` ${hiddenVillageCount} left out because their color is off.`
                 : ""}
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-6 pt-6 lg:grid-cols-2">
+          <CardContent className="pt-6">
+            {villageSlices.length === 0 ? (
+              <ColorGradeEmpty noun="villages" />
+            ) : (
+            <div className="grid gap-6 lg:grid-cols-2">
             {/* Donut */}
             <div>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Village share · {fmt(villageTotal)} total
+                Village share · {fmt(villageTotal)} shown
               </p>
               <ChartContainer config={{}} className="h-[260px] w-full">
                 <PieChart>
@@ -899,32 +976,34 @@ function GeographicDemographics({ analytics }: { analytics: SurveyFormAnalytics 
             {/* Ranked list */}
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ranked by accepted responses</p>
-              {analytics.byVillage.slice(0, 12).map((row, i) => {
-                const sharePct = villageTotal > 0 ? Math.round((row.accepted / villageTotal) * 100) : 0;
-                const tone = impactToneForCoverageShare(sharePct);
-                const color = impactColorForCoverageShare(sharePct);
-                const widthPct = villageTotal > 0 ? Math.round((row.accepted / analytics.byVillage[0]!.accepted) * 100) : 0;
+              {villageSlices.slice(0, 12).map((row) => {
+                const tone = impactToneForCoverageShare(row.share);
+                const widthPct = villageSlices[0] && villageSlices[0].value > 0
+                  ? Math.round((row.value / villageSlices[0].value) * 100)
+                  : 0;
                 return (
-                  <div key={row.villageId} className="rounded-lg border border-border/60 bg-card px-3 py-2">
+                  <div key={row.key} className="rounded-lg border border-border/60 bg-card px-3 py-2">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length] }} />
-                        <span className="truncate text-sm font-medium">{row.villageName}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">{row.tehsilName}</span>
+                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                        <span className="truncate text-sm font-medium">{row.full}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{row.detail}</span>
                         <span className={cn("rounded px-1 py-0.5 text-[10px] font-medium", IMPACT_CHIP_CLASSES[tone])}>{IMPACT_LABELS[tone]}</span>
                       </div>
-                      <span className="shrink-0 text-sm font-semibold tabular-nums">{row.accepted}</span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">{row.value}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted/70">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${widthPct}%`, background: impactBarGradient(color) }}
+                        style={{ width: `${widthPct}%`, background: impactBarGradient(row.color) }}
                       />
                     </div>
                   </div>
                 );
               })}
             </div>
+            </div>
+            )}
           </CardContent>
         </Card>
       ) : null}
@@ -1099,20 +1178,37 @@ function ProcurementPackageLinkage({
 // ─── Question insights ────────────────────────────────────────────────────────
 
 function ChoiceFieldBreakdown({ field }: { field: SurveyFormAnalyticsFieldBreakdown }) {
-  const rows = useMemo(
-    () =>
-      Object.entries(field.choiceCounts ?? {})
-        .map(([answer, count], i) => ({
+  const { paint, sections, layout } = useDashboardColorGrade();
+  const rows = useMemo(() => {
+    const painted = Object.entries(field.choiceCounts ?? {})
+      .map(([answer, count]) => {
+        const tone = paint(choiceSeriesKey(field.fieldId, answer));
+        return {
           answer,
           count,
-          fill: CHART_SERIES_COLORS[i % CHART_SERIES_COLORS.length],
-        }))
-        .sort((a, b) => b.count - a.count),
-    [field.choiceCounts],
-  );
-  const total = rows.reduce((s, r) => s + r.count, 0);
+          color: tone.color,
+          sectionId: tone.sectionId,
+          sectionLabel: tone.sectionLabel,
+          visible: tone.visible,
+        };
+      })
+      .filter((row) => row.visible && row.count > 0)
+      .sort((a, b) => b.count - a.count);
+    const fills = distinguishFills(painted);
+    return painted.map((row, index) => ({ ...row, fill: fills[index]! }));
+  }, [field.choiceCounts, field.fieldId, paint]);
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  const hiddenCount = Object.entries(field.choiceCounts ?? {}).filter(([answer, count]) => {
+    if (count <= 0) return false;
+    return !paint(choiceSeriesKey(field.fieldId, answer)).visible;
+  }).length;
+  const groups = sections.flatMap((section) => {
+    const sectionRows = rows.filter((row) => row.sectionId === section.id);
+    if (sectionRows.length === 0) return [];
+    return [{ section, rows: sectionRows }];
+  });
   const config = Object.fromEntries(
-    rows.map((r) => [r.answer, { label: r.answer, color: r.fill }]),
+    rows.map((row) => [row.answer, { label: row.answer, color: row.color }]),
   ) satisfies ChartConfig;
 
   return (
@@ -1120,40 +1216,230 @@ function ChoiceFieldBreakdown({ field }: { field: SurveyFormAnalyticsFieldBreakd
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <p className="font-medium">{field.label}</p>
-          <p className="text-xs text-muted-foreground">{field.answeredCount} responses · {fmt(total)} selections</p>
+          <p className="text-xs text-muted-foreground">
+            {field.answeredCount} responses · {fmt(total)} shown
+            {hiddenCount > 0 ? ` · ${hiddenCount} left out` : ""}
+          </p>
         </div>
         <Badge variant="outline" className="tabular-nums">{rows.length} options</Badge>
       </div>
+      {rows.length === 0 ? (
+        <ColorGradeEmpty noun="answers" />
+      ) : layout === "by-section" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {groups.map((group) => {
+            const groupTotal = group.rows.reduce((sum, row) => sum + row.count, 0);
+            return (
+              <div
+                key={group.section.id}
+                className="rounded-lg border border-border/70 p-3"
+                style={{ borderTopColor: group.section.color, borderTopWidth: 3 }}
+              >
+                <p className="mb-2 flex items-center gap-2 text-xs font-semibold">
+                  <span className="size-2.5 rounded-full" style={{ backgroundColor: group.section.color }} />
+                  {group.section.label || "Color"}
+                  <span className="font-normal text-muted-foreground">{fmt(groupTotal)}</span>
+                </p>
+                <div className="space-y-1.5">
+                  {group.rows.map((row) => {
+                    const pct = groupTotal > 0 ? Math.round((row.count / groupTotal) * 100) : 0;
+                    const width = group.rows[0] && group.rows[0].count > 0
+                      ? Math.round((row.count / group.rows[0].count) * 100)
+                      : 0;
+                    return (
+                      <div key={row.answer} className="space-y-0.5">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate text-muted-foreground">{row.answer}</span>
+                          <span className="shrink-0 tabular-nums font-medium">{row.count} ({pct}%)</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${width}%`, background: impactBarGradient(row.color) }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div className="grid gap-4 lg:grid-cols-[160px_1fr]">
-        <ChartContainer config={config} className="mx-auto h-[160px] w-full max-w-[160px]">
+        <ChartContainer config={config} className="mx-auto aspect-auto h-[160px] w-full max-w-[160px]">
           <PieChart>
             <ChartTooltip content={<ChartTooltipContent hideLabel />} />
             <Pie data={rows} dataKey="count" nameKey="answer" innerRadius={36} outerRadius={68} paddingAngle={2}>
-              {rows.map((r, i) => <Cell key={i} fill={r.fill} />)}
+              {rows.map((row) => <Cell key={row.answer} fill={row.fill} />)}
             </Pie>
           </PieChart>
         </ChartContainer>
         <div className="space-y-1.5">
           {rows.map((row) => {
             const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
-            const w = total > 0 ? Math.round((row.count / rows[0]!.count) * 100) : 0;
+            const width = rows[0] && rows[0].count > 0 ? Math.round((row.count / rows[0].count) * 100) : 0;
             return (
               <div key={row.answer} className="space-y-0.5">
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} />
+                    <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
                     <span className="truncate text-muted-foreground">{row.answer}</span>
                   </div>
                   <span className="shrink-0 tabular-nums font-medium">{row.count} ({pct}%)</span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full" style={{ width: `${w}%`, background: impactBarGradient(row.fill) }} />
+                  <div className="h-full rounded-full" style={{ width: `${width}%`, background: impactBarGradient(row.color) }} />
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+      )}
+    </div>
+  );
+}
+
+function isVisitBudgetLabel(label: string) {
+  const text = label.toLowerCase();
+  return (
+    text.includes("esmp budget") ||
+    text.includes("utilized on this visit") ||
+    text.includes("utilized from ppes") ||
+    text.includes("utilized from hse") ||
+    text.includes("environmental monitoring head")
+  );
+}
+
+function money(value: number) {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function compactMoney(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `${Number.isInteger(millions) ? millions.toFixed(0) : millions.toFixed(1)}M`;
+  }
+  if (abs >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(Math.round(value));
+}
+
+function formatVisitDay(iso: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!match) return "Undated";
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function VisitBudgetChart({ visits }: { visits: CesmpBudgetVisit[] }) {
+  const usedOnVisits = visits.reduce((sum, visit) => sum + visit.utilized, 0);
+  const dateCounts = new Map<string, number>();
+  for (const visit of visits) {
+    const when = formatVisitDay(visit.visitDate);
+    dateCounts.set(when, (dateCounts.get(when) ?? 0) + 1);
+  }
+  const chartData = visits.map((visit) => {
+    const where = visit.villageName || visit.tehsilName || "Unknown place";
+    const when = formatVisitDay(visit.visitDate);
+    const shortWhen = when.replace(/,?\s*\d{4}$/, "");
+    const shortWhere = where.length > 14 ? `${where.slice(0, 14)}…` : where;
+    return {
+      ...visit,
+      when,
+      where,
+      axis: (dateCounts.get(when) ?? 0) > 1 ? `${shortWhen} · ${shortWhere}` : shortWhen,
+    };
+  });
+  const config: ChartConfig = {
+    utilized: { label: "Used this visit", color: "var(--chart-4)" },
+    remaining: { label: "Left after visit", color: "var(--chart-2)" },
+  };
+
+  if (visits.length === 0) {
+    return (
+      <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+        <p className="font-medium">Budget on each visit</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          No accepted visit has recorded an allocated amount, an amount used, or a balance left.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="font-medium">Budget on each visit</p>
+          <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+            Each bar is one accepted visit. Used is the amount recorded on that visit. Left is the package balance after that visit.
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Used on these visits</p>
+          <p className="text-2xl font-semibold tabular-nums tracking-tight">{money(usedOnVisits)}</p>
+        </div>
+      </div>
+      <ChartContainer config={config} className="aspect-auto w-full" style={{ height: Math.max(180, 56 + visits.length * 52) }}>
+        <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16, top: 8, bottom: 4 }}>
+          <CartesianGrid horizontal={false} />
+          <XAxis type="number" tickFormatter={compactMoney} domain={[0, "dataMax"]} />
+          <YAxis type="category" dataKey="axis" width={72} tick={{ fontSize: 11 }} />
+          <ChartTooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const visit = payload[0]?.payload as (typeof chartData)[number];
+              const heads = [
+                visit.ppe > 0 ? `PPE ${money(visit.ppe)}` : null,
+                visit.hse > 0 ? `HSE ${money(visit.hse)}` : null,
+                visit.monitoring > 0 ? `Monitoring ${money(visit.monitoring)}` : null,
+              ].filter(Boolean);
+              return (
+                <div className="max-w-xs rounded-lg border bg-background px-3 py-2 text-xs shadow-md">
+                  <p className="font-medium">{visit.when}</p>
+                  <p className="text-muted-foreground">{visit.where}{visit.tehsilName ? `, ${visit.tehsilName}` : ""}</p>
+                  {visit.packageName ? <p className="mt-1 text-muted-foreground">{visit.packageName}</p> : null}
+                  <p className="mt-2">Allocated {money(visit.allocated)}</p>
+                  <p>Used this visit {money(visit.utilized)}</p>
+                  {heads.length > 0 ? <p className="text-muted-foreground">{heads.join(" · ")}</p> : null}
+                  <p>Left after visit {money(visit.remaining)}</p>
+                </div>
+              );
+            }}
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Bar dataKey="utilized" stackId="budget" barSize={22} fill="var(--color-utilized)" />
+          <Bar dataKey="remaining" stackId="budget" barSize={22} fill="var(--color-remaining)" radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ChartContainer>
+      <ul className="divide-y rounded-lg border">
+        {chartData.map((visit, index) => (
+          <li key={`${visit.packageId}-${visit.visitDate}-${visit.villageName}-${index}`} className="space-y-2 px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{visit.when}</p>
+              <p className="text-sm">{visit.where}{visit.tehsilName ? <span className="text-muted-foreground"> · {visit.tehsilName}</span> : null}</p>
+              {visit.packageName ? <p className="truncate text-xs text-muted-foreground">{visit.packageName}</p> : null}
+            </div>
+            <dl className="grid grid-cols-3 gap-2">
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Allocated</dt>
+                <dd className="text-sm font-semibold tabular-nums">{money(visit.allocated)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Used</dt>
+                <dd className="text-sm font-semibold tabular-nums">{money(visit.utilized)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Left</dt>
+                <dd className="text-sm font-semibold tabular-nums">{money(visit.remaining)}</dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -1161,78 +1447,75 @@ function ChoiceFieldBreakdown({ field }: { field: SurveyFormAnalyticsFieldBreakd
 function NumericFieldBreakdown({ field }: { field: SurveyFormAnalyticsFieldBreakdown }) {
   const numeric = field.numeric;
   if (!numeric) return null;
-  const gaugeData = [
-    { name: "Avg", value: Number(numeric.avg.toFixed(1)), fill: "var(--chart-1)" },
-    { name: "Min", value: numeric.min, fill: "var(--chart-3)" },
-    { name: "Max", value: numeric.max, fill: "var(--chart-2)" },
-  ];
-  const config: ChartConfig = {
-    Avg: { label: "Average", color: "var(--chart-1)" },
-    Min: { label: "Min", color: "var(--chart-3)" },
-    Max: { label: "Max", color: "var(--chart-2)" },
-  };
+  const span = numeric.max - numeric.min;
+  const singleValue = span === 0;
+  const averageAt = span > 0 ? Math.min(100, Math.max(0, ((numeric.avg - numeric.min) / span) * 100)) : 0;
+  const measure = (value: number) =>
+    Number.isInteger(value) ? fmt(value) : value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
   return (
     <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <p className="font-medium">{field.label}</p>
-          <p className="text-xs text-muted-foreground">Numeric summary · {numeric.count} answered</p>
+          <p className="text-xs text-muted-foreground">
+            {numeric.count} {numeric.count === 1 ? "answer" : "answers"}
+          </p>
         </div>
-        <Hash className="size-4 text-muted-foreground" />
+        <Hash className="size-4 shrink-0 text-muted-foreground" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-        <ChartContainer
-          config={config}
-          className="h-[180px] min-w-0 w-full overflow-visible"
-        >
-          <BarChart data={gaugeData} margin={{ left: 12, right: 12, top: 8, bottom: 4 }}>
-            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis
-              dataKey="name"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 11 }}
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Average</p>
+      <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight">{measure(numeric.avg)}</p>
+      {singleValue ? (
+        <p className="mt-2 text-xs text-muted-foreground">Every answer is {measure(numeric.min)}.</p>
+      ) : (
+        <div className="mt-3">
+          <div className="relative h-1.5 rounded-full bg-muted">
+            <span
+              className="absolute top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-primary"
+              style={{ left: `calc(${averageAt}% - 6px)` }}
             />
-            <YAxis
-              allowDecimals
-              tickLine={false}
-              axisLine={false}
-              width={52}
-              tick={{ fontSize: 10 }}
-            />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-              {gaugeData.map((d, i) => <Cell key={i} fill={d.fill} />)}
-            </Bar>
-          </BarChart>
-        </ChartContainer>
-        <div className="grid grid-cols-2 gap-2 content-start">
-          {[
-            { label: "Average", value: numeric.avg, color: "var(--chart-1)" },
-            { label: "Min", value: numeric.min, color: "var(--chart-3)" },
-            { label: "Max", value: numeric.max, color: "var(--chart-2)" },
-            { label: "Sum", value: numeric.sum, color: "var(--chart-4)" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{s.label}</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: s.color }}>
-                {Number.isInteger(s.value) ? fmt(s.value) : s.value.toFixed(1)}
-              </p>
-            </div>
-          ))}
+          </div>
+          <div className="mt-1.5 flex justify-between gap-3 text-[11px] text-muted-foreground">
+            <span>Min {measure(numeric.min)}</span>
+            <span>Max {measure(numeric.max)}</span>
+          </div>
         </div>
-      </div>
+      )}
+      <dl className="mt-3 grid grid-cols-3 gap-2">
+        {[
+          { label: "Min", value: numeric.min },
+          { label: "Max", value: numeric.max },
+          { label: "Sum", value: numeric.sum },
+        ].map((stat) => (
+          <div key={stat.label} className="min-w-0 rounded-lg border border-border/60 bg-muted/20 px-2.5 py-2">
+            <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{stat.label}</dt>
+            <dd className="mt-1 text-sm font-semibold break-words tabular-nums">{measure(stat.value)}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
 
-function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBreakdown[] }) {
+function QuestionDemographics({
+  fields,
+  budgetVisits,
+}: {
+  fields: SurveyFormAnalyticsFieldBreakdown[];
+  budgetVisits: CesmpBudgetVisit[];
+}) {
+  const { layout } = useDashboardColorGrade();
   const choiceFields = useMemo(
     () => fields.filter((f) => CHOICE_FIELD_TYPES.has(f.type) && f.choiceCounts && Object.keys(f.choiceCounts).length > 0),
     [fields],
   );
   const numericFields = useMemo(
-    () => fields.filter((f) => f.numeric && f.numeric.count > 0),
+    () => fields.filter((f) => f.numeric && f.numeric.count > 0 && !isVisitBudgetLabel(f.label)),
+    [fields],
+  );
+  const hasBudgetFields = useMemo(
+    () => fields.some((f) => f.numeric && f.numeric.count > 0 && isVisitBudgetLabel(f.label)),
     [fields],
   );
 
@@ -1255,7 +1538,9 @@ function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBrea
     dominance: { label: "Top-answer dominance %", color: "var(--chart-1)" },
   };
 
-  if (choiceFields.length === 0 && numericFields.length === 0) {
+  const showChoices = layout !== "by-section";
+  const showVisitBudget = hasBudgetFields || budgetVisits.length > 0;
+  if (showChoices && choiceFields.length === 0 && numericFields.length === 0 && !showVisitBudget) {
     return (
       <Card className="border-border/80 shadow-sm">
         <CardHeader>
@@ -1266,6 +1551,9 @@ function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBrea
         </CardHeader>
       </Card>
     );
+  }
+  if (!showChoices && numericFields.length === 0 && !showVisitBudget && radarData.length < 3) {
+    return null;
   }
 
   return (
@@ -1280,8 +1568,7 @@ function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBrea
           />
         </CardTitle>
         <CardDescription>
-          Radar shows how concentrated each field's answers are (high % = one dominant answer).
-          Drill into individual questions below.
+          Radar shows how concentrated each field's answers are. Choice charts follow the report setup.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
@@ -1321,7 +1608,7 @@ function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBrea
         ) : null}
 
         {/* Individual choice breakdowns */}
-        {choiceFields.length > 0 ? (
+        {showChoices && choiceFields.length > 0 ? (
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Choice fields ({choiceFields.length})
@@ -1332,11 +1619,12 @@ function QuestionDemographics({ fields }: { fields: SurveyFormAnalyticsFieldBrea
           </div>
         ) : null}
 
-        {/* Numeric breakdowns */}
+        {showVisitBudget ? <VisitBudgetChart visits={budgetVisits} /> : null}
+
         {numericFields.length > 0 ? (
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Numeric fields ({numericFields.length})
+              Other numbers ({numericFields.length})
             </p>
             <div className="grid gap-4 lg:grid-cols-2">
               {numericFields.map((f) => <NumericFieldBreakdown key={f.fieldId} field={f} />)}
@@ -1456,6 +1744,290 @@ function EmptyFilterState() {
   );
 }
 
+function ReportSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function ReportSeriesLegend() {
+  const grade = useDashboardColorGrade();
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-medium text-muted-foreground">
+        {grade.layout === "by-section" ? "Click a color to drop its chart" : "Click a color to hide it"}
+      </span>
+      {grade.sections.map((section) => {
+        const name = section.label.trim() || "Color";
+        return (
+          <button
+            key={section.id}
+            type="button"
+            aria-pressed={section.enabled}
+            onClick={() => grade.setSectionEnabled(section.id, !section.enabled)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs font-medium",
+              !section.enabled && "opacity-45",
+            )}
+          >
+            <span className="size-2 rounded-full" style={{ backgroundColor: section.color }} />
+            {name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ColorChapterReport({ analytics }: { analytics: SurveyFormAnalytics }) {
+  const grade = useDashboardColorGrade();
+  const tehsilSlices = useMemo(
+    () =>
+      toDemographicSlices(
+        analytics.byTehsil.map((row) => ({
+          key: tehsilSeriesKey(row.tehsilId),
+          full: row.tehsilName,
+          value: row.accepted,
+        })),
+        grade.paint,
+      ),
+    [analytics.byTehsil, grade.paint],
+  );
+  const villageSlices = useMemo(
+    () =>
+      toDemographicSlices(
+        [...analytics.byVillage]
+          .sort((a, b) => b.accepted - a.accepted)
+          .map((row) => ({
+            key: villageSeriesKey(row.villageId),
+            full: row.villageName,
+            value: row.accepted,
+            detail: row.tehsilName,
+          })),
+        grade.paint,
+      ),
+    [analytics.byVillage, grade.paint],
+  );
+  const choiceFields = useMemo(
+    () =>
+      analytics.fieldBreakdown.filter(
+        (field) => CHOICE_FIELD_TYPES.has(field.type) && field.choiceCounts && Object.keys(field.choiceCounts).length > 0,
+      ),
+    [analytics.fieldBreakdown],
+  );
+
+  const chapters = grade.sections
+    .filter((section) => section.enabled)
+    .map((section) => {
+      const tehsils = tehsilSlices.filter((row) => row.sectionId === section.id);
+      const villageRows = villageSlices.filter((row) => row.sectionId === section.id);
+      const villages = villageRows.slice(0, 12);
+      const questions = choiceFields.flatMap((field) => {
+        const answers = Object.entries(field.choiceCounts ?? {})
+          .flatMap(([answer, count]) => {
+            const painted = grade.paint(choiceSeriesKey(field.fieldId, answer));
+            if (!painted.visible || painted.sectionId !== section.id || count <= 0) return [];
+            return [{ answer, count }];
+          })
+          .sort((a, b) => b.count - a.count);
+        return answers.length > 0 ? [{ field, answers }] : [];
+      });
+      if (tehsils.length === 0 && villages.length === 0 && questions.length === 0) return null;
+      const responses = Math.max(
+        tehsils.reduce((sum, row) => sum + row.value, 0),
+        villageRows.reduce((sum, row) => sum + row.value, 0),
+      );
+      return { section, tehsils, villages, questions, responses };
+    })
+    .filter((chapter) => chapter !== null);
+
+  if (chapters.length === 0) {
+    return <ColorGradeEmpty noun="series" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      {chapters.map((chapter) => (
+        <article
+          key={chapter.section.id}
+          className="overflow-hidden rounded-xl border bg-card shadow-sm"
+          style={{ borderTopColor: chapter.section.color, borderTopWidth: 3 }}
+        >
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+            <h4 className="flex items-center gap-2 text-sm font-semibold">
+              <span className="size-2.5 rounded-full" style={{ backgroundColor: chapter.section.color }} />
+              {chapter.section.label.trim() || "Color"}
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              {fmt(chapter.responses)} accepted
+              <span className="mx-1.5 text-border">·</span>
+              {chapter.tehsils.length} tehsils
+              <span className="mx-1.5 text-border">·</span>
+              {chapter.villages.length} villages
+              <span className="mx-1.5 text-border">·</span>
+              {chapter.questions.length} questions
+            </p>
+          </header>
+          <div className="grid gap-4 p-4 lg:grid-cols-2">
+            {chapter.tehsils.length > 0 ? (
+              <ChapterBars title="Tehsils" color={chapter.section.color} rows={chapter.tehsils} />
+            ) : null}
+            {chapter.villages.length > 0 ? (
+              <ChapterBars title="Villages" color={chapter.section.color} rows={chapter.villages} />
+            ) : null}
+            {chapter.questions.length > 0 ? (
+              <div className="space-y-3 lg:col-span-2">
+                {chapter.questions.map((question) => {
+                  const total = question.answers.reduce((sum, row) => sum + row.count, 0);
+                  const top = question.answers[0]?.count ?? 0;
+                  return (
+                    <div key={question.field.fieldId} className="rounded-lg border border-border/70 px-3 py-2.5">
+                      <p className="text-sm font-medium">{question.field.label}</p>
+                      <div className="mt-2 space-y-1.5">
+                        {question.answers.map((row) => {
+                          const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
+                          const width = top > 0 ? Math.round((row.count / top) * 100) : 0;
+                          return (
+                            <div key={row.answer} className="space-y-0.5">
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="truncate text-muted-foreground">{row.answer}</span>
+                                <span className="shrink-0 tabular-nums font-medium">{row.count} ({pct}%)</span>
+                              </div>
+                              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${width}%`, backgroundColor: chapter.section.color }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ChapterBars({
+  title,
+  color,
+  rows,
+}: {
+  title: string;
+  color: string;
+  rows: DemographicSlice[];
+}) {
+  const top = rows[0]?.value ?? 0;
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <div className="space-y-1.5">
+        {rows.map((row) => {
+          const width = top > 0 ? Math.round((row.value / top) * 100) : 0;
+          return (
+            <div key={row.key} className="space-y-0.5">
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="truncate">{row.full}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">{fmt(row.value)}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: color }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ReportCanvas({
+  analytics,
+  filters,
+  selectedPackage,
+  selectedPackageId,
+  onPackageChange,
+  dateLabel,
+  executiveFindings,
+}: {
+  analytics: SurveyFormAnalytics;
+  filters: ReactNode;
+  selectedPackage: SurveyFormAnalyticsPackageRow | undefined;
+  selectedPackageId: string | null;
+  onPackageChange: (packageId: string | null) => void;
+  dateLabel: string;
+  executiveFindings: ExecutiveFinding[];
+}) {
+  const { layout } = useDashboardColorGrade();
+
+  return (
+    <div className="min-w-0 space-y-8">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">{filters}</div>
+          <div className="xl:hidden">
+            <ColorReportSheetButton />
+          </div>
+        </div>
+        <ReportSeriesLegend />
+      </div>
+
+      <ActiveScopeSummary analytics={analytics} selectedPackage={selectedPackage} dateLabel={dateLabel} />
+
+      <ReportSection title="Summary">
+        <ExecutiveFindingsPanel findings={executiveFindings} />
+      </ReportSection>
+
+      <ReportSection title="Programme">
+        <div className="space-y-6">
+          <ProcurementPackageLinkage
+            packages={analytics.byProcurementPackage}
+            selectedPackageId={selectedPackageId}
+            onPackageChange={onPackageChange}
+          />
+          {analytics.cesmpInsights ? (
+            <CesmpAnalyticsDashboard insights={analytics.cesmpInsights} selectedPackageId={selectedPackageId} />
+          ) : null}
+        </div>
+      </ReportSection>
+
+      <ReportSection title="Coverage">
+        <GeographicDemographics analytics={analytics} />
+      </ReportSection>
+
+      {layout === "by-section" ? (
+        <ReportSection title="Color sections">
+          <ColorChapterReport analytics={analytics} />
+        </ReportSection>
+      ) : null}
+
+      <ReportSection title="Questions">
+        <QuestionDemographics
+          fields={analytics.fieldBreakdown}
+          budgetVisits={analytics.cesmpInsights?.budget.visits ?? []}
+        />
+      </ReportSection>
+
+      <ReportSection title="Activity">
+        <SubmissionsOverTime series={analytics.submissionsOverTime} />
+      </ReportSection>
+    </div>
+  );
+}
+
 // ─── Root export ──────────────────────────────────────────────────────────────
 
 export function FormAnalyticsDashboard({
@@ -1482,49 +2054,50 @@ export function FormAnalyticsDashboard({
     );
     return deriveExecutiveFindings(analytics, tehsilAlerts);
   }, [analytics]);
+  const colorCatalog = useMemo(
+    () => (analytics ? buildColorSeriesCatalog(analytics) : []),
+    [analytics],
+  );
+
+  const filters = (
+    <DashboardFilters
+      packages={packages}
+      selectedPackageId={selectedPackageId}
+      onPackageChange={onPackageChange}
+      datePreset={datePreset}
+      submittedFrom={submittedFrom}
+      submittedTo={submittedTo}
+      onDatePresetChange={onDatePresetChange}
+      onCustomDateChange={onCustomDateChange}
+    />
+  );
+
+  if (!analytics || !hasResponses) {
+    return (
+      <div className="space-y-6">
+        {filters}
+        {analytics ? (
+          <ActiveScopeSummary analytics={analytics} selectedPackage={selectedPackage} dateLabel={dateLabel} />
+        ) : null}
+        {analytics ? <EmptyFilterState /> : null}
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <DashboardFilters
-        packages={packages}
-        selectedPackageId={selectedPackageId}
-        onPackageChange={onPackageChange}
-        datePreset={datePreset}
-        submittedFrom={submittedFrom}
-        submittedTo={submittedTo}
-        onDatePresetChange={onDatePresetChange}
-        onCustomDateChange={onCustomDateChange}
-      />
-
-      {analytics ? (
-        <ActiveScopeSummary analytics={analytics} selectedPackage={selectedPackage} dateLabel={dateLabel} />
-      ) : null}
-
-      {analytics && hasResponses ? (
-        <ExecutiveFindingsPanel findings={executiveFindings} />
-      ) : null}
-
-      {!hasResponses && analytics ? <EmptyFilterState /> : null}
-
-      {analytics && hasResponses ? (
-        <>
-          <ProcurementPackageLinkage
-            packages={packages}
-            selectedPackageId={selectedPackageId}
-            onPackageChange={onPackageChange}
-          />
-
-          {analytics.cesmpInsights ? (
-            <CesmpAnalyticsDashboard insights={analytics.cesmpInsights} selectedPackageId={selectedPackageId} />
-          ) : null}
-
-          <GeographicDemographics analytics={analytics} />
-
-          <QuestionDemographics fields={analytics.fieldBreakdown} />
-
-          <SubmissionsOverTime series={analytics.submissionsOverTime} />
-        </>
-      ) : null}
-    </div>
+    <DashboardColorGradeProvider formId={analytics.form.id} catalog={colorCatalog}>
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_22.5rem] xl:items-start xl:gap-5">
+        <ReportCanvas
+          analytics={analytics}
+          filters={filters}
+          selectedPackage={selectedPackage}
+          selectedPackageId={selectedPackageId}
+          onPackageChange={onPackageChange}
+          dateLabel={dateLabel}
+          executiveFindings={executiveFindings}
+        />
+        <ColorReportRail />
+      </div>
+    </DashboardColorGradeProvider>
   );
 }
