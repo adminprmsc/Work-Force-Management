@@ -229,9 +229,17 @@ export class DeleteSurveyAssignmentUseCase {
 }
 
 export interface UpdateSurveyAssignmentCommand {
+  frequency?: SurveyFrequency;
   startDate?: string;
   endDate?: string;
   instructions?: string | null;
+}
+
+export interface BulkUpdateSurveyAssignmentsCommand {
+  assignmentIds: string[];
+  frequency?: SurveyFrequency;
+  startDate?: string;
+  endDate?: string;
 }
 
 @Injectable()
@@ -259,13 +267,21 @@ export class UpdateSurveyAssignmentUseCase {
       throw new NotFoundException('Assignment not found');
     }
 
+    const hasFrequency = command.frequency !== undefined;
     const hasStart = command.startDate !== undefined;
     const hasEnd = command.endDate !== undefined;
     const hasInstructions = command.instructions !== undefined;
-    if (!hasStart && !hasEnd && !hasInstructions) {
+    if (!hasFrequency && !hasStart && !hasEnd && !hasInstructions) {
       throw new BadRequestException(
-        'Provide a start date, end date, and/or instructions to update',
+        'Provide a frequency, start date, end date, and/or instructions to update',
       );
+    }
+
+    if (
+      hasFrequency &&
+      !Object.values(SurveyFrequency).includes(command.frequency!)
+    ) {
+      throw new BadRequestException('Invalid submission frequency');
     }
 
     let nextStart = assignment.startDate;
@@ -294,6 +310,7 @@ export class UpdateSurveyAssignmentUseCase {
       : undefined;
 
     const updated = await this.assignmentRepository.update(assignmentId, {
+      ...(hasFrequency ? { frequency: command.frequency } : {}),
       ...(hasStart ? { startDate: nextStart } : {}),
       ...(hasEnd ? { endDate: nextEnd } : {}),
       ...(hasInstructions ? { instructions: nextInstructions } : {}),
@@ -309,16 +326,19 @@ export class UpdateSurveyAssignmentUseCase {
         formId: assignment.formId,
         formTitle: assignment.formTitle,
         before: {
+          frequency: assignment.frequency,
           startDate: assignment.startDate.toISOString(),
           endDate: assignment.endDate.toISOString(),
           instructions: assignment.instructions,
         },
         after: {
+          frequency: updated.frequency,
           startDate: updated.startDate.toISOString(),
           endDate: updated.endDate.toISOString(),
           instructions: updated.instructions,
         },
         changes: {
+          frequency: hasFrequency,
           startDate: hasStart,
           endDate: hasEnd,
           instructions: hasInstructions,
@@ -328,6 +348,126 @@ export class UpdateSurveyAssignmentUseCase {
 
     const [enriched] = await this.baselineEnricher.enrich([updated]);
     return enriched ?? updated;
+  }
+}
+
+@Injectable()
+export class BulkUpdateSurveyAssignmentsUseCase {
+  constructor(
+    @Inject(SURVEY_ASSIGNMENT_REPOSITORY)
+    private readonly assignmentRepository: SurveyAssignmentRepositoryPort,
+    @Inject(SURVEY_FORM_REPOSITORY)
+    private readonly formRepository: SurveyFormRepositoryPort,
+    private readonly scopeResolver: SurveyScopeResolver,
+    private readonly baselineEnricher: AssignmentBaselineEnricher,
+    private readonly auditService: AuditService,
+  ) {}
+
+  async execute(
+    user: AuthenticatedUser,
+    formId: string,
+    command: BulkUpdateSurveyAssignmentsCommand,
+  ): Promise<SurveyAssignment[]> {
+    const actor = await this.scopeResolver.resolve(user);
+    if (!canManageSurveyForms(actor.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+
+    const form = await this.formRepository.findById(formId);
+    if (!form) {
+      throw new NotFoundException('Survey form not found');
+    }
+
+    const assignmentIds = Array.from(new Set(command.assignmentIds));
+    if (assignmentIds.length === 0) {
+      throw new BadRequestException('Select at least one assignment');
+    }
+
+    const hasFrequency = command.frequency !== undefined;
+    const hasStart = command.startDate !== undefined;
+    const hasEnd = command.endDate !== undefined;
+    if (!hasFrequency && !hasStart && !hasEnd) {
+      throw new BadRequestException(
+        'Choose a frequency, a start date, or an end date',
+      );
+    }
+    if (
+      hasFrequency &&
+      !Object.values(SurveyFrequency).includes(command.frequency!)
+    ) {
+      throw new BadRequestException('Invalid submission frequency');
+    }
+
+    const sharedStart = hasStart ? new Date(command.startDate!) : null;
+    const sharedEnd = hasEnd ? new Date(command.endDate!) : null;
+    if (sharedStart && Number.isNaN(sharedStart.getTime())) {
+      throw new BadRequestException('Invalid start date');
+    }
+    if (sharedEnd && Number.isNaN(sharedEnd.getTime())) {
+      throw new BadRequestException('Invalid end date');
+    }
+    if (sharedStart && sharedEnd && sharedEnd < sharedStart) {
+      throw new BadRequestException('End date must be on or after start date');
+    }
+
+    const existing = await Promise.all(
+      assignmentIds.map(async (assignmentId) => {
+        const assignment = await this.assignmentRepository.findById(assignmentId);
+        if (!assignment || assignment.formId !== formId) {
+          throw new NotFoundException(
+            `Assignment not found on this form: ${assignmentId}`,
+          );
+        }
+        return assignment;
+      }),
+    );
+
+    for (const assignment of existing) {
+      const nextStart = sharedStart ?? assignment.startDate;
+      const nextEnd = sharedEnd ?? assignment.endDate;
+      if (nextEnd < nextStart) {
+        throw new BadRequestException(
+          `End date must be on or after start date for ${assignment.procurementPackage.name}`,
+        );
+      }
+    }
+
+    const updated: SurveyAssignment[] = [];
+    for (const assignment of existing) {
+      const nextStart = sharedStart ?? assignment.startDate;
+      const nextEnd = sharedEnd ?? assignment.endDate;
+      const saved = await this.assignmentRepository.update(assignment.id, {
+        ...(hasFrequency ? { frequency: command.frequency } : {}),
+        ...(hasStart ? { startDate: nextStart } : {}),
+        ...(hasEnd ? { endDate: nextEnd } : {}),
+      });
+
+      await this.auditService.logPackageAction(
+        user.id,
+        AuditAction.SURVEY_ASSIGNMENT_UPDATED,
+        assignment.procurementPackage.id,
+        {
+          packageName: assignment.procurementPackage.name,
+          assignmentId: assignment.id,
+          formId: assignment.formId,
+          formTitle: assignment.formTitle,
+          bulk: true,
+          before: {
+            frequency: assignment.frequency,
+            startDate: assignment.startDate.toISOString(),
+            endDate: assignment.endDate.toISOString(),
+          },
+          after: {
+            frequency: saved.frequency,
+            startDate: saved.startDate.toISOString(),
+            endDate: saved.endDate.toISOString(),
+          },
+        },
+      );
+      updated.push(saved);
+    }
+
+    return this.baselineEnricher.enrich(updated);
   }
 }
 

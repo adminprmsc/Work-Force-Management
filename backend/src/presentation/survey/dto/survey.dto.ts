@@ -165,6 +165,10 @@ export class CreateSurveyAssignmentsDto {
 
 export class UpdateSurveyAssignmentDto {
   @IsOptional()
+  @IsEnum(SurveyFrequency)
+  frequency?: SurveyFrequency;
+
+  @IsOptional()
   @IsDateString()
   startDate?: string;
 
@@ -176,6 +180,25 @@ export class UpdateSurveyAssignmentDto {
   @IsString()
   @MaxLength(1000)
   instructions?: string | null;
+}
+
+export class BulkUpdateSurveyAssignmentsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  assignmentIds!: string[];
+
+  @IsOptional()
+  @IsEnum(SurveyFrequency)
+  frequency?: SurveyFrequency;
+
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 }
 
 export class StartSurveyResponseDto {

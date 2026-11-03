@@ -19,6 +19,7 @@ import { SurveyBaselineFieldValidator } from '../../application/services/survey-
 import { SurveyFormValidator } from '../../application/services/survey-form.validator';
 import { SurveyScopeResolver } from '../../application/services/survey-scope.resolver';
 import {
+  BulkUpdateSurveyAssignmentsUseCase,
   CreateSurveyAssignmentsUseCase,
   DeleteSurveyAssignmentUseCase,
   ListMyAssignmentsUseCase,
@@ -89,6 +90,7 @@ import { SurveyResponsesController } from './survey-responses.controller';
     GetSurveyFormAnalyticsUseCase,
     ListSurveyAssignmentsUseCase,
     CreateSurveyAssignmentsUseCase,
+    BulkUpdateSurveyAssignmentsUseCase,
     UpdateSurveyAssignmentUseCase,
     DeleteSurveyAssignmentUseCase,
     ListMyAssignmentsUseCase,

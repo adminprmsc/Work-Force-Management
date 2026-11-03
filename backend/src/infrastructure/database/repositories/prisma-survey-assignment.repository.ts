@@ -169,6 +169,7 @@ export class PrismaSurveyAssignmentRepository implements SurveyAssignmentReposit
     const record = await this.prisma.surveyAssignment.update({
       where: { id },
       data: {
+        ...(data.frequency !== undefined ? { frequency: data.frequency } : {}),
         ...(data.startDate !== undefined ? { startDate: data.startDate } : {}),
         ...(data.endDate !== undefined ? { endDate: data.endDate } : {}),
         ...(data.instructions !== undefined

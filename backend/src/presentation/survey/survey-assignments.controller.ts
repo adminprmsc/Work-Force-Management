@@ -51,6 +51,7 @@ export class SurveyAssignmentsController {
     @Body() dto: UpdateSurveyAssignmentDto,
   ) {
     const assignment = await this.updateAssignment.execute(user, id, {
+      frequency: dto.frequency,
       startDate: dto.startDate,
       endDate: dto.endDate,
       instructions: dto.instructions,

@@ -14,6 +14,7 @@ import { UserRole } from '../../domain/entities/user.entity';
 import { SurveyFieldInput } from '../../application/ports/survey-form.repository.port';
 import type { SurveyFormBaselineFieldInput } from '../../application/ports/survey-form.repository.port';
 import {
+  BulkUpdateSurveyAssignmentsUseCase,
   CreateSurveyAssignmentsUseCase,
   ListSurveyAssignmentsUseCase,
 } from '../../application/use-cases/survey/manage-survey-assignments.use-case';
@@ -33,6 +34,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import {
+  BulkUpdateSurveyAssignmentsDto,
   CreateSurveyAssignmentsDto,
   CreateSurveyFormDto,
   SurveyFieldDto,
@@ -112,6 +114,7 @@ export class SurveyFormsController {
     private readonly deleteForm: DeleteSurveyFormUseCase,
     private readonly listAssignments: ListSurveyAssignmentsUseCase,
     private readonly createAssignments: CreateSurveyAssignmentsUseCase,
+    private readonly bulkUpdateAssignments: BulkUpdateSurveyAssignmentsUseCase,
     private readonly getAnalytics: GetSurveyFormAnalyticsUseCase,
   ) {}
 
@@ -165,6 +168,22 @@ export class SurveyFormsController {
       startDate: dto.startDate,
       endDate: dto.endDate,
       instructions: dto.instructions ?? null,
+    });
+    return assignments.map(toSurveyAssignmentResponse);
+  }
+
+  @Patch(':id/assignments')
+  @Roles(...SURVEY_MANAGERS)
+  async updateAssignments(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BulkUpdateSurveyAssignmentsDto,
+  ) {
+    const assignments = await this.bulkUpdateAssignments.execute(user, id, {
+      assignmentIds: dto.assignmentIds,
+      frequency: dto.frequency,
+      startDate: dto.startDate,
+      endDate: dto.endDate,
     });
     return assignments.map(toSurveyAssignmentResponse);
   }

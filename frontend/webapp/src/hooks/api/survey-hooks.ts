@@ -10,6 +10,7 @@ import { queryKeys } from "@/lib/query-keys"
 import {
   archiveSurveyForm,
   acceptSurveyResponse,
+  bulkUpdateSurveyAssignments,
   createSurveyAssignments,
   createSurveyForm,
   deleteSurveyAssignment,
@@ -33,6 +34,7 @@ import {
 import type {
   CreateSurveyAssignmentsInput,
   CreateSurveyFormInput,
+  BulkUpdateSurveyAssignmentsInput,
   UpdateSurveyAssignmentInput,
   ReviewSurveyResponseInput,
   SaveSurveyResponseInput,
@@ -182,6 +184,25 @@ export function useUpdateSurveyAssignmentMutation() {
       formId: string
       input: UpdateSurveyAssignmentInput
     }) => updateSurveyAssignment(token!, params.assignmentId, params.input),
+    onSuccess: async (_data, params) => {
+      await qc.invalidateQueries({
+        queryKey: queryKeys.surveyForms.assignments(params.formId),
+      })
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyForms.all })
+      await qc.invalidateQueries({ queryKey: queryKeys.surveyAssignments.all })
+    },
+  })
+}
+
+export function useBulkUpdateSurveyAssignmentsMutation() {
+  const token = useAuthToken()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (params: {
+      formId: string
+      input: BulkUpdateSurveyAssignmentsInput
+    }) => bulkUpdateSurveyAssignments(token!, params.formId, params.input),
     onSuccess: async (_data, params) => {
       await qc.invalidateQueries({
         queryKey: queryKeys.surveyForms.assignments(params.formId),

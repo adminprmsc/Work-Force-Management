@@ -16,6 +16,7 @@ export interface CreateSurveyAssignmentData {
 }
 
 export interface UpdateSurveyAssignmentData {
+  frequency?: SurveyFrequency;
   startDate?: Date;
   endDate?: Date;
   instructions?: string | null;

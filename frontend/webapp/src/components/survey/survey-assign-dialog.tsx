@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { format } from "date-fns"
 import { CalendarRange, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useProcurementPackagesQuery } from "@/hooks/api/procurement-hooks"
 import {
+  useBulkUpdateSurveyAssignmentsMutation,
   useCreateSurveyAssignmentsMutation,
   useDeleteSurveyAssignmentMutation,
   useSurveyFormAssignmentsQuery,
@@ -56,6 +57,7 @@ export function SurveyAssignDialog({
   const packagesQuery = useProcurementPackagesQuery({ page: 1, limit: 100 }, open)
   const createMutation = useCreateSurveyAssignmentsMutation()
   const updateMutation = useUpdateSurveyAssignmentMutation()
+  const bulkUpdateMutation = useBulkUpdateSurveyAssignmentsMutation()
   const deleteMutation = useDeleteSurveyAssignmentMutation()
 
   const [selected, setSelected] = useState<string[]>([])
@@ -64,7 +66,14 @@ export function SurveyAssignDialog({
   const [endDate, setEndDate] = useState(todayIso())
   const [instructions, setInstructions] = useState("")
 
+  const [assignmentQuery, setAssignmentQuery] = useState("")
+  const [bulkSelected, setBulkSelected] = useState<string[]>([])
+  const [bulkFrequency, setBulkFrequency] = useState<"" | SurveyFrequency>("")
+  const [bulkStartDate, setBulkStartDate] = useState("")
+  const [bulkEndDate, setBulkEndDate] = useState("")
+
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editFrequency, setEditFrequency] = useState<SurveyFrequency>("WEEKLY")
   const [editStartDate, setEditStartDate] = useState("")
   const [editEndDate, setEditEndDate] = useState("")
   const [editInstructions, setEditInstructions] = useState("")
@@ -86,8 +95,47 @@ export function SurveyAssignDialog({
     )
   }
 
+  const visibleAssignments = useMemo(() => {
+    const query = assignmentQuery.trim().toLowerCase()
+    if (!query) return assignments
+    return assignments.filter((assignment) => {
+      const haystack = `${assignment.procurementPackage.name} ${assignment.tehsil.name} ${frequencyLabel(assignment.frequency)}`.toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [assignmentQuery, assignments])
+
+  const visibleIds = visibleAssignments.map((assignment) => assignment.id)
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => bulkSelected.includes(id))
+
+  useEffect(() => {
+    if (open) return
+    setAssignmentQuery("")
+    setBulkSelected([])
+    setBulkFrequency("")
+    setBulkStartDate("")
+    setBulkEndDate("")
+    setEditingId(null)
+  }, [open])
+
+  const toggleBulk = (id: string) => {
+    setBulkSelected((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+  }
+
+  const toggleVisible = () => {
+    setBulkSelected((prev) => {
+      if (allVisibleSelected) {
+        return prev.filter((id) => !visibleIds.includes(id))
+      }
+      return Array.from(new Set([...prev, ...visibleIds]))
+    })
+  }
+
   const beginEdit = (assignment: SurveyAssignment) => {
     setEditingId(assignment.id)
+    setEditFrequency(assignment.frequency)
     setEditStartDate(toDateInputValue(assignment.startDate))
     setEditEndDate(toDateInputValue(assignment.endDate))
     setEditInstructions(assignment.instructions ?? "")
@@ -140,16 +188,57 @@ export function SurveyAssignDialog({
         assignmentId,
         formId: form.id,
         input: {
+          frequency: editFrequency,
           startDate: editStartDate,
           endDate: editEndDate,
           instructions: editInstructions.trim() || null,
         },
       })
-      toast.success("Assignment timeline updated")
+      toast.success("Assignment updated")
       cancelEdit()
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update assignment",
+      )
+    }
+  }
+
+  const handleBulkUpdate = async () => {
+    if (!form) return
+    if (bulkSelected.length === 0) {
+      toast.error("Select at least one assignment")
+      return
+    }
+    if (!bulkFrequency && !bulkStartDate && !bulkEndDate) {
+      toast.error("Choose a frequency, a start date, or an end date")
+      return
+    }
+    if (bulkStartDate && bulkEndDate && new Date(bulkEndDate) < new Date(bulkStartDate)) {
+      toast.error("End date must be on or after the start date")
+      return
+    }
+    try {
+      await bulkUpdateMutation.mutateAsync({
+        formId: form.id,
+        input: {
+          assignmentIds: bulkSelected,
+          ...(bulkFrequency ? { frequency: bulkFrequency } : {}),
+          ...(bulkStartDate ? { startDate: bulkStartDate } : {}),
+          ...(bulkEndDate ? { endDate: bulkEndDate } : {}),
+        },
+      })
+      toast.success(
+        bulkSelected.length === 1
+          ? "1 assignment updated"
+          : `${bulkSelected.length} assignments updated`,
+      )
+      setBulkSelected([])
+      setBulkFrequency("")
+      setBulkStartDate("")
+      setBulkEndDate("")
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update assignments",
       )
     }
   }
@@ -166,17 +255,16 @@ export function SurveyAssignDialog({
   }
 
   const canAssign = form?.status === "PUBLISHED"
-  const isUpdating = updateMutation.isPending
+  const isUpdating = updateMutation.isPending || bulkUpdateMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>Assign “{form?.title}”</DialogTitle>
           <DialogDescription>
-            Assign this survey to procurement packages. Each package’s tehsil RA will be
-            asked to submit it on the schedule you set. You can extend an existing
-            assignment’s timeline at any time.
+            Assign this survey to procurement packages. Select existing assignments to
+            change their frequency and dates together, or edit one package on its own.
           </DialogDescription>
         </DialogHeader>
 
@@ -191,129 +279,245 @@ export function SurveyAssignDialog({
           ) : null}
 
           {assignments.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Current assignments</p>
-              <div className="divide-y rounded-lg border">
-                {assignments.map((assignment) => {
-                  const isEditing = editingId === assignment.id
-                  return (
-                    <div key={assignment.id} className="space-y-3 px-3 py-2.5 text-sm">
-                      <div className="flex items-start gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium">
-                            {assignment.procurementPackage.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {assignment.tehsil.name} ·{" "}
-                            {frequencyLabel(assignment.frequency)} ·{" "}
-                            {format(new Date(assignment.startDate), "dd MMM yyyy")} –{" "}
-                            {format(new Date(assignment.endDate), "dd MMM yyyy")}
-                          </p>
-                          {form?.requiresPackageBaseline ? (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Baseline:{" "}
-                              {assignment.procurementPackage.isBaselineComplete ? (
-                                <span className="text-emerald-700 dark:text-emerald-400">
-                                  complete
-                                </span>
-                              ) : (
-                                <span className="text-amber-700 dark:text-amber-400">
-                                  pending on package
-                                </span>
-                              )}
-                            </p>
-                          ) : null}
-                        </div>
-                        <Badge variant="secondary">
-                          {assignment.responseCount} responses
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          disabled={isUpdating || deleteMutation.isPending}
-                          title="Extend or edit timeline"
-                          onClick={() =>
-                            isEditing ? cancelEdit() : beginEdit(assignment)
-                          }
-                        >
-                          <CalendarRange className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          disabled={
-                            deleteMutation.isPending || assignment.responseCount > 0
-                          }
-                          title={
-                            assignment.responseCount > 0
-                              ? "Has responses — cannot remove"
-                              : "Remove assignment"
-                          }
-                          onClick={() => void handleDelete(assignment.id)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">
+                  Current assignments
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    {assignments.length}
+                  </span>
+                </p>
+              </div>
 
-                      {isEditing ? (
-                        <div className="space-y-3 rounded-md border bg-muted/20 p-3">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="grid gap-1.5">
-                              <Label htmlFor={`edit-start-${assignment.id}`}>
-                                Start date
-                              </Label>
-                              <Input
-                                id={`edit-start-${assignment.id}`}
-                                type="date"
-                                value={editStartDate}
-                                onChange={(e) => setEditStartDate(e.target.value)}
-                              />
-                            </div>
-                            <div className="grid gap-1.5">
-                              <Label htmlFor={`edit-end-${assignment.id}`}>
-                                End date
-                              </Label>
-                              <Input
-                                id={`edit-end-${assignment.id}`}
-                                type="date"
-                                value={editEndDate}
-                                onChange={(e) => setEditEndDate(e.target.value)}
-                              />
-                            </div>
+              <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="bulk-frequency">Frequency</Label>
+                    <NativeSelect
+                      id="bulk-frequency"
+                      className="w-full"
+                      value={bulkFrequency}
+                      onChange={(e) =>
+                        setBulkFrequency(e.target.value as "" | SurveyFrequency)
+                      }
+                    >
+                      <NativeSelectOption value="">Keep current</NativeSelectOption>
+                      {SURVEY_FREQUENCY_OPTIONS.map((option) => (
+                        <NativeSelectOption key={option.value} value={option.value}>
+                          {option.label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="bulk-start">Start date</Label>
+                    <Input
+                      id="bulk-start"
+                      type="date"
+                      value={bulkStartDate}
+                      onChange={(e) => setBulkStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="bulk-end">End date</Label>
+                    <Input
+                      id="bulk-end"
+                      type="date"
+                      value={bulkEndDate}
+                      onChange={(e) => setBulkEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Blank dates stay as they are on each package. Checked packages update
+                    together.
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={isUpdating || bulkSelected.length === 0}
+                    onClick={() => void handleBulkUpdate()}
+                  >
+                    {bulkUpdateMutation.isPending
+                      ? "Updating…"
+                      : `Apply to ${bulkSelected.length || "selected"}`}
+                  </Button>
+                </div>
+              </div>
+
+              <Input
+                value={assignmentQuery}
+                onChange={(e) => setAssignmentQuery(e.target.value)}
+                placeholder="Search packages or tehsils"
+              />
+
+              <div className="divide-y rounded-lg border">
+                <label className="flex cursor-pointer items-center gap-2 bg-muted/30 px-3 py-2 text-sm">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    onCheckedChange={toggleVisible}
+                  />
+                  <span>
+                    {allVisibleSelected ? "Clear visible" : "Select visible"}
+                    {assignmentQuery.trim()
+                      ? ` (${visibleAssignments.length})`
+                      : ""}
+                  </span>
+                </label>
+                {visibleAssignments.length === 0 ? (
+                  <p className="px-3 py-4 text-sm text-muted-foreground">
+                    No assignments match that search.
+                  </p>
+                ) : (
+                  visibleAssignments.map((assignment) => {
+                    const isEditing = editingId === assignment.id
+                    return (
+                      <div key={assignment.id} className="space-y-3 px-3 py-2.5 text-sm">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            className="mt-1"
+                            checked={bulkSelected.includes(assignment.id)}
+                            onCheckedChange={() => toggleBulk(assignment.id)}
+                            aria-label={`Select ${assignment.procurementPackage.name}`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">
+                              {assignment.procurementPackage.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {assignment.tehsil.name} ·{" "}
+                              {frequencyLabel(assignment.frequency)} ·{" "}
+                              {format(new Date(assignment.startDate), "dd MMM yyyy")} –{" "}
+                              {format(new Date(assignment.endDate), "dd MMM yyyy")}
+                            </p>
+                            {form?.requiresPackageBaseline ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Baseline:{" "}
+                                {assignment.procurementPackage.isBaselineComplete ? (
+                                  <span className="text-emerald-700 dark:text-emerald-400">
+                                    complete
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-700 dark:text-amber-400">
+                                    pending on package
+                                  </span>
+                                )}
+                              </p>
+                            ) : null}
                           </div>
-                          <div className="grid gap-1.5">
-                            <Label htmlFor={`edit-instructions-${assignment.id}`}>
-                              Instructions (optional)
-                            </Label>
-                            <Textarea
-                              id={`edit-instructions-${assignment.id}`}
-                              rows={2}
-                              value={editInstructions}
-                              onChange={(e) => setEditInstructions(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={isUpdating}
-                              onClick={cancelEdit}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              size="sm"
-                              disabled={isUpdating || !editStartDate || !editEndDate}
-                              onClick={() => void handleUpdate(assignment.id)}
-                            >
-                              {isUpdating ? "Saving…" : "Save timeline"}
-                            </Button>
-                          </div>
+                          <Badge variant="secondary">
+                            {assignment.responseCount} responses
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={isUpdating || deleteMutation.isPending}
+                            title="Edit this assignment"
+                            onClick={() =>
+                              isEditing ? cancelEdit() : beginEdit(assignment)
+                            }
+                          >
+                            <CalendarRange className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={
+                              deleteMutation.isPending || assignment.responseCount > 0
+                            }
+                            title={
+                              assignment.responseCount > 0
+                                ? "Has responses — cannot remove"
+                                : "Remove assignment"
+                            }
+                            onClick={() => void handleDelete(assignment.id)}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
                         </div>
-                      ) : null}
-                    </div>
-                  )
-                })}
+
+                        {isEditing ? (
+                          <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+                            <div className="grid gap-3 sm:grid-cols-3">
+                              <div className="grid gap-1.5">
+                                <Label htmlFor={`edit-frequency-${assignment.id}`}>
+                                  Frequency
+                                </Label>
+                                <NativeSelect
+                                  id={`edit-frequency-${assignment.id}`}
+                                  className="w-full"
+                                  value={editFrequency}
+                                  onChange={(e) =>
+                                    setEditFrequency(e.target.value as SurveyFrequency)
+                                  }
+                                >
+                                  {SURVEY_FREQUENCY_OPTIONS.map((option) => (
+                                    <NativeSelectOption
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </NativeSelectOption>
+                                  ))}
+                                </NativeSelect>
+                              </div>
+                              <div className="grid gap-1.5">
+                                <Label htmlFor={`edit-start-${assignment.id}`}>
+                                  Start date
+                                </Label>
+                                <Input
+                                  id={`edit-start-${assignment.id}`}
+                                  type="date"
+                                  value={editStartDate}
+                                  onChange={(e) => setEditStartDate(e.target.value)}
+                                />
+                              </div>
+                              <div className="grid gap-1.5">
+                                <Label htmlFor={`edit-end-${assignment.id}`}>
+                                  End date
+                                </Label>
+                                <Input
+                                  id={`edit-end-${assignment.id}`}
+                                  type="date"
+                                  value={editEndDate}
+                                  onChange={(e) => setEditEndDate(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid gap-1.5">
+                              <Label htmlFor={`edit-instructions-${assignment.id}`}>
+                                Instructions (optional)
+                              </Label>
+                              <Textarea
+                                id={`edit-instructions-${assignment.id}`}
+                                rows={2}
+                                value={editInstructions}
+                                onChange={(e) => setEditInstructions(e.target.value)}
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={isUpdating}
+                                onClick={cancelEdit}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={isUpdating || !editStartDate || !editEndDate}
+                                onClick={() => void handleUpdate(assignment.id)}
+                              >
+                                {isUpdating ? "Saving…" : "Save assignment"}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })
+                )}
               </div>
               <Separator className="mt-4" />
             </div>

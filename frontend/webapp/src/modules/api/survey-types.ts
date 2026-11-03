@@ -201,9 +201,17 @@ export type CreateSurveyAssignmentsInput = {
 }
 
 export type UpdateSurveyAssignmentInput = {
+  frequency?: SurveyFrequency
   startDate?: string
   endDate?: string
   instructions?: string | null
+}
+
+export type BulkUpdateSurveyAssignmentsInput = {
+  assignmentIds: string[]
+  frequency?: SurveyFrequency
+  startDate?: string
+  endDate?: string
 }
 
 export type SurveyAnswer = {
