@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 
 const FORM_TITLE = 'C-ESMP Village Monitoring Checklist';
+const LEGACY_FORM_TITLE = 'Village Monitoring Checklist';
 
 function opts(...labels: string[]) {
   return labels.map((label) => ({
@@ -583,13 +584,47 @@ export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
     return;
   }
 
-  const existing = await prisma.surveyForm.findFirst({
-    where: { title: FORM_TITLE },
+  const candidates = await prisma.surveyForm.findMany({
+    where: { title: { in: [FORM_TITLE, LEGACY_FORM_TITLE] } },
     include: { fields: true, baselineFields: true },
+    orderBy: { createdAt: 'asc' },
   });
+  const existing =
+    candidates.find((form) => form.title === LEGACY_FORM_TITLE) ??
+    candidates[0];
 
-  if (existing?.status === SurveyStatus.PUBLISHED) {
+  if (
+    existing &&
+    (existing.status === SurveyStatus.PUBLISHED ||
+      existing.status === SurveyStatus.ARCHIVED)
+  ) {
     await ensureSiteStatusOnPublishedForm(prisma, existing);
+    if (existing.status === SurveyStatus.ARCHIVED) {
+      await prisma.surveyForm.update({
+        where: { id: existing.id },
+        data: {
+          status: SurveyStatus.PUBLISHED,
+          publishedAt: new Date(),
+        },
+      });
+      console.log(`C-ESMP form republished: ${existing.title}`);
+    }
+    const duplicateIds = candidates
+      .filter((form) => form.id !== existing.id)
+      .map((form) => form.id);
+    if (duplicateIds.length > 0) {
+      const filled = await prisma.surveyResponse.count({
+        where: { formId: { in: duplicateIds } },
+      });
+      if (filled === 0) {
+        await prisma.surveyForm.deleteMany({
+          where: { id: { in: duplicateIds } },
+        });
+        console.log(
+          `Removed ${duplicateIds.length} empty duplicate C-ESMP checklist(s)`,
+        );
+      }
+    }
     return;
   }
 
