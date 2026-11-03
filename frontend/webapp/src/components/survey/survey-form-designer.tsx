@@ -1,11 +1,16 @@
 import { useState } from "react"
-import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2, X } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Plus, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { PackageBaselineRequirements } from "@/components/compliance/package-baseline-requirements"
 import { SurveyBaselineFieldsSection } from "@/components/survey/survey-baseline-fields-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   Dialog,
   DialogContent,
@@ -45,7 +50,7 @@ import type {
   SurveyForm,
 } from "@/modules/api/survey-types"
 
-type OptionDraft = { key: string; label: string }
+type OptionDraft = { key: string; label: string; endsForm: boolean }
 
 type SectionMode = "always" | "optional" | "conditional"
 
@@ -83,6 +88,79 @@ function uid(): string {
     : Math.random().toString(36).slice(2)
 }
 
+function isFollowUpDraft(field: FieldDraft): boolean {
+  return field.type !== "SECTION_BREAK" && field.visibleWhenFieldKey.trim().length > 0
+}
+
+function answerBranchKeys(fields: FieldDraft[], parentKey: string, answer: string): Set<string> {
+  const keys = new Set<string>()
+  const queue = fields
+    .filter(
+      (field) =>
+        field.type !== "SECTION_BREAK" &&
+        field.visibleWhenFieldKey === parentKey &&
+        field.visibleWhenEquals === answer,
+    )
+    .map((field) => field.key)
+  while (queue.length > 0) {
+    const current = queue.pop()
+    if (!current || keys.has(current)) continue
+    keys.add(current)
+    for (const field of fields) {
+      if (field.type === "SECTION_BREAK") continue
+      if (field.visibleWhenFieldKey === current) queue.push(field.key)
+    }
+  }
+  return keys
+}
+
+function followUpKeys(fields: FieldDraft[], rootKey: string): Set<string> {
+  const keys = new Set<string>()
+  const queue = [rootKey]
+  while (queue.length > 0) {
+    const current = queue.pop()
+    if (!current) continue
+    for (const field of fields) {
+      if (field.type === "SECTION_BREAK") continue
+      if (field.visibleWhenFieldKey === current && !keys.has(field.key)) {
+        keys.add(field.key)
+        queue.push(field.key)
+      }
+    }
+  }
+  return keys
+}
+
+function swapBlocks(fields: FieldDraft[], keyA: string, keyB: string): FieldDraft[] {
+  const blockA = followUpKeys(fields, keyA)
+  const blockB = followUpKeys(fields, keyB)
+  blockA.add(keyA)
+  blockB.add(keyB)
+  const itemsA = fields.filter((field) => blockA.has(field.key))
+  const itemsB = fields.filter((field) => blockB.has(field.key))
+  const next: FieldDraft[] = []
+  let placedA = false
+  let placedB = false
+  for (const field of fields) {
+    if (blockA.has(field.key)) {
+      if (!placedA) {
+        next.push(...itemsB)
+        placedA = true
+      }
+      continue
+    }
+    if (blockB.has(field.key)) {
+      if (!placedB) {
+        next.push(...itemsA)
+        placedB = true
+      }
+      continue
+    }
+    next.push(field)
+  }
+  return next
+}
+
 function budgetBehaviorFromField(field: SurveyField): FieldDraft["budgetBehavior"] {
   const config = field.config ?? {}
   if (config.packageReference) return config.packageReference
@@ -112,6 +190,7 @@ function draftFromField(field: SurveyField): FieldDraft {
     options: (config.options ?? []).map((option) => ({
       key: uid(),
       label: option.label,
+      endsForm: option.endsForm === true,
     })),
     min: config.min !== undefined ? String(config.min) : "",
     max: config.max !== undefined ? String(config.max) : "",
@@ -136,8 +215,8 @@ function emptyDraft(type: SurveyFieldType): FieldDraft {
     required: false,
     options: fieldHasOptions(type)
       ? [
-          { key: uid(), label: "Option 1" },
-          { key: uid(), label: "Option 2" },
+          { key: uid(), label: "Option 1", endsForm: false },
+          { key: uid(), label: "Option 2", endsForm: false },
         ]
       : [],
     min: "",
@@ -173,9 +252,16 @@ function toFieldInput(draft: FieldDraft, index: number): SurveyFieldInput {
     }
   } else if (meta.hasOptions) {
     const options = draft.options
-      .map((option) => option.label.trim())
-      .filter((label) => label.length > 0)
-      .map((label) => ({ value: label, label }))
+      .map((option) => ({
+        label: option.label.trim(),
+        endsForm: option.endsForm,
+      }))
+      .filter((option) => option.label.length > 0)
+      .map((option) => ({
+        value: option.label,
+        label: option.label,
+        ...(option.endsForm ? { endsForm: true as const } : {}),
+      }))
     config = { options }
   } else if (draft.type === "NUMBER") {
     const next: NonNullable<SurveyFieldInput["config"]> = {}
@@ -207,6 +293,20 @@ function toFieldInput(draft: FieldDraft, index: number): SurveyFieldInput {
     }
   }
 
+  if (
+    draft.type !== "SECTION_BREAK" &&
+    draft.visibleWhenFieldKey &&
+    draft.visibleWhenEquals.trim()
+  ) {
+    config = {
+      ...(config ?? {}),
+      visibleWhen: {
+        fieldId: draft.visibleWhenFieldKey,
+        equals: draft.visibleWhenEquals.trim(),
+      },
+    }
+  }
+
   return {
     id: draft.key,
     type: draft.type,
@@ -220,6 +320,53 @@ function toFieldInput(draft: FieldDraft, index: number): SurveyFieldInput {
     order: index,
     config,
   }
+}
+
+function BranchingGuide() {
+  return (
+    <Collapsible defaultOpen className="rounded-xl border bg-muted/20">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium">
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+        How to branch a question or end the form
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-3 px-4 pb-4 text-sm text-muted-foreground">
+        <ol className="list-decimal space-y-1.5 pl-4">
+          <li>Add a Multiple Choice, Dropdown, or Checkboxes question.</li>
+          <li>
+            Next to each answer, choose <span className="text-foreground">Continue</span> or{" "}
+            <span className="text-foreground">End the form</span>.
+          </li>
+          <li>
+            <span className="text-foreground">Continue</span>, then{" "}
+            <span className="text-foreground">Add question</span>, asks that question only when
+            this answer is chosen. That question can branch again.
+          </li>
+          <li>
+            <span className="text-foreground">End the form</span> skips every question after this
+            one. Remove any questions already under that answer first.
+          </li>
+        </ol>
+        <div className="rounded-lg border bg-background px-3 py-2.5">
+          <p className="font-medium text-foreground">Example</p>
+          <p className="mt-1">What is the status of the construction site?</p>
+          <ul className="mt-1.5 space-y-1 pl-4">
+            <li>
+              <span className="text-foreground">Operational</span> — Continue, and add nothing.
+              The rest of the survey stays open.
+            </li>
+            <li>
+              <span className="text-foreground">Dormant</span> — Continue, then add “How long has
+              the site been dormant?”
+              <ul className="mt-1 space-y-1 pl-4">
+                <li>More than 7 days — End the form. Later questions are skipped.</li>
+                <li>Less than 7 days — Continue. The rest of the survey stays open.</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
 }
 
 type SurveyFormDesignerProps = {
@@ -263,31 +410,97 @@ export function SurveyFormDesigner({
     setFields((prev) => [...prev, emptyDraft(type)])
   }
 
+  const addFollowUp = (parentKey: string, answer: string, type: SurveyFieldType) => {
+    const label = answer.trim()
+    if (!label) {
+      toast.error("Name the answer before adding a question for it")
+      return
+    }
+    setFields((prev) => {
+      const draft = emptyDraft(type)
+      draft.visibleWhenFieldKey = parentKey
+      draft.visibleWhenEquals = answer
+      const branch = answerBranchKeys(prev, parentKey, answer)
+      branch.add(parentKey)
+      let insertAt = prev.findIndex((field) => field.key === parentKey)
+      prev.forEach((field, index) => {
+        if (branch.has(field.key)) insertAt = Math.max(insertAt, index)
+      })
+      const next = [...prev]
+      next.splice(insertAt + 1, 0, draft)
+      return next
+    })
+  }
+
   const updateField = (key: string, patch: Partial<FieldDraft>) => {
-    setFields((prev) =>
-      prev.map((field) => (field.key === key ? { ...field, ...patch } : field)),
-    )
+    setFields((prev) => {
+      const current = prev.find((field) => field.key === key)
+      let next = prev.map((field) => (field.key === key ? { ...field, ...patch } : field))
+      if (!current || !patch.options) return next
+
+      const renamed = new Map<string, string>()
+      for (const option of current.options) {
+        const updated = patch.options.find((entry) => entry.key === option.key)
+        if (updated && updated.label !== option.label) {
+          renamed.set(option.label, updated.label)
+        }
+      }
+      const removedLabels = new Set(
+        current.options
+          .filter((option) => !patch.options?.some((entry) => entry.key === option.key))
+          .map((option) => option.label),
+      )
+      if (renamed.size > 0) {
+        next = next.map((field) => {
+          if (field.visibleWhenFieldKey !== key) return field
+          const label = renamed.get(field.visibleWhenEquals)
+          return label !== undefined ? { ...field, visibleWhenEquals: label } : field
+        })
+      }
+      if (removedLabels.size > 0) {
+        const drop = new Set<string>()
+        for (const field of next) {
+          if (field.visibleWhenFieldKey === key && removedLabels.has(field.visibleWhenEquals)) {
+            drop.add(field.key)
+            for (const nested of followUpKeys(next, field.key)) drop.add(nested)
+          }
+        }
+        next = next.filter((field) => !drop.has(field.key))
+      }
+      return next
+    })
   }
 
   const removeField = (key: string) => {
-    setFields((prev) =>
-      prev
-        .filter((field) => field.key !== key)
+    setFields((prev) => {
+      const drop = followUpKeys(prev, key)
+      drop.add(key)
+      return prev
+        .filter((field) => !drop.has(field.key))
         .map((field) =>
           field.visibleWhenFieldKey === key
             ? { ...field, visibleWhenFieldKey: "", visibleWhenEquals: "" }
             : field,
-        ),
-    )
+        )
+    })
   }
 
-  const moveField = (index: number, direction: -1 | 1) => {
+  const moveField = (key: string, direction: -1 | 1) => {
     setFields((prev) => {
-      const target = index + direction
-      if (target < 0 || target >= prev.length) return prev
-      const next = [...prev]
-      ;[next[index], next[target]] = [next[target], next[index]]
-      return next
+      const field = prev.find((entry) => entry.key === key)
+      if (!field) return prev
+      const siblings = isFollowUpDraft(field)
+        ? prev.filter(
+            (entry) =>
+              entry.type !== "SECTION_BREAK" &&
+              entry.visibleWhenFieldKey === field.visibleWhenFieldKey &&
+              entry.visibleWhenEquals === field.visibleWhenEquals,
+          )
+        : prev.filter((entry) => !isFollowUpDraft(entry))
+      const index = siblings.findIndex((entry) => entry.key === key)
+      const neighbor = siblings[index + direction]
+      if (!neighbor) return prev
+      return swapBlocks(prev, key, neighbor.key)
     })
   }
 
@@ -378,7 +591,7 @@ export function SurveyFormDesigner({
           <DialogDescription>
             {fieldsLocked
               ? "Update the form name or description. Archive the form first to add or change fields."
-              : "Build the questionnaire RAs will fill during site visits. Draft and archived forms can be edited freely before publishing."}
+              : "Build the questionnaire RAs will fill during site visits. Each answer can open more questions, or end the form."}
           </DialogDescription>
         </DialogHeader>
 
@@ -503,25 +716,35 @@ export function SurveyFormDesigner({
               </p>
             ) : null}
 
+            {!fieldsLocked ? <BranchingGuide /> : null}
+
             {fields.length === 0 && !fieldsLocked ? (
               <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
                 No fields yet. Add fields from the panel on the left.
               </div>
             ) : fields.length > 0 ? (
               <div className="space-y-3">
-                {fields.map((field, index) => (
-                  <FieldEditor
-                    key={field.key}
-                    field={field}
-                    index={index}
-                    total={fields.length}
-                    allFields={fields}
-                    readOnly={fieldsLocked}
-                    onChange={(patch) => updateField(field.key, patch)}
-                    onRemove={() => removeField(field.key)}
-                    onMove={(direction) => moveField(index, direction)}
-                  />
-                ))}
+                {fields.map((field, index) =>
+                  isFollowUpDraft(field) ? null : (
+                    <FieldEditor
+                      key={field.key}
+                      field={field}
+                      index={index}
+                      total={fields.length}
+                      allFields={fields}
+                      readOnly={fieldsLocked}
+                      depth={0}
+                      onChange={(patch) => updateField(field.key, patch)}
+                      onRemove={() => removeField(field.key)}
+                      onMove={(direction) => moveField(field.key, direction)}
+                      onAddFollowUp={(answer, type) => addFollowUp(field.key, answer, type)}
+                      onPatchField={updateField}
+                      onRemoveField={removeField}
+                      onMoveField={moveField}
+                      onCreateFollowUp={addFollowUp}
+                    />
+                  ),
+                )}
               </div>
             ) : null}
           </div>
@@ -552,20 +775,31 @@ type FieldEditorProps = {
   total: number
   allFields: FieldDraft[]
   readOnly?: boolean
+  depth?: number
   onChange: (patch: Partial<FieldDraft>) => void
   onRemove: () => void
   onMove: (direction: -1 | 1) => void
+  onAddFollowUp: (answer: string, type: SurveyFieldType) => void
+  onPatchField: (key: string, patch: Partial<FieldDraft>) => void
+  onRemoveField: (key: string) => void
+  onMoveField: (key: string, direction: -1 | 1) => void
+  onCreateFollowUp: (parentKey: string, answer: string, type: SurveyFieldType) => void
 }
 
 function FieldEditor({
   field,
   index,
-  total,
   allFields,
   readOnly = false,
+  depth = 0,
   onChange,
   onRemove,
   onMove,
+  onAddFollowUp,
+  onPatchField,
+  onRemoveField,
+  onMoveField,
+  onCreateFollowUp,
 }: FieldEditorProps) {
   const meta = fieldMeta(field.type)
   const Icon = meta.icon
@@ -586,15 +820,27 @@ function FieldEditor({
     .map((option) => option.label.trim())
     .filter((label) => label.length > 0)
 
+  const followUp = isFollowUpDraft(field)
+  const siblings = followUp
+    ? allFields.filter(
+        (entry) =>
+          entry.type !== "SECTION_BREAK" &&
+          entry.visibleWhenFieldKey === field.visibleWhenFieldKey &&
+          entry.visibleWhenEquals === field.visibleWhenEquals,
+      )
+    : allFields.filter((entry) => !isFollowUpDraft(entry))
+  const siblingIndex = siblings.findIndex((entry) => entry.key === field.key)
+  const [followUpType, setFollowUpType] = useState<Record<string, SurveyFieldType>>({})
+
   const addOption = () => {
     onChange({
-      options: [...field.options, { key: uid(), label: "" }],
+      options: [...field.options, { key: uid(), label: "", endsForm: false }],
     })
   }
-  const updateOption = (key: string, label: string) => {
+  const updateOption = (key: string, patch: Partial<OptionDraft>) => {
     onChange({
       options: field.options.map((option) =>
-        option.key === key ? { ...option, label } : option,
+        option.key === key ? { ...option, ...patch } : option,
       ),
     })
   }
@@ -603,6 +849,7 @@ function FieldEditor({
   }
 
   return (
+    <div className={cn(depth > 0 && "ml-4 border-l border-dashed pl-3")}>
     <div className="rounded-lg border bg-card p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <GripVertical className="size-4 text-muted-foreground" />
@@ -610,14 +857,16 @@ function FieldEditor({
           <Icon className="size-3.5" />
           {meta.label}
         </Badge>
-        <span className="text-xs text-muted-foreground">Field {index + 1}</span>
+        <span className="text-xs text-muted-foreground">
+          {followUp ? `When “${field.visibleWhenEquals}”` : `Field ${index + 1}`}
+        </span>
         <div className="ml-auto flex items-center gap-1">
           {!readOnly ? (
             <>
           <Button
             variant="ghost"
             size="icon-sm"
-            disabled={index === 0}
+            disabled={siblingIndex <= 0}
             onClick={() => onMove(-1)}
             title="Move up"
           >
@@ -626,7 +875,7 @@ function FieldEditor({
           <Button
             variant="ghost"
             size="icon-sm"
-            disabled={index === total - 1}
+            disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1}
             onClick={() => onMove(1)}
             title="Move down"
           >
@@ -824,32 +1073,130 @@ function FieldEditor({
           </Badge>
         ) : null}
 
-        {meta.hasOptions && !readOnly && !field.budgetBehavior ? (
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Options</Label>
-            <div className="space-y-1.5">
-              {field.options.map((option) => (
-                <div key={option.key} className="flex items-center gap-2">
-                  <Input
-                    value={option.label}
-                    onChange={(e) => updateOption(option.key, e.target.value)}
-                    placeholder="Option label"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => removeOption(option.key)}
-                    title="Remove option"
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
-              ))}
+        {meta.hasOptions && !field.budgetBehavior ? (
+          <div className="grid gap-2">
+            <Label className="text-xs">Answers</Label>
+            <div className="space-y-2">
+              {field.options.map((option) => {
+                const answer = option.label.trim()
+                const followUps = allFields.filter(
+                  (entry) =>
+                    entry.type !== "SECTION_BREAK" &&
+                    entry.visibleWhenFieldKey === field.key &&
+                    entry.visibleWhenEquals === option.label,
+                )
+                return (
+                  <div key={option.key} className="space-y-2 rounded-md border bg-muted/20 p-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={option.label}
+                        onChange={(e) => updateOption(option.key, { label: e.target.value })}
+                        placeholder="Answer"
+                        disabled={readOnly}
+                      />
+                      <NativeSelect
+                        className="w-44 shrink-0"
+                        value={option.endsForm ? "end" : "continue"}
+                        disabled={readOnly || (followUps.length > 0 && !option.endsForm)}
+                        onChange={(e) =>
+                          updateOption(option.key, { endsForm: e.target.value === "end" })
+                        }
+                      >
+                        <NativeSelectOption value="continue">Continue</NativeSelectOption>
+                        <NativeSelectOption value="end">End the form</NativeSelectOption>
+                      </NativeSelect>
+                      {!readOnly ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => removeOption(option.key)}
+                          title="Remove answer"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                    {option.endsForm ? (
+                      <p className="text-xs text-muted-foreground">
+                        Choosing {answer ? `“${answer}”` : "this answer"} finishes the form. Later questions are skipped.
+                      </p>
+                    ) : null}
+                    {followUps.length > 0 ? (
+                      <div className="space-y-2">
+                        {followUps.map((child) => (
+                          <FieldEditor
+                            key={child.key}
+                            field={child}
+                            index={allFields.findIndex((entry) => entry.key === child.key)}
+                            total={allFields.length}
+                            allFields={allFields}
+                            readOnly={readOnly}
+                            depth={depth + 1}
+                            onChange={(patch) => onPatchField(child.key, patch)}
+                            onRemove={() => onRemoveField(child.key)}
+                            onMove={(direction) => onMoveField(child.key, direction)}
+                            onAddFollowUp={(nextAnswer, type) =>
+                              onCreateFollowUp(child.key, nextAnswer, type)
+                            }
+                            onPatchField={onPatchField}
+                            onRemoveField={onRemoveField}
+                            onMoveField={onMoveField}
+                            onCreateFollowUp={onCreateFollowUp}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                    {!readOnly && !option.endsForm ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <NativeSelect
+                          className="w-44"
+                          value={followUpType[option.key] ?? "MULTIPLE_CHOICE"}
+                          onChange={(e) =>
+                            setFollowUpType((current) => ({
+                              ...current,
+                              [option.key]: e.target.value as SurveyFieldType,
+                            }))
+                          }
+                        >
+                          {SURVEY_FIELD_META.filter((item) => item.type !== "SECTION_BREAK").map(
+                            (item) => (
+                              <NativeSelectOption key={item.type} value={item.type}>
+                                {item.label}
+                              </NativeSelectOption>
+                            ),
+                          )}
+                        </NativeSelect>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            onAddFollowUp(
+                              option.label,
+                              followUpType[option.key] ?? "MULTIPLE_CHOICE",
+                            )
+                          }
+                        >
+                          <Plus className="mr-2 size-4" />
+                          Add question
+                        </Button>
+                      </div>
+                    ) : null}
+                    {!readOnly && followUps.length > 0 && !option.endsForm ? (
+                      <p className="text-xs text-muted-foreground">
+                        Remove these questions before this answer can end the form.
+                      </p>
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
-            <Button variant="outline" size="sm" className="w-fit" onClick={addOption}>
-              <Plus className="mr-2 size-4" />
-              Add option
-            </Button>
+            {!readOnly ? (
+              <Button variant="outline" size="sm" className="w-fit" onClick={addOption}>
+                <Plus className="mr-2 size-4" />
+                Add answer
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -907,6 +1254,7 @@ function FieldEditor({
           </label>
         ) : null}
       </div>
+    </div>
     </div>
   )
 }

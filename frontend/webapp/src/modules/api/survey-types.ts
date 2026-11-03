@@ -36,6 +36,8 @@ export type SurveyFieldType =
 export type SurveyFieldOption = {
   value: string
   label: string
+  /** Selecting this answer skips every question after this one. */
+  endsForm?: boolean
 }
 
 export type PackageFieldReference =
@@ -76,7 +78,7 @@ export type SurveyFieldConfig = {
   computedVisitDeductions?: boolean
   /** SECTION_BREAK only: section is optional — user toggles Yes/No to fill it. */
   optional?: boolean
-  /** SECTION_BREAK only: show section when a prior Yes/No (or choice) matches. */
+  /** Show this question or section when a prior choice matches. */
   visibleWhen?: SurveyFieldVisibleWhen
 }
 

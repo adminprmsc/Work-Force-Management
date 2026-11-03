@@ -2,6 +2,7 @@ import {
   Prisma,
   PrismaClient,
   SurveyFieldType,
+  SurveyResponseStatus,
   SurveyStatus,
 } from '@prisma/client';
 
@@ -54,11 +55,47 @@ function section(
   };
 }
 
+const SITE_STATUS_FIELD_ID = 'c5e5a100-7d01-4a11-9c01-000000000001';
+const DORMANT_DURATION_FIELD_ID = 'c5e5a100-7d01-4a11-9c01-000000000002';
+const SITE_STATUS_LABEL = 'What is the status of the construction site?';
+
 export function cesmpVillageMonitoringFields() {
   let order = 0;
   const next = () => order++;
 
   return [
+    {
+      id: SITE_STATUS_FIELD_ID,
+      type: SurveyFieldType.MULTIPLE_CHOICE,
+      label: SITE_STATUS_LABEL,
+      required: true,
+      order: next(),
+      config: {
+        options: [
+          { value: 'Operational', label: 'Operational' },
+          { value: 'Dormant', label: 'Dormant' },
+        ],
+      },
+    },
+    {
+      id: DORMANT_DURATION_FIELD_ID,
+      type: SurveyFieldType.MULTIPLE_CHOICE,
+      label: 'How long has the site been dormant?',
+      required: true,
+      order: next(),
+      config: {
+        visibleWhen: { fieldId: SITE_STATUS_FIELD_ID, equals: 'Dormant' },
+        options: [
+          {
+            value: 'More than 7 days',
+            label: 'More than 7 days',
+            endsForm: true,
+          },
+          { value: 'Less than 7 days', label: 'Less than 7 days' },
+        ],
+      },
+    },
+
     section('PPE COMPLIANCE', next()),
     mc(
       'How would you rate workers who are wearing appropriate PPE as required by their tasks?',
@@ -420,6 +457,122 @@ async function ensureInitialRevision(
   });
 }
 
+function revisionIncludesSiteStatus(fields: Prisma.JsonValue): boolean {
+  if (!Array.isArray(fields)) return false;
+  return fields.some(
+    (field) =>
+      field !== null &&
+      typeof field === 'object' &&
+      !Array.isArray(field) &&
+      (field as { label?: unknown }).label === SITE_STATUS_LABEL,
+  );
+}
+
+/**
+ * Published checklists are left in place. When the site-status gate is missing,
+ * prepend it, publish a new revision, and point assignments at that revision.
+ * Submitted and accepted visits keep the revision they were filed against.
+ */
+async function ensureSiteStatusOnPublishedForm(
+  prisma: PrismaClient,
+  form: RevisionSourceForm & { currentRevisionId: string | null },
+): Promise<void> {
+  const currentRevision = form.currentRevisionId
+    ? await prisma.surveyFormRevision.findUnique({
+        where: { id: form.currentRevisionId },
+        select: { fields: true },
+      })
+    : null;
+  const liveHasStatus = form.fields.some(
+    (field) => field.label === SITE_STATUS_LABEL,
+  );
+  const revisionHasStatus = currentRevision
+    ? revisionIncludesSiteStatus(currentRevision.fields)
+    : false;
+
+  if (liveHasStatus && (revisionHasStatus || !form.currentRevisionId)) {
+    if (!form.currentRevisionId) {
+      await ensureInitialRevision(prisma, form);
+      console.log(`C-ESMP form revision backfilled: ${FORM_TITLE}`);
+      return;
+    }
+    console.log(`C-ESMP form already published: ${FORM_TITLE}`);
+    return;
+  }
+
+  if (!liveHasStatus) {
+    await prisma.$transaction([
+      prisma.surveyField.updateMany({
+        where: { formId: form.id },
+        data: { order: { increment: 2 } },
+      }),
+      prisma.surveyField.createMany({
+        data: [
+          {
+            id: SITE_STATUS_FIELD_ID,
+            formId: form.id,
+            type: SurveyFieldType.MULTIPLE_CHOICE,
+            label: SITE_STATUS_LABEL,
+            required: true,
+            order: 0,
+            config: {
+              options: [
+                { value: 'Operational', label: 'Operational' },
+                { value: 'Dormant', label: 'Dormant' },
+              ],
+            },
+          },
+          {
+            id: DORMANT_DURATION_FIELD_ID,
+            formId: form.id,
+            type: SurveyFieldType.MULTIPLE_CHOICE,
+            label: 'How long has the site been dormant?',
+            required: true,
+            order: 1,
+            config: {
+              visibleWhen: {
+                fieldId: SITE_STATUS_FIELD_ID,
+                equals: 'Dormant',
+              },
+              options: [
+                {
+                  value: 'More than 7 days',
+                  label: 'More than 7 days',
+                  endsForm: true,
+                },
+                { value: 'Less than 7 days', label: 'Less than 7 days' },
+              ],
+            },
+          },
+        ],
+      }),
+    ]);
+  }
+
+  const refreshed = await prisma.surveyForm.findUniqueOrThrow({
+    where: { id: form.id },
+    include: { fields: true, baselineFields: true },
+  });
+  const drafts = await prisma.surveyResponse.deleteMany({
+    where: { formId: form.id, status: SurveyResponseStatus.DRAFT },
+  });
+  await ensureInitialRevision(prisma, refreshed);
+  const pinned = await prisma.surveyForm.findUniqueOrThrow({
+    where: { id: form.id },
+    select: { currentRevisionId: true },
+  });
+  if (pinned.currentRevisionId) {
+    await prisma.surveyAssignment.updateMany({
+      where: { formId: form.id },
+      data: { formRevisionId: pinned.currentRevisionId },
+    });
+  }
+  console.log(
+    `C-ESMP site-status questions published on ${FORM_TITLE}` +
+      (drafts.count > 0 ? ` (${drafts.count} in-progress drafts cleared)` : ''),
+  );
+}
+
 export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
   const author = await prisma.user.findFirst({
     where: { role: 'SENIOR_MANAGER_ES' },
@@ -436,14 +589,7 @@ export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
   });
 
   if (existing?.status === SurveyStatus.PUBLISHED) {
-    if (existing.currentRevisionId) {
-      console.log(`C-ESMP form already published: ${FORM_TITLE}`);
-      return;
-    }
-    // Published but missing its revision snapshot (older seed) — repair it so
-    // the form can be assigned.
-    await ensureInitialRevision(prisma, existing);
-    console.log(`C-ESMP form revision backfilled: ${FORM_TITLE}`);
+    await ensureSiteStatusOnPublishedForm(prisma, existing);
     return;
   }
 

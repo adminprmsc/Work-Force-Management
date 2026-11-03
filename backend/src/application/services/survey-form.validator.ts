@@ -4,6 +4,7 @@ import {
   PRESENTATION_FIELD_TYPES,
   SurveyFieldConfig,
   SurveyFieldType,
+  SurveyFieldVisibleWhen,
 } from '../../domain/entities/survey.entity';
 import { isPackageFieldReference } from '../constants/package-field-references';
 import { SurveyFieldInput } from '../ports/survey-form.repository.port';
@@ -143,20 +144,27 @@ export class SurveyFormValidator {
       return Object.keys(sectionConfig).length > 0 ? sectionConfig : null;
     }
 
+    const questionRule = normalizeVisibleWhen(config.visibleWhen);
     delete config.visibleWhen;
     delete config.optional;
 
     if (field.type === SurveyFieldType.NUMBER) {
-      return this.normalizeNumberConfig(config, position, errors);
+      const numberConfig = this.normalizeNumberConfig(config, position, errors);
+      return this.attachQuestionRule(numberConfig, questionRule);
     }
 
     if (CHOICE_FIELD_TYPES.includes(field.type)) {
       const rawOptions = config.options ?? [];
       const cleaned = rawOptions
-        .map((option) => ({
-          value: (option?.value ?? '').toString().trim(),
-          label: (option?.label ?? option?.value ?? '').toString().trim(),
-        }))
+        .map((option) => {
+          const value = (option?.value ?? '').toString().trim();
+          const label = (option?.label ?? option?.value ?? '').toString().trim();
+          return {
+            value,
+            label,
+            ...(option?.endsForm === true ? { endsForm: true as const } : {}),
+          };
+        })
         .filter((option) => option.value.length > 0);
 
       const seen = new Set<string>();
@@ -193,7 +201,16 @@ export class SurveyFormValidator {
       }
     }
 
+    if (questionRule) config.visibleWhen = questionRule;
     return Object.keys(config).length > 0 ? config : null;
+  }
+
+  private attachQuestionRule(
+    config: SurveyFieldConfig | null,
+    rule: SurveyFieldVisibleWhen | null | undefined,
+  ): SurveyFieldConfig | null {
+    if (!rule) return config;
+    return { ...(config ?? {}), visibleWhen: rule };
   }
 
   private validateVisibleWhenRules(
@@ -213,16 +230,9 @@ export class SurveyFormValidator {
       if (!rule) continue;
 
       const position = index + 1;
-      if (field.type !== SurveyFieldType.SECTION_BREAK) {
-        errors.push(
-          `Field ${position}: visibleWhen is only allowed on section breaks.`,
-        );
-        continue;
-      }
-
       if (!field.id) {
         errors.push(
-          `Field ${position}: section with visibleWhen must include a stable field id.`,
+          `Field ${position}: a question that depends on another answer must include a stable field id.`,
         );
       }
 
@@ -236,7 +246,7 @@ export class SurveyFormValidator {
 
       if ((controller.order ?? 0) >= index) {
         errors.push(
-          `Field ${position}: visibleWhen must reference a question that appears before this section.`,
+          `Field ${position}: show-when must reference a question that appears before this one.`,
         );
       }
 

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label, Muted, Text } from '@/components/ui/text';
 import { layout } from '@/lib/layout';
-import { resolveVisibleFieldIds, sectionToggleKey } from '@/lib/survey-field-visibility';
+import { resolveVisibleFieldIds, sectionToggleKey, selectionEndsForm } from '@/lib/survey-field-visibility';
 import { colors, spacing } from '@/lib/theme';
 import type { SurveyField } from '@/modules/api/types';
 
@@ -163,10 +163,16 @@ export function SurveyFieldControl({
                 onPress={() => onChange(option.value)}
                 style={optionStyle(selected)}
               >
-                <Text>{option.label}</Text>
+                <Text>
+                  {option.label}
+                  {option.endsForm ? ' · Ends the form' : ''}
+                </Text>
               </Pressable>
             );
           })}
+          {selectionEndsForm(field, value) ? (
+            <Muted>This answer ends the form. Later questions are skipped.</Muted>
+          ) : null}
         </View>
       )}
 
@@ -187,10 +193,16 @@ export function SurveyFieldControl({
                 }}
                 style={optionStyle(checked)}
               >
-                <Text>{option.label}</Text>
+                <Text>
+                  {option.label}
+                  {option.endsForm ? ' · Ends the form' : ''}
+                </Text>
               </Pressable>
             );
           })}
+          {selectionEndsForm(field, value) ? (
+            <Muted>This answer ends the form. Later questions are skipped.</Muted>
+          ) : null}
         </View>
       )}
 

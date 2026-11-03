@@ -26,6 +26,8 @@ export type SurveyFieldType =
 export type SurveyFieldOption = {
   value: string;
   label: string;
+  /** Selecting this answer skips every question after this one. */
+  endsForm?: boolean;
 };
 
 export type SurveyFieldConfig = {

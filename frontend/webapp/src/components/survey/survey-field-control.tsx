@@ -7,7 +7,17 @@ import { Label } from "@/components/ui/label"
 import { SurveyAttachmentField } from "@/components/survey/survey-attachment-field"
 import { SurveyAttachmentDisplay } from "@/components/survey/survey-attachment-display"
 import type { SurveyAttachmentUploadContext } from "@/lib/survey-attachment"
+import { selectionEndsForm } from "@/lib/survey-field-visibility"
 import type { SurveyField } from "@/modules/api/survey-types"
+
+function EndsFormNote({ field, value }: { field: SurveyField; value: unknown }) {
+  if (!selectionEndsForm(field, value)) return null
+  return (
+    <p className="text-xs text-muted-foreground">
+      This answer ends the form. Later questions are skipped.
+    </p>
+  )
+}
 
 type SurveyFieldControlProps = {
   field: SurveyField
@@ -104,38 +114,47 @@ export function SurveyFieldControl({
 
     case "DROPDOWN":
       return (
-        <NativeSelect
-          className="w-full"
-          disabled={disabled}
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value || null)}
-        >
-          <NativeSelectOption value="">Select…</NativeSelectOption>
-          {options.map((option) => (
-            <NativeSelectOption key={option.value} value={option.value}>
-              {option.label}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+        <div className="space-y-2">
+          <NativeSelect
+            className="w-full"
+            disabled={disabled}
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(e.target.value || null)}
+          >
+            <NativeSelectOption value="">Select…</NativeSelectOption>
+            {options.map((option) => (
+              <NativeSelectOption key={option.value} value={option.value}>
+                {option.endsForm ? `${option.label} (ends the form)` : option.label}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <EndsFormNote field={field} value={value} />
+        </div>
       )
 
     case "MULTIPLE_CHOICE":
       return (
-        <RadioGroup
-          disabled={disabled}
-          value={(value as string) ?? ""}
-          onValueChange={(next) => onChange(next)}
-          className="gap-2"
-        >
-          {options.map((option) => (
-            <div key={option.value} className="flex items-center gap-2">
-              <RadioGroupItem value={option.value} id={`${field.id}-${option.value}`} />
-              <Label htmlFor={`${field.id}-${option.value}`} className="font-normal">
-                {option.label}
-              </Label>
-            </div>
-          ))}
-        </RadioGroup>
+        <div className="space-y-2">
+          <RadioGroup
+            disabled={disabled}
+            value={(value as string) ?? ""}
+            onValueChange={(next) => onChange(next)}
+            className="gap-2"
+          >
+            {options.map((option) => (
+              <div key={option.value} className="flex items-center gap-2">
+                <RadioGroupItem value={option.value} id={`${field.id}-${option.value}`} />
+                <Label htmlFor={`${field.id}-${option.value}`} className="font-normal">
+                  {option.label}
+                  {option.endsForm ? (
+                    <span className="ml-2 text-xs text-muted-foreground">Ends the form</span>
+                  ) : null}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+          <EndsFormNote field={field} value={value} />
+        </div>
       )
 
     case "CHECKBOXES": {
@@ -157,8 +176,12 @@ export function SurveyFieldControl({
                 onCheckedChange={() => toggle(option.value)}
               />
               {option.label}
+              {option.endsForm ? (
+                <span className="text-xs text-muted-foreground">Ends the form</span>
+              ) : null}
             </label>
           ))}
+          <EndsFormNote field={field} value={value} />
         </div>
       )
     }

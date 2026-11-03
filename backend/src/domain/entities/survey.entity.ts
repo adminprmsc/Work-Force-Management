@@ -72,6 +72,8 @@ export const CHOICE_FIELD_TYPES: SurveyFieldType[] = [
 export interface SurveyFieldOption {
   value: string;
   label: string;
+  /** Selecting this answer skips every question after this one. */
+  endsForm?: boolean;
 }
 
 /** References a value on the assignment's procurement package. */
@@ -90,7 +92,7 @@ export type PackageFieldReference =
 export type SurveyFieldBudgetEffect = 'DEDUCT' | 'ADD';
 
 /**
- * Show a SECTION_BREAK (and the fields that follow it until the next break)
+ * Show a question, or a section and the fields that follow it,
  * only when a prior choice field answers with one of the expected values.
  */
 export interface SurveyFieldVisibleWhen {
@@ -125,7 +127,7 @@ export interface SurveyFieldConfig {
   computedVisitDeductions?: boolean;
   /** SECTION_BREAK only: section is optional — user toggles Yes/No to fill it. */
   optional?: boolean;
-  /** SECTION_BREAK only: hide this section unless the controlling answer matches. */
+  /** Hide this question or section unless the controlling answer matches. */
   visibleWhen?: SurveyFieldVisibleWhen;
 }
 

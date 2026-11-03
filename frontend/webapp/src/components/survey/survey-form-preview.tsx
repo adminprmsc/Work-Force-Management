@@ -35,8 +35,9 @@ export function SurveyFormPreview({
   )
   const hasDynamicSections = fields.some(
     (field) =>
-      field.type === "SECTION_BREAK" &&
-      (field.config?.visibleWhen || field.config?.optional),
+      field.config?.visibleWhen ||
+      field.config?.optional ||
+      field.config?.options?.some((option) => option.endsForm),
   )
 
   return (
@@ -51,7 +52,7 @@ export function SurveyFormPreview({
           )}
           {hasDynamicSections ? (
             <DialogDescription>
-              Optional/conditional sections update as you interact below.
+              Answers can open more questions or end the form. The preview updates as you answer.
             </DialogDescription>
           ) : null}
         </DialogHeader>
