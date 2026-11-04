@@ -84,16 +84,30 @@ async function main() {
       existingSenior.username !== seniorUsername;
 
     if (needsUpdate) {
-      await prisma.user.update({
-        where: { id: existingSenior.id },
-        data: {
-          email: seniorEmail,
-          username: seniorUsername,
-        },
+      const emailTaken = await prisma.user.findFirst({
+        where: { email: seniorEmail, NOT: { id: existingSenior.id } },
+        select: { id: true },
       });
-      console.log(
-        `Senior Manager updated (${existingSenior.email} → ${seniorEmail})`,
-      );
+      const usernameTaken = await prisma.user.findFirst({
+        where: { username: seniorUsername, NOT: { id: existingSenior.id } },
+        select: { id: true },
+      });
+      if (emailTaken || usernameTaken) {
+        console.warn(
+          `Senior Manager left unchanged (${existingSenior.email}); seed identity is already used by another account`,
+        );
+      } else {
+        await prisma.user.update({
+          where: { id: existingSenior.id },
+          data: {
+            email: seniorEmail,
+            username: seniorUsername,
+          },
+        });
+        console.log(
+          `Senior Manager updated (${existingSenior.email} → ${seniorEmail})`,
+        );
+      }
     } else {
       console.log(`Senior Manager already exists: ${seniorEmail}`);
     }

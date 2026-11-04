@@ -59,6 +59,7 @@ function section(
 const SITE_STATUS_FIELD_ID = 'c5e5a100-7d01-4a11-9c01-000000000001';
 const DORMANT_DURATION_FIELD_ID = 'c5e5a100-7d01-4a11-9c01-000000000002';
 const SITE_STATUS_LABEL = 'What is the status of the construction site?';
+const ENVIRONMENTAL_SECTION_LABEL = 'ENVIRONMENTAL MONITORING';
 
 export function cesmpVillageMonitoringFields() {
   let order = 0;
@@ -183,7 +184,7 @@ export function cesmpVillageMonitoringFields() {
       next(),
     ),
 
-    section('ENVIRONMENTAL MONITORING', next()),
+    section('ENVIRONMENTAL MONITORING', next(), { optional: true }),
     {
       type: SurveyFieldType.TEXT,
       label: 'Conducted By',
@@ -574,6 +575,32 @@ async function ensureSiteStatusOnPublishedForm(
   );
 }
 
+async function ensureEnvironmentalMonitoringOptional(
+  prisma: PrismaClient,
+  formId: string,
+): Promise<boolean> {
+  const field = await prisma.surveyField.findFirst({
+    where: {
+      formId,
+      type: SurveyFieldType.SECTION_BREAK,
+      label: ENVIRONMENTAL_SECTION_LABEL,
+    },
+  });
+  if (!field) return false;
+  const config =
+    field.config &&
+    typeof field.config === 'object' &&
+    !Array.isArray(field.config)
+      ? (field.config as Record<string, unknown>)
+      : {};
+  if (config.optional === true) return false;
+  await prisma.surveyField.update({
+    where: { id: field.id },
+    data: { config: { ...config, optional: true } },
+  });
+  return true;
+}
+
 export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
   const author = await prisma.user.findFirst({
     where: { role: 'SENIOR_MANAGER_ES' },
@@ -598,7 +625,31 @@ export async function seedCesmpVillageMonitoringForm(prisma: PrismaClient) {
     (existing.status === SurveyStatus.PUBLISHED ||
       existing.status === SurveyStatus.ARCHIVED)
   ) {
+    const sectionMadeOptional = await ensureEnvironmentalMonitoringOptional(
+      prisma,
+      existing.id,
+    );
     await ensureSiteStatusOnPublishedForm(prisma, existing);
+    if (sectionMadeOptional) {
+      const refreshed = await prisma.surveyForm.findUniqueOrThrow({
+        where: { id: existing.id },
+        include: { fields: true, baselineFields: true },
+      });
+      await ensureInitialRevision(prisma, refreshed);
+      const pinned = await prisma.surveyForm.findUniqueOrThrow({
+        where: { id: existing.id },
+        select: { currentRevisionId: true },
+      });
+      if (pinned.currentRevisionId) {
+        await prisma.surveyAssignment.updateMany({
+          where: { formId: existing.id },
+          data: { formRevisionId: pinned.currentRevisionId },
+        });
+      }
+      console.log(
+        `C-ESMP environmental monitoring skip published on ${existing.title}`,
+      );
+    }
     if (existing.status === SurveyStatus.ARCHIVED) {
       await prisma.surveyForm.update({
         where: { id: existing.id },
