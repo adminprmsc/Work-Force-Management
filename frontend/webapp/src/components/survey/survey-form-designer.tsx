@@ -369,6 +369,50 @@ function BranchingGuide() {
   )
 }
 
+function SectionSkipGuide() {
+  return (
+    <Collapsible defaultOpen className="rounded-xl border bg-muted/20">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium">
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+        How to let someone skip a section
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-3 px-4 pb-4 text-sm text-muted-foreground">
+        <ol className="list-decimal space-y-1.5 pl-4">
+          <li>
+            In the field tools, add <span className="text-foreground">Section Break</span> and
+            give it a title, such as TRAININGS CONDUCTED.
+          </li>
+          <li>
+            Add the questions for that section directly under the title. They stay in this
+            section until the next Section Break.
+          </li>
+          <li>
+            Open <span className="text-foreground">Section behavior</span> on that title.
+          </li>
+          <li>
+            Choose <span className="text-foreground">Optional — user selects Yes/No to fill</span>.
+            Yes shows the questions. No hides them, and they are not required.
+          </li>
+          <li>
+            Choose <span className="text-foreground">Conditional — depends on another question</span>{" "}
+            when the whole section should appear only for one earlier answer. Put a Multiple
+            Choice or Dropdown above the section, then pick that question and the answer.
+          </li>
+        </ol>
+        <div className="rounded-lg border bg-background px-3 py-2.5">
+          <p className="font-medium text-foreground">Example</p>
+          <p className="mt-1">Section: TRAININGS CONDUCTED</p>
+          <ul className="mt-1.5 space-y-1 pl-4">
+            <li>Section behavior — Optional — user selects Yes/No to fill.</li>
+            <li>Questions under it: who was trained, and how many people attended.</li>
+            <li>Yes keeps those questions. No skips the section.</li>
+          </ul>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 type SurveyFormDesignerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -716,7 +760,12 @@ export function SurveyFormDesigner({
               </p>
             ) : null}
 
-            {!fieldsLocked ? <BranchingGuide /> : null}
+            {!fieldsLocked ? (
+              <div className="space-y-3">
+                <SectionSkipGuide />
+                <BranchingGuide />
+              </div>
+            ) : null}
 
             {fields.length === 0 && !fieldsLocked ? (
               <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
